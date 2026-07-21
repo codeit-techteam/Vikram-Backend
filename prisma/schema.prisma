@@ -243,6 +243,17 @@ enum AuditAction {
   LOGOUT
 }
 
+enum SettlementType {
+  HUB
+  VENDOR
+}
+
+enum SettlementStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 enum HubRole {
   HUB_MANAGER
   HUB_OPERATOR
@@ -860,6 +871,7 @@ model Hub {
   notifications     HubNotification[]
   transfersFrom     InventoryTransfer[] @relation("TransferFromHub")
   transfersTo       InventoryTransfer[] @relation("TransferToHub")
+  settlementBatches SettlementBatch[]
 
   @@index([isActive, status])
   @@index([pincode])
@@ -1397,6 +1409,8 @@ model AdminUser {
   supportTicketMessages     SupportTicketMessage[]
   supportTicketNotes        SupportTicketNote[]
   supportTicketHistory      SupportTicketHistory[]
+  generatedSettlements      SettlementBatch[]       @relation("SettlementGeneratedBy")
+  approvedSettlements       SettlementBatch[]       @relation("SettlementApprovedBy")
 
   @@index([email])
   @@index([role, isActive])
@@ -1678,4 +1692,43 @@ model EmergencyOrder {
   @@index([customerId, status, createdAt(sort: Desc)])
   @@index([status, priorityLevel])
   @@map("emergency_orders")
+}
+
+// ─── Finance Settlements ─────────────────────────────────────────────────────
+
+model SettlementBatch {
+  id               String           @id @default(uuid()) @db.Uuid
+  settlementNumber String           @unique @map("settlement_number") @db.VarChar(40)
+  type             SettlementType
+  hubId            String?          @map("hub_id") @db.Uuid
+  vendorKey        String?          @map("vendor_key") @db.VarChar(120)
+  periodStart      DateTime         @map("period_start")
+  periodEnd        DateTime         @map("period_end")
+  orderCount       Int              @default(0) @map("order_count")
+  grossAmount      Decimal          @map("gross_amount") @db.Decimal(12, 2)
+  commissionRate   Decimal          @default(0) @map("commission_rate") @db.Decimal(5, 2)
+  commissionAmount Decimal          @default(0) @map("commission_amount") @db.Decimal(12, 2)
+  netAmount        Decimal          @map("net_amount") @db.Decimal(12, 2)
+  status           SettlementStatus @default(PENDING)
+  orderIds         Json             @default("[]") @map("order_ids") @db.JsonB
+  breakdown        Json?            @db.JsonB
+  notes            String?          @db.Text
+  generatedById    String?          @map("generated_by_id") @db.Uuid
+  approvedById     String?          @map("approved_by_id") @db.Uuid
+  approvedAt       DateTime?        @map("approved_at")
+  rejectedAt       DateTime?        @map("rejected_at")
+  rejectReason     String?          @map("reject_reason") @db.VarChar(500)
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+
+  hub         Hub?       @relation(fields: [hubId], references: [id], onDelete: SetNull)
+  generatedBy AdminUser? @relation("SettlementGeneratedBy", fields: [generatedById], references: [id], onDelete: SetNull)
+  approvedBy  AdminUser? @relation("SettlementApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+
+  @@index([type, status])
+  @@index([hubId, status])
+  @@index([vendorKey, status])
+  @@index([periodStart, periodEnd])
+  @@index([createdAt(sort: Desc)])
+  @@map("settlement_batches")
 }

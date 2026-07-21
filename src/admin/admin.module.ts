@@ -105,6 +105,10 @@ import { AdminSearchService } from './search/admin-search.service';
 import { AdminReportsController } from './reports/admin-reports.controller';
 import { AdminReportsService } from './reports/admin-reports.service';
 
+// Finance
+import { AdminFinanceController } from './finance/admin-finance.controller';
+import { AdminFinanceService } from './finance/admin-finance.service';
+
 // Support
 import { AdminSupportController } from './support/admin-support.controller';
 import { AdminSupportService } from './support/admin-support.service';
@@ -153,6 +157,7 @@ import { HubModule } from '../hub/hub.module';
     AdminCmsController,
     AdminSearchController,
     AdminReportsController,
+    AdminFinanceController,
     AdminSupportController,
   ],
   providers: [
@@ -184,6 +189,7 @@ import { HubModule } from '../hub/hub.module';
     AdminCmsService,
     AdminSearchService,
     AdminReportsService,
+    AdminFinanceService,
     AdminSupportService,
   ],
   exports: [AuditService],
