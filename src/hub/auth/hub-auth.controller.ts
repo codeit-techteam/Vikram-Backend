@@ -20,24 +20,26 @@ import {
   HubLoginDto,
   HubRefreshTokenDto,
   HubLogoutDto,
+  HubForgotPasswordDto,
   HubLoginResponseDto,
   HubTokenResponseDto,
-  HubMeDto,
+  HubManagerProfileDto,
 } from './dto/hub-auth.dto';
 import { HubJwtAuthGuard } from '../guards/hub-jwt-auth.guard';
 import { CurrentHubUser } from '../decorators/current-hub-user.decorator';
 import type { AuthenticatedHubUser } from './hub-jwt.strategy';
 
 @ApiTags(SWAGGER_TAGS.HUB_AUTH)
-@Controller({ version: '1', path: 'hub' })
+@Controller({ version: '1', path: 'hub/auth' })
 export class HubAuthController {
   constructor(private readonly hubAuthService: HubAuthService) {}
 
   @Public()
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Hub staff login with employee ID and password' })
+  @ApiOperation({ summary: 'Hub manager login with employee ID and password' })
   @ApiResponse({ status: 200, type: HubLoginResponseDto })
+  @ApiResponse({ status: 403, description: 'Account disabled' })
   async login(
     @Body() dto: HubLoginDto,
   ): Promise<{ success: boolean; message: string; data: HubLoginResponseDto }> {
@@ -57,6 +59,21 @@ export class HubAuthController {
     return { success: true, message: 'Token refreshed successfully', data };
   }
 
+  @Public()
+  @Post('forgot-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Request password reset (admin will process)' })
+  async forgotPassword(
+    @Body() dto: HubForgotPasswordDto,
+  ): Promise<{ success: boolean; message: string; data: { requested: boolean } }> {
+    const data = await this.hubAuthService.requestPasswordReset(dto.employeeId);
+    return {
+      success: true,
+      message: 'Password reset request sent to administrator',
+      data,
+    };
+  }
+
   @Post('logout')
   @HttpCode(HttpStatus.OK)
   @UseGuards(HubJwtAuthGuard)
@@ -73,11 +90,11 @@ export class HubAuthController {
   @Get('me')
   @UseGuards(HubJwtAuthGuard)
   @ApiBearerAuth(SWAGGER_BEARER_AUTH)
-  @ApiOperation({ summary: 'Get current hub user profile' })
-  @ApiResponse({ status: 200, type: HubMeDto })
+  @ApiOperation({ summary: 'Get current hub manager profile' })
+  @ApiResponse({ status: 200, type: HubManagerProfileDto })
   async me(
     @CurrentHubUser() user: AuthenticatedHubUser,
-  ): Promise<{ success: boolean; message: string; data: HubMeDto }> {
+  ): Promise<{ success: boolean; message: string; data: HubManagerProfileDto }> {
     const data = await this.hubAuthService.getMe(user.id);
     return { success: true, message: 'Hub profile fetched', data };
   }

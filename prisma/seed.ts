@@ -641,10 +641,10 @@ async function main() {
     }),
     prisma.hub.upsert({
       where: { code: 'HUB-DEL-01' },
-      update: {},
+      update: { name: 'Noida North' },
       create: {
         code: 'HUB-DEL-01',
-        name: 'Bajriwala Delhi NCR Hub',
+        name: 'Noida North',
         addressLine1: 'Sector 63, Industrial Area',
         city: 'Noida',
         state: 'Uttar Pradesh',
@@ -685,11 +685,20 @@ async function main() {
   // ─── Hub Panel Users, Drivers & Vehicles ────────────────────────────────────
 
   const hubPasswordHash = await bcrypt.hash('123456', 10);
+  const noidaHub = hubs.find((h) => h.code === 'HUB-DEL-01') ?? hubs[2];
   const mumbaiHub = hubs[0];
 
   const hubManager = await prisma.hubUser.upsert({
     where: { employeeId: 'hubmanager01' },
-    update: {},
+    update: {
+      passwordHash: hubPasswordHash,
+      fullName: 'Amit Sharma',
+      email: 'amit.sharma@hubops.com',
+      phone: '9876500001',
+      role: 'HUB_MANAGER',
+      hubId: noidaHub.id,
+      isActive: true,
+    },
     create: {
       employeeId: 'hubmanager01',
       email: 'amit.sharma@hubops.com',
@@ -697,7 +706,7 @@ async function main() {
       fullName: 'Amit Sharma',
       phone: '9876500001',
       role: 'HUB_MANAGER',
-      hubId: mumbaiHub.id,
+      hubId: noidaHub.id,
     },
   });
 

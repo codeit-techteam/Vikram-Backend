@@ -32,6 +32,13 @@ export class HubLogoutDto {
   refreshToken!: string;
 }
 
+export class HubForgotPasswordDto {
+  @ApiProperty({ example: 'hubmanager01' })
+  @IsString()
+  @IsNotEmpty()
+  employeeId!: string;
+}
+
 export class HubTokenResponseDto {
   @ApiProperty()
   accessToken!: string;
@@ -43,23 +50,29 @@ export class HubTokenResponseDto {
   expiresIn!: string;
 }
 
-export class HubMeDto {
+export class HubManagerProfileDto {
   @ApiProperty()
   id!: string;
 
   @ApiProperty()
   employeeId!: string;
 
-  @ApiPropertyOptional()
-  email?: string | null;
+  @ApiProperty()
+  name!: string;
 
   @ApiProperty()
   fullName!: string;
 
   @ApiPropertyOptional()
+  email?: string | null;
+
+  @ApiPropertyOptional()
+  mobile?: string | null;
+
+  @ApiPropertyOptional()
   phone?: string | null;
 
-  @ApiProperty()
+  @ApiProperty({ example: 'HUB_MANAGER' })
   role!: string;
 
   @ApiProperty()
@@ -72,7 +85,14 @@ export class HubMeDto {
   lastLoginAt?: Date | null;
 }
 
+/** @deprecated Use HubManagerProfileDto */
+export class HubMeDto extends HubManagerProfileDto {}
+
 export class HubLoginResponseDto extends HubTokenResponseDto {
-  @ApiProperty({ type: HubMeDto })
-  user!: HubMeDto;
+  @ApiProperty({ type: HubManagerProfileDto })
+  manager!: HubManagerProfileDto;
+
+  /** @deprecated Use manager */
+  @ApiProperty({ type: HubManagerProfileDto })
+  user!: HubManagerProfileDto;
 }

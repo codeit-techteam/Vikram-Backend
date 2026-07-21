@@ -29,6 +29,10 @@ import { AdminCustomersService } from './customers/admin-customers.service';
 import { CustomerExecutiveController } from './customer-executive/customer-executive.controller';
 import { CustomerExecutiveService } from './customer-executive/customer-executive.service';
 
+// Hub Managers
+import { AdminHubManagersController } from './hub-managers/admin-hub-managers.controller';
+import { AdminHubManagersService } from './hub-managers/admin-hub-managers.service';
+
 // Membership
 import { AdminMembershipController } from './membership/admin-membership.controller';
 import { AdminMembershipService } from './membership/admin-membership.service';
@@ -116,6 +120,7 @@ import { NotificationModule } from '../modules/notification/notification.module'
     AdminDashboardController,
     AdminCustomersController,
     CustomerExecutiveController,
+    AdminHubManagersController,
     AdminMembershipController,
     AdminWalletController,
     AdminLoyaltyController,
@@ -143,6 +148,7 @@ import { NotificationModule } from '../modules/notification/notification.module'
     AdminDashboardService,
     AdminCustomersService,
     CustomerExecutiveService,
+    AdminHubManagersService,
     AdminMembershipService,
     AdminWalletService,
     AdminLoyaltyService,

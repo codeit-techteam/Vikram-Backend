@@ -15,6 +15,14 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
   }
 
   canActivate(context: ExecutionContext) {
+    const request = context.switchToHttp().getRequest<{ url?: string; path?: string }>();
+    const url = request.url ?? request.path ?? '';
+
+    // Hub and admin panels use their own JWT strategies/guards
+    if (url.includes('/hub/') || url.includes('/admin/')) {
+      return true;
+    }
+
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
       context.getHandler(),
       context.getClass(),

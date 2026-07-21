@@ -1,7 +1,8 @@
 import {
+  ForbiddenException,
   Injectable,
-  UnauthorizedException,
   NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
@@ -10,7 +11,7 @@ import { createHash, randomBytes } from 'crypto';
 import { PrismaService } from '../../common/database/prisma.service';
 import type {
   HubLoginResponseDto,
-  HubMeDto,
+  HubManagerProfileDto,
   HubTokenResponseDto,
 } from './dto/hub-auth.dto';
 import { HUB_ACCESS_ROLES } from '../constants/hub.constants';
@@ -24,17 +25,26 @@ export class HubAuthService {
   ) {}
 
   async login(employeeId: string, password: string): Promise<HubLoginResponseDto> {
+    const normalizedId = employeeId.trim().toLowerCase();
     const user = await this.prisma.hubUser.findFirst({
-      where: {
-        employeeId: employeeId.trim().toLowerCase(),
-        deletedAt: null,
-        isActive: true,
-      },
+      where: { employeeId: normalizedId, deletedAt: null },
       include: { hub: { select: { id: true, name: true, isActive: true } } },
     });
 
-    if (!user || !user.hub.isActive) {
+    if (!user) {
       throw new UnauthorizedException('Invalid employee ID or password');
+    }
+
+    if (!user.isActive) {
+      throw new ForbiddenException(
+        'Your account has been disabled. Contact Administrator.',
+      );
+    }
+
+    if (!user.hub.isActive) {
+      throw new ForbiddenException(
+        'Your assigned hub is inactive. Contact Administrator.',
+      );
     }
 
     if (!HUB_ACCESS_ROLES.includes(user.role as (typeof HUB_ACCESS_ROLES)[number])) {
@@ -51,6 +61,7 @@ export class HubAuthService {
       data: { lastLoginAt: new Date() },
     });
 
+    const manager = this.mapHubManager(user, user.hub.name);
     const tokens = await this.generateTokens(
       user.id,
       user.employeeId,
@@ -58,10 +69,7 @@ export class HubAuthService {
       user.hubId,
     );
 
-    return {
-      ...tokens,
-      user: this.mapHubMe(user, user.hub.name),
-    };
+    return { ...tokens, manager, user: manager };
   }
 
   async refresh(refreshToken: string): Promise<HubTokenResponseDto> {
@@ -108,17 +116,42 @@ export class HubAuthService {
     });
   }
 
-  async getMe(hubUserId: string): Promise<HubMeDto> {
+  async getMe(hubUserId: string): Promise<HubManagerProfileDto> {
     const user = await this.prisma.hubUser.findFirst({
-      where: { id: hubUserId, deletedAt: null },
-      include: { hub: { select: { name: true } } },
+      where: { id: hubUserId, deletedAt: null, isActive: true },
+      include: { hub: { select: { name: true, isActive: true } } },
     });
 
     if (!user) {
       throw new NotFoundException('Hub user not found');
     }
 
-    return this.mapHubMe(user, user.hub.name);
+    return this.mapHubManager(user, user.hub.name);
+  }
+
+  async requestPasswordReset(employeeId: string): Promise<{ requested: boolean }> {
+    const normalizedId = employeeId.trim().toLowerCase();
+    const user = await this.prisma.hubUser.findFirst({
+      where: { employeeId: normalizedId, deletedAt: null },
+      select: { id: true, fullName: true, employeeId: true },
+    });
+
+    if (user) {
+      await this.prisma.auditLog.create({
+        data: {
+          action: 'UPDATE',
+          resource: 'HubPasswordResetRequest',
+          resourceId: user.id,
+          newValue: {
+            employeeId: user.employeeId,
+            fullName: user.fullName,
+            message: 'Password reset requested from hub panel',
+          },
+        },
+      });
+    }
+
+    return { requested: true };
   }
 
   private async generateTokens(
@@ -155,7 +188,7 @@ export class HubAuthService {
     return { accessToken, refreshToken, expiresIn: accessExpiresIn };
   }
 
-  private mapHubMe(
+  private mapHubManager(
     user: {
       id: string;
       employeeId: string;
@@ -167,12 +200,14 @@ export class HubAuthService {
       lastLoginAt: Date | null;
     },
     hubName: string,
-  ): HubMeDto {
+  ): HubManagerProfileDto {
     return {
       id: user.id,
       employeeId: user.employeeId,
-      email: user.email,
+      name: user.fullName,
       fullName: user.fullName,
+      email: user.email,
+      mobile: user.phone,
       phone: user.phone,
       role: user.role,
       hubId: user.hubId,
