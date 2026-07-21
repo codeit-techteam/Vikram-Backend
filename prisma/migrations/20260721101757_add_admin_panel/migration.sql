@@ -1,12 +1,7 @@
-/*
-  Warnings:
+-- Admin panel: admin users, refresh tokens, audit logs
+-- Note: enum updates for bulk/emergency/wallet/loyalty live in later migrations
+-- (phase6 creates the tables; marketplace_extensions updates the enums).
 
-  - The values [PENDING,CLOSED] on the enum `BulkEnquiryStatus` will be removed. If these variants are still used in the database, this will fail.
-  - The values [PENDING,PROCESSING,FULFILLED,CANCELLED] on the enum `EmergencyOrderStatus` will be removed. If these variants are still used in the database, this will fail.
-  - The values [ADJUST] on the enum `LoyaltyTransactionType` will be removed. If these variants are still used in the database, this will fail.
-  - The values [COMPLETED] on the enum `WalletTransactionStatus` will be removed. If these variants are still used in the database, this will fail.
-
-*/
 -- CreateEnum
 CREATE TYPE "AdminRole" AS ENUM ('SUPER_ADMIN', 'OPERATIONS_MANAGER', 'FINANCE_MANAGER', 'WAREHOUSE_MANAGER', 'CONTENT_MANAGER', 'CUSTOMER_SUPPORT');
 
@@ -15,48 +10,6 @@ CREATE TYPE "AdminRefreshTokenType" AS ENUM ('ADMIN');
 
 -- CreateEnum
 CREATE TYPE "AuditAction" AS ENUM ('CREATE', 'UPDATE', 'DELETE', 'APPROVE', 'REJECT', 'CANCEL', 'PUBLISH', 'UNPUBLISH', 'CREDIT', 'DEBIT', 'REFUND', 'ASSIGN', 'LOGIN', 'LOGOUT');
-
--- AlterEnum
-BEGIN;
-CREATE TYPE "BulkEnquiryStatus_new" AS ENUM ('NEW', 'ASSIGNED', 'IN_PROGRESS', 'QUOTED', 'COMPLETED', 'CANCELLED');
-ALTER TABLE "public"."bulk_enquiries" ALTER COLUMN "status" DROP DEFAULT;
-ALTER TABLE "bulk_enquiries" ALTER COLUMN "status" TYPE "BulkEnquiryStatus_new" USING ("status"::text::"BulkEnquiryStatus_new");
-ALTER TYPE "BulkEnquiryStatus" RENAME TO "BulkEnquiryStatus_old";
-ALTER TYPE "BulkEnquiryStatus_new" RENAME TO "BulkEnquiryStatus";
-DROP TYPE "public"."BulkEnquiryStatus_old";
-ALTER TABLE "bulk_enquiries" ALTER COLUMN "status" SET DEFAULT 'NEW';
-COMMIT;
-
--- AlterEnum
-BEGIN;
-CREATE TYPE "EmergencyOrderStatus_new" AS ENUM ('NEW', 'APPROVED', 'REJECTED', 'ASSIGNED', 'COMPLETED');
-ALTER TABLE "public"."emergency_orders" ALTER COLUMN "status" DROP DEFAULT;
-ALTER TABLE "emergency_orders" ALTER COLUMN "status" TYPE "EmergencyOrderStatus_new" USING ("status"::text::"EmergencyOrderStatus_new");
-ALTER TYPE "EmergencyOrderStatus" RENAME TO "EmergencyOrderStatus_old";
-ALTER TYPE "EmergencyOrderStatus_new" RENAME TO "EmergencyOrderStatus";
-DROP TYPE "public"."EmergencyOrderStatus_old";
-ALTER TABLE "emergency_orders" ALTER COLUMN "status" SET DEFAULT 'NEW';
-COMMIT;
-
--- AlterEnum
-BEGIN;
-CREATE TYPE "LoyaltyTransactionType_new" AS ENUM ('EARN', 'REDEEM', 'EXPIRE', 'ADMIN');
-ALTER TABLE "loyalty_transactions" ALTER COLUMN "type" TYPE "LoyaltyTransactionType_new" USING ("type"::text::"LoyaltyTransactionType_new");
-ALTER TYPE "LoyaltyTransactionType" RENAME TO "LoyaltyTransactionType_old";
-ALTER TYPE "LoyaltyTransactionType_new" RENAME TO "LoyaltyTransactionType";
-DROP TYPE "public"."LoyaltyTransactionType_old";
-COMMIT;
-
--- AlterEnum
-BEGIN;
-CREATE TYPE "WalletTransactionStatus_new" AS ENUM ('SUCCESS', 'FAILED', 'PENDING');
-ALTER TABLE "public"."wallet_transactions" ALTER COLUMN "status" DROP DEFAULT;
-ALTER TABLE "wallet_transactions" ALTER COLUMN "status" TYPE "WalletTransactionStatus_new" USING ("status"::text::"WalletTransactionStatus_new");
-ALTER TYPE "WalletTransactionStatus" RENAME TO "WalletTransactionStatus_old";
-ALTER TYPE "WalletTransactionStatus_new" RENAME TO "WalletTransactionStatus";
-DROP TYPE "public"."WalletTransactionStatus_old";
-ALTER TABLE "wallet_transactions" ALTER COLUMN "status" SET DEFAULT 'SUCCESS';
-COMMIT;
 
 -- AlterTable
 ALTER TABLE "order_timelines" ALTER COLUMN "updated_at" DROP DEFAULT;

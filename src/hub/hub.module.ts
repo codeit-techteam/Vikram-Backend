@@ -128,5 +128,6 @@ import { HubSearchService } from './search/hub-search.service';
     HubReportsService,
     HubSearchService,
   ],
+  exports: [HubDashboardService, HubInventoryRepository],
 })
 export class HubModule {}

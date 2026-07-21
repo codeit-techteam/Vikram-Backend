@@ -96,9 +96,34 @@ enum SupportTicketReason {
 
 enum SupportTicketStatus {
   OPEN
+  ASSIGNED
   IN_PROGRESS
   RESOLVED
   CLOSED
+}
+
+enum SupportTicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum SupportTicketMessageSender {
+  CUSTOMER
+  ADMIN
+}
+
+enum SupportTicketHistoryAction {
+  CREATED
+  ASSIGNED
+  STATUS_CHANGED
+  PRIORITY_CHANGED
+  REPLIED
+  NOTE_ADDED
+  RESOLVED
+  CLOSED
+  REOPENED
 }
 
 enum AddressType {
@@ -611,7 +636,8 @@ model Customer {
   notifications      Notification[]
   orders             Order[]
   reviews            Review[]
-  supportTickets     SupportTicket[]
+  supportTickets         SupportTicket[]
+  supportTicketMessages  SupportTicketMessage[]
   searchHistory      SearchHistory[]
   activeMembership   CustomerMembership? @relation("ActiveMembership", fields: [membershipId], references: [id], onDelete: SetNull)
   walletByPointer    Wallet?             @relation("CustomerWalletPointer", fields: [walletId], references: [id], onDelete: SetNull)
@@ -814,6 +840,9 @@ model Hub {
   latitude     Decimal      @db.Decimal(10, 7)
   longitude    Decimal      @db.Decimal(10, 7)
   phone        String?      @db.VarChar(15)
+  email        String?      @db.VarChar(255)
+  capacity     Int?
+  workingHours String?      @map("working_hours") @db.VarChar(200)
   isActive     Boolean      @default(true) @map("is_active")
   status       EntityStatus @default(ACTIVE)
   deletedAt    DateTime?    @map("deleted_at")
@@ -1065,27 +1094,85 @@ model Review {
 }
 
 model SupportTicket {
-  id           String              @id @default(uuid()) @db.Uuid
-  ticketNumber String              @unique @map("ticket_number") @db.VarChar(30)
-  customerId   String              @map("customer_id") @db.Uuid
-  orderId      String?             @map("order_id") @db.Uuid
-  reason       SupportTicketReason
-  subject      String?             @db.VarChar(200)
-  description  String              @db.Text
-  status       SupportTicketStatus @default(OPEN)
-  resolvedAt   DateTime?           @map("resolved_at")
-  deletedAt    DateTime?           @map("deleted_at")
-  createdAt    DateTime            @default(now()) @map("created_at")
-  updatedAt    DateTime            @updatedAt @map("updated_at")
+  id                  String                @id @default(uuid()) @db.Uuid
+  ticketNumber        String                @unique @map("ticket_number") @db.VarChar(30)
+  customerId          String                @map("customer_id") @db.Uuid
+  orderId             String?               @map("order_id") @db.Uuid
+  assignedExecutiveId String?               @map("assigned_executive_id") @db.Uuid
+  reason              SupportTicketReason
+  subject             String?               @db.VarChar(200)
+  description         String                @db.Text
+  status              SupportTicketStatus   @default(OPEN)
+  priority            SupportTicketPriority @default(MEDIUM)
+  resolvedAt          DateTime?             @map("resolved_at")
+  closedAt            DateTime?             @map("closed_at")
+  deletedAt           DateTime?             @map("deleted_at")
+  createdAt           DateTime              @default(now()) @map("created_at")
+  updatedAt           DateTime              @updatedAt @map("updated_at")
 
-  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  order    Order?   @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  customer          Customer                 @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  order             Order?                   @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  assignedExecutive AdminUser?               @relation("AssignedSupportTickets", fields: [assignedExecutiveId], references: [id], onDelete: SetNull)
+  messages          SupportTicketMessage[]
+  notes             SupportTicketNote[]
+  history           SupportTicketHistory[]
 
   @@index([customerId, status, createdAt(sort: Desc)])
+  @@index([assignedExecutiveId, status])
+  @@index([status, priority, createdAt(sort: Desc)])
   @@index([orderId])
   @@index([ticketNumber])
   @@index([deletedAt])
   @@map("support_tickets")
+}
+
+model SupportTicketMessage {
+  id         String                     @id @default(uuid()) @db.Uuid
+  ticketId   String                     @map("ticket_id") @db.Uuid
+  senderType SupportTicketMessageSender @map("sender_type")
+  adminId    String?                    @map("admin_id") @db.Uuid
+  customerId String?                    @map("customer_id") @db.Uuid
+  body       String                     @db.Text
+  createdAt  DateTime                   @default(now()) @map("created_at")
+
+  ticket   SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  admin    AdminUser?    @relation(fields: [adminId], references: [id], onDelete: SetNull)
+  customer Customer?     @relation(fields: [customerId], references: [id], onDelete: SetNull)
+
+  @@index([ticketId, createdAt(sort: Asc)])
+  @@map("support_ticket_messages")
+}
+
+model SupportTicketNote {
+  id        String   @id @default(uuid()) @db.Uuid
+  ticketId  String   @map("ticket_id") @db.Uuid
+  adminId   String   @map("admin_id") @db.Uuid
+  body      String   @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+
+  ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  admin  AdminUser     @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId, createdAt(sort: Desc)])
+  @@map("support_ticket_notes")
+}
+
+model SupportTicketHistory {
+  id         String                     @id @default(uuid()) @db.Uuid
+  ticketId   String                     @map("ticket_id") @db.Uuid
+  action     SupportTicketHistoryAction
+  field      String?                    @db.VarChar(50)
+  oldValue   String?                    @map("old_value") @db.VarChar(500)
+  newValue   String?                    @map("new_value") @db.VarChar(500)
+  adminId    String?                    @map("admin_id") @db.Uuid
+  adminEmail String?                    @map("admin_email") @db.VarChar(200)
+  createdAt  DateTime                   @default(now()) @map("created_at")
+
+  ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  admin  AdminUser?    @relation(fields: [adminId], references: [id], onDelete: SetNull)
+
+  @@index([ticketId, createdAt(sort: Desc)])
+  @@map("support_ticket_history")
 }
 
 // ─── Search History & Popular Searches ───────────────────────────────────────
@@ -1296,6 +1383,7 @@ model AdminUser {
   email        String    @unique @db.VarChar(200)
   passwordHash String    @map("password_hash") @db.VarChar(255)
   fullName     String    @map("full_name") @db.VarChar(200)
+  phone        String?   @db.VarChar(20)
   role         AdminRole @default(CUSTOMER_EXECUTIVE)
   isActive     Boolean   @default(true) @map("is_active")
   lastLoginAt  DateTime? @map("last_login_at")
@@ -1303,8 +1391,12 @@ model AdminUser {
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
 
-  refreshTokens AdminRefreshToken[]
-  auditLogs     AuditLog[]
+  refreshTokens             AdminRefreshToken[]
+  auditLogs                 AuditLog[]
+  assignedSupportTickets    SupportTicket[]         @relation("AssignedSupportTickets")
+  supportTicketMessages     SupportTicketMessage[]
+  supportTicketNotes        SupportTicketNote[]
+  supportTicketHistory      SupportTicketHistory[]
 
   @@index([email])
   @@index([role, isActive])

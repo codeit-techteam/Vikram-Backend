@@ -1,5 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { NotificationType, Prisma } from '../../../generated/prisma/client';
+import {
+  NotificationType,
+  Prisma,
+  SupportTicketHistoryAction,
+  SupportTicketMessageSender,
+} from '../../../generated/prisma/client';
 import { PrismaService } from '../../common/database/prisma.service';
 import { CacheService } from '../../common/cache/cache.service';
 import { CACHE_KEYS, CACHE_TTL } from '../../common/cache/cache.constants';
@@ -44,6 +49,13 @@ export class SupportService {
         reason: dto.reason,
         subject: dto.subject,
         description: dto.description,
+        history: {
+          create: {
+            action: SupportTicketHistoryAction.CREATED,
+            field: 'status',
+            newValue: 'OPEN',
+          },
+        },
       },
       include: {
         order: { select: { orderNumber: true } },
@@ -111,6 +123,13 @@ export class SupportService {
       where: { id: ticketId, customerId, deletedAt: null },
       include: {
         order: { select: { orderNumber: true } },
+        assignedExecutive: { select: { id: true, fullName: true } },
+        messages: {
+          orderBy: { createdAt: 'asc' },
+          include: {
+            admin: { select: { fullName: true } },
+          },
+        },
       },
     });
 
@@ -145,10 +164,20 @@ export class SupportService {
     subject: string | null;
     description: string;
     status: SupportTicketResponseDto['status'];
+    priority: SupportTicketResponseDto['priority'];
     resolvedAt: Date | null;
+    closedAt: Date | null;
     createdAt: Date;
     updatedAt: Date;
     order?: { orderNumber: string } | null;
+    assignedExecutive?: { id: string; fullName: string } | null;
+    messages?: Array<{
+      id: string;
+      senderType: SupportTicketMessageSender;
+      body: string;
+      createdAt: Date;
+      admin?: { fullName: string } | null;
+    }>;
   }): SupportTicketResponseDto {
     return {
       id: ticket.id,
@@ -159,7 +188,17 @@ export class SupportService {
       subject: ticket.subject,
       description: ticket.description,
       status: ticket.status,
+      priority: ticket.priority,
       resolvedAt: ticket.resolvedAt?.toISOString() ?? null,
+      closedAt: ticket.closedAt?.toISOString() ?? null,
+      assignedExecutiveName: ticket.assignedExecutive?.fullName ?? null,
+      messages: (ticket.messages ?? []).map((message) => ({
+        id: message.id,
+        senderType: message.senderType,
+        body: message.body,
+        adminName: message.admin?.fullName ?? null,
+        createdAt: message.createdAt.toISOString(),
+      })),
       createdAt: ticket.createdAt.toISOString(),
       updatedAt: ticket.updatedAt.toISOString(),
     };

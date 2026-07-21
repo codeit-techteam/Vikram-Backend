@@ -11,6 +11,8 @@ import {
 import {
   SupportTicketReason,
   SupportTicketStatus,
+  SupportTicketPriority,
+  SupportTicketMessageSender,
 } from '../../../../generated/prisma/client';
 import { PaginationMetaDto } from '../../../common/dto/pagination.dto';
 
@@ -63,8 +65,38 @@ export class SupportTicketResponseDto {
   @ApiProperty({ enum: SupportTicketStatus })
   status!: SupportTicketStatus;
 
+  @ApiProperty({ enum: SupportTicketPriority })
+  priority!: SupportTicketPriority;
+
   @ApiPropertyOptional()
   resolvedAt?: string | null;
+
+  @ApiPropertyOptional()
+  closedAt?: string | null;
+
+  @ApiPropertyOptional()
+  assignedExecutiveName?: string | null;
+
+  @ApiPropertyOptional({
+    type: 'array',
+    items: {
+      type: 'object',
+      properties: {
+        id: { type: 'string' },
+        senderType: { enum: Object.values(SupportTicketMessageSender) },
+        body: { type: 'string' },
+        adminName: { type: 'string', nullable: true },
+        createdAt: { type: 'string' },
+      },
+    },
+  })
+  messages?: Array<{
+    id: string;
+    senderType: SupportTicketMessageSender;
+    body: string;
+    adminName?: string | null;
+    createdAt: string;
+  }>;
 
   @ApiProperty()
   createdAt!: string;

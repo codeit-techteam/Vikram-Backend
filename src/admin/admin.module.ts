@@ -33,6 +33,14 @@ import { CustomerExecutiveService } from './customer-executive/customer-executiv
 import { AdminHubManagersController } from './hub-managers/admin-hub-managers.controller';
 import { AdminHubManagersService } from './hub-managers/admin-hub-managers.service';
 
+// Admin Users
+import { AdminUsersController } from './users/admin-users.controller';
+import { AdminUsersService } from './users/admin-users.service';
+
+// Hubs
+import { AdminHubsController } from './hubs/admin-hubs.controller';
+import { AdminHubsService } from './hubs/admin-hubs.service';
+
 // Membership
 import { AdminMembershipController } from './membership/admin-membership.controller';
 import { AdminMembershipService } from './membership/admin-membership.service';
@@ -97,15 +105,21 @@ import { AdminSearchService } from './search/admin-search.service';
 import { AdminReportsController } from './reports/admin-reports.controller';
 import { AdminReportsService } from './reports/admin-reports.service';
 
+// Support
+import { AdminSupportController } from './support/admin-support.controller';
+import { AdminSupportService } from './support/admin-support.service';
+
 // Shared modules
 import { OrdersModule } from '../modules/orders/orders.module';
 import { NotificationModule } from '../modules/notification/notification.module';
+import { HubModule } from '../hub/hub.module';
 
 @Module({
   imports: [
     PassportModule,
     OrdersModule,
     NotificationModule,
+    HubModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -121,6 +135,8 @@ import { NotificationModule } from '../modules/notification/notification.module'
     AdminCustomersController,
     CustomerExecutiveController,
     AdminHubManagersController,
+    AdminUsersController,
+    AdminHubsController,
     AdminMembershipController,
     AdminWalletController,
     AdminLoyaltyController,
@@ -137,6 +153,7 @@ import { NotificationModule } from '../modules/notification/notification.module'
     AdminCmsController,
     AdminSearchController,
     AdminReportsController,
+    AdminSupportController,
   ],
   providers: [
     AdminJwtStrategy,
@@ -149,6 +166,8 @@ import { NotificationModule } from '../modules/notification/notification.module'
     AdminCustomersService,
     CustomerExecutiveService,
     AdminHubManagersService,
+    AdminUsersService,
+    AdminHubsService,
     AdminMembershipService,
     AdminWalletService,
     AdminLoyaltyService,
@@ -165,6 +184,7 @@ import { NotificationModule } from '../modules/notification/notification.module'
     AdminCmsService,
     AdminSearchService,
     AdminReportsService,
+    AdminSupportService,
   ],
   exports: [AuditService],
 })

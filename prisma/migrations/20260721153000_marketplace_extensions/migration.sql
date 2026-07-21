@@ -28,6 +28,46 @@ UPDATE "bulk_enquiries" SET "status" = 'COMPLETED' WHERE "status"::text = 'CLOSE
 UPDATE "emergency_orders" SET "status" = 'NEW' WHERE "status"::text = 'PENDING';
 UPDATE "emergency_orders" SET "status" = 'ASSIGNED' WHERE "status"::text = 'PROCESSING';
 UPDATE "emergency_orders" SET "status" = 'COMPLETED' WHERE "status"::text = 'FULFILLED';
+UPDATE "emergency_orders" SET "status" = 'REJECTED' WHERE "status"::text = 'CANCELLED';
+
+-- Replace enums to drop legacy values (moved from add_admin_panel — must run after phase6 tables exist)
+BEGIN;
+CREATE TYPE "BulkEnquiryStatus_new" AS ENUM ('NEW', 'ASSIGNED', 'IN_PROGRESS', 'QUOTED', 'COMPLETED', 'CANCELLED');
+ALTER TABLE "bulk_enquiries" ALTER COLUMN "status" DROP DEFAULT;
+ALTER TABLE "bulk_enquiries" ALTER COLUMN "status" TYPE "BulkEnquiryStatus_new" USING ("status"::text::"BulkEnquiryStatus_new");
+ALTER TYPE "BulkEnquiryStatus" RENAME TO "BulkEnquiryStatus_old";
+ALTER TYPE "BulkEnquiryStatus_new" RENAME TO "BulkEnquiryStatus";
+DROP TYPE "BulkEnquiryStatus_old";
+ALTER TABLE "bulk_enquiries" ALTER COLUMN "status" SET DEFAULT 'NEW';
+COMMIT;
+
+BEGIN;
+CREATE TYPE "EmergencyOrderStatus_new" AS ENUM ('NEW', 'APPROVED', 'REJECTED', 'ASSIGNED', 'COMPLETED');
+ALTER TABLE "emergency_orders" ALTER COLUMN "status" DROP DEFAULT;
+ALTER TABLE "emergency_orders" ALTER COLUMN "status" TYPE "EmergencyOrderStatus_new" USING ("status"::text::"EmergencyOrderStatus_new");
+ALTER TYPE "EmergencyOrderStatus" RENAME TO "EmergencyOrderStatus_old";
+ALTER TYPE "EmergencyOrderStatus_new" RENAME TO "EmergencyOrderStatus";
+DROP TYPE "EmergencyOrderStatus_old";
+ALTER TABLE "emergency_orders" ALTER COLUMN "status" SET DEFAULT 'NEW';
+COMMIT;
+
+BEGIN;
+CREATE TYPE "LoyaltyTransactionType_new" AS ENUM ('EARN', 'REDEEM', 'EXPIRE', 'ADMIN');
+ALTER TABLE "loyalty_transactions" ALTER COLUMN "type" TYPE "LoyaltyTransactionType_new" USING ("type"::text::"LoyaltyTransactionType_new");
+ALTER TYPE "LoyaltyTransactionType" RENAME TO "LoyaltyTransactionType_old";
+ALTER TYPE "LoyaltyTransactionType_new" RENAME TO "LoyaltyTransactionType";
+DROP TYPE "LoyaltyTransactionType_old";
+COMMIT;
+
+BEGIN;
+CREATE TYPE "WalletTransactionStatus_new" AS ENUM ('SUCCESS', 'FAILED', 'PENDING');
+ALTER TABLE "wallet_transactions" ALTER COLUMN "status" DROP DEFAULT;
+ALTER TABLE "wallet_transactions" ALTER COLUMN "status" TYPE "WalletTransactionStatus_new" USING ("status"::text::"WalletTransactionStatus_new");
+ALTER TYPE "WalletTransactionStatus" RENAME TO "WalletTransactionStatus_old";
+ALTER TYPE "WalletTransactionStatus_new" RENAME TO "WalletTransactionStatus";
+DROP TYPE "WalletTransactionStatus_old";
+ALTER TABLE "wallet_transactions" ALTER COLUMN "status" SET DEFAULT 'SUCCESS';
+COMMIT;
 
 -- ─── Customer pointer fields ────────────────────────────────────────────────
 

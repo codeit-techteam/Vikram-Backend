@@ -82,7 +82,16 @@ export class CustomerExecutiveService {
         where: { status: { in: ['NEW', 'IN_PROGRESS'] } },
       }),
       this.prisma.supportTicket.count({
-        where: { status: { in: ['OPEN', 'IN_PROGRESS'] }, deletedAt: null },
+        where: {
+          status: {
+            in: [
+              SupportTicketStatus.OPEN,
+              SupportTicketStatus.ASSIGNED,
+              SupportTicketStatus.IN_PROGRESS,
+            ],
+          },
+          deletedAt: null,
+        },
       }),
     ]);
 
