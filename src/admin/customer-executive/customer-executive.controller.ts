@@ -1,0 +1,293 @@
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiParam,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
+import { SWAGGER_BEARER_AUTH } from '../../common/constants/swagger.constants';
+import { ROLE_GROUPS } from '../constants/admin-rbac.constants';
+import { ApiAdminRoles } from '../decorators/api-admin-roles.decorator';
+import { AdminRoles } from '../decorators/admin-roles.decorator';
+import { CurrentAdmin } from '../decorators/current-admin.decorator';
+import type { AuthenticatedAdmin } from '../auth/admin-jwt.strategy';
+import { AdminJwtAuthGuard } from '../guards/admin-jwt-auth.guard';
+import { AdminRolesGuard } from '../guards/admin-roles.guard';
+import { CustomerExecutiveService } from './customer-executive.service';
+import {
+  CeBulkStatusDto,
+  CeCancelOrderDto,
+  CeCreateOrderDto,
+  CeCreateTicketDto,
+  CeCustomerSearchQueryDto,
+  CeEmergencyStatusDto,
+  CePaginationQueryDto,
+  CePaymentReminderDto,
+  CeRenewMembershipDto,
+  CeSendPaymentLinkDto,
+  CeUpdateCustomerNoteDto,
+  CeUpdateOrderAddressDto,
+  CeUpdateOrderPaymentDto,
+  CeUpdateTicketDto,
+} from './dto/customer-executive.dto';
+
+@ApiTags('Customer Executive')
+@Controller({ version: '1', path: 'admin/customer-executive' })
+@UseGuards(AdminJwtAuthGuard, AdminRolesGuard)
+@AdminRoles(...ROLE_GROUPS.CUSTOMER_EXECUTIVE)
+@ApiBearerAuth(SWAGGER_BEARER_AUTH)
+export class CustomerExecutiveController {
+  constructor(private readonly ceService: CustomerExecutiveService) {}
+
+  @Get('dashboard')
+  @ApiAdminRoles(...ROLE_GROUPS.CUSTOMER_EXECUTIVE)
+  @ApiOperation({ summary: 'Customer executive dashboard stats' })
+  @ApiResponse({ status: 200, description: 'Dashboard stats' })
+  async getDashboard() {
+    const data = await this.ceService.getDashboard();
+    return { success: true, message: 'Dashboard fetched', data };
+  }
+
+  @Get('customers')
+  @ApiOperation({ summary: 'List customers' })
+  async getCustomers(@Query() query: CeCustomerSearchQueryDto) {
+    const data = await this.ceService.findCustomers(query);
+    return { success: true, message: 'Customers fetched', data };
+  }
+
+  @Get('customers/search')
+  @ApiOperation({ summary: 'Search customers by mobile, name, company, or ID' })
+  async searchCustomers(@Query() query: CeCustomerSearchQueryDto) {
+    const data = await this.ceService.searchCustomers(query);
+    return { success: true, message: 'Search results', data };
+  }
+
+  @Get('customers/:id')
+  @ApiOperation({ summary: 'Get customer profile' })
+  @ApiParam({ name: 'id', description: 'Customer ID' })
+  async getCustomer(@Param('id') id: string) {
+    const data = await this.ceService.findCustomer(id);
+    return { success: true, message: 'Customer fetched', data };
+  }
+
+  @Patch('customers/:id/note')
+  @ApiOperation({ summary: 'Update customer internal note' })
+  async updateCustomerNote(
+    @Param('id') id: string,
+    @Body() dto: CeUpdateCustomerNoteDto,
+  ) {
+    const data = await this.ceService.updateCustomerNote(id, dto);
+    return { success: true, message: 'Customer note updated', data };
+  }
+
+  @Get('customers/:id/wallet')
+  @ApiOperation({ summary: 'Get customer wallet (read-only)' })
+  async getWallet(@Param('id') id: string) {
+    const data = await this.ceService.getCustomerWallet(id);
+    return { success: true, message: 'Wallet fetched', data };
+  }
+
+  @Get('customers/:id/wallet/history')
+  @ApiOperation({ summary: 'Get customer wallet history (read-only)' })
+  async getWalletHistory(
+    @Param('id') id: string,
+    @Query() query: CePaginationQueryDto,
+  ) {
+    const data = await this.ceService.getCustomerWalletHistory(id, query);
+    return { success: true, message: 'Wallet history fetched', data };
+  }
+
+  @Get('customers/:id/membership')
+  @ApiOperation({ summary: 'Get customer membership status' })
+  async getMembership(@Param('id') id: string) {
+    const data = await this.ceService.getCustomerMembership(id);
+    return { success: true, message: 'Membership fetched', data };
+  }
+
+  @Patch('customers/:id/membership/renew')
+  @ApiOperation({ summary: 'Renew customer membership' })
+  async renewMembership(
+    @Param('id') id: string,
+    @Body() dto: CeRenewMembershipDto,
+  ) {
+    const data = await this.ceService.renewCustomerMembership(id, dto);
+    return { success: true, message: 'Membership renewed', data };
+  }
+
+  @Get('customers/:id/loyalty')
+  @ApiOperation({ summary: 'Get customer loyalty status (read-only)' })
+  async getLoyalty(@Param('id') id: string) {
+    const data = await this.ceService.getCustomerLoyalty(id);
+    return { success: true, message: 'Loyalty fetched', data };
+  }
+
+  @Get('customers/:id/loyalty/history')
+  @ApiOperation({ summary: 'Get customer loyalty history (read-only)' })
+  async getLoyaltyHistory(
+    @Param('id') id: string,
+    @Query() query: CePaginationQueryDto,
+  ) {
+    const data = await this.ceService.getCustomerLoyaltyHistory(id, query);
+    return { success: true, message: 'Loyalty history fetched', data };
+  }
+
+  @Get('orders')
+  @ApiOperation({ summary: 'List orders' })
+  async getOrders(
+    @Query() query: CePaginationQueryDto & { customerId?: string },
+  ) {
+    const data = await this.ceService.findOrders(query);
+    return { success: true, message: 'Orders fetched', data };
+  }
+
+  @Get('orders/:id')
+  @ApiOperation({ summary: 'Get order details' })
+  async getOrder(@Param('id') id: string) {
+    const data = await this.ceService.findOrder(id);
+    return { success: true, message: 'Order fetched', data };
+  }
+
+  @Post('orders')
+  @ApiOperation({ summary: 'Create order on behalf of customer' })
+  async createOrder(
+    @Body() dto: CeCreateOrderDto,
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+  ) {
+    const data = await this.ceService.createOrder(dto, admin.id);
+    return { success: true, message: 'Order created', data };
+  }
+
+  @Patch('orders/:id/cancel')
+  @ApiOperation({ summary: 'Cancel pending order' })
+  async cancelOrder(
+    @Param('id') id: string,
+    @Body() dto: CeCancelOrderDto,
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+  ) {
+    const data = await this.ceService.cancelOrder(id, dto, admin.id);
+    return { success: true, message: 'Order cancelled', data };
+  }
+
+  @Patch('orders/:id/address')
+  @ApiOperation({ summary: 'Update order delivery address' })
+  async updateOrderAddress(
+    @Param('id') id: string,
+    @Body() dto: CeUpdateOrderAddressDto,
+  ) {
+    const data = await this.ceService.updateOrderAddress(id, dto);
+    return { success: true, message: 'Order address updated', data };
+  }
+
+  @Patch('orders/:id/payment')
+  @ApiOperation({ summary: 'Update order payment method' })
+  async updateOrderPayment(
+    @Param('id') id: string,
+    @Body() dto: CeUpdateOrderPaymentDto,
+  ) {
+    const data = await this.ceService.updateOrderPayment(id, dto);
+    return { success: true, message: 'Order payment updated', data };
+  }
+
+  @Get('orders/:id/tracking')
+  @ApiOperation({ summary: 'Track order shipment' })
+  async getOrderTracking(@Param('id') id: string) {
+    const data = await this.ceService.getOrderTracking(id);
+    return { success: true, message: 'Tracking fetched', data };
+  }
+
+  @Get('bulk')
+  @ApiOperation({ summary: 'List bulk procurement enquiries' })
+  async getBulk(@Query() query: CePaginationQueryDto) {
+    const data = await this.ceService.findBulkEnquiries(query);
+    return { success: true, message: 'Bulk enquiries fetched', data };
+  }
+
+  @Get('bulk/:id')
+  @ApiOperation({ summary: 'Get bulk enquiry details' })
+  async getBulkById(@Param('id') id: string) {
+    const data = await this.ceService.findBulkEnquiry(id);
+    return { success: true, message: 'Bulk enquiry fetched', data };
+  }
+
+  @Patch('bulk/:id/status')
+  @ApiOperation({ summary: 'Update bulk enquiry status' })
+  async updateBulkStatus(
+    @Param('id') id: string,
+    @Body() dto: CeBulkStatusDto,
+  ) {
+    const data = await this.ceService.updateBulkStatus(id, dto);
+    return { success: true, message: 'Bulk status updated', data };
+  }
+
+  @Get('emergency')
+  @ApiOperation({ summary: 'List emergency orders' })
+  async getEmergency(@Query() query: CePaginationQueryDto) {
+    const data = await this.ceService.findEmergencyOrders(query);
+    return { success: true, message: 'Emergency orders fetched', data };
+  }
+
+  @Get('emergency/:id')
+  @ApiOperation({ summary: 'Get emergency order details' })
+  async getEmergencyById(@Param('id') id: string) {
+    const data = await this.ceService.findEmergencyOrder(id);
+    return { success: true, message: 'Emergency order fetched', data };
+  }
+
+  @Patch('emergency/:id/status')
+  @ApiOperation({ summary: 'Update emergency order status' })
+  async updateEmergencyStatus(
+    @Param('id') id: string,
+    @Body() dto: CeEmergencyStatusDto,
+  ) {
+    const data = await this.ceService.updateEmergencyStatus(id, dto);
+    return { success: true, message: 'Emergency status updated', data };
+  }
+
+  @Post('payment/send-link')
+  @ApiOperation({ summary: 'Send payment link to customer' })
+  async sendPaymentLink(@Body() dto: CeSendPaymentLinkDto) {
+    const data = await this.ceService.sendPaymentLink(dto);
+    return { success: true, message: 'Payment link sent', data };
+  }
+
+  @Post('payment/reminder')
+  @ApiOperation({ summary: 'Send payment reminder to customer' })
+  async sendPaymentReminder(@Body() dto: CePaymentReminderDto) {
+    const data = await this.ceService.sendPaymentReminder(dto);
+    return { success: true, message: 'Payment reminder sent', data };
+  }
+
+  @Post('tickets')
+  @ApiOperation({ summary: 'Create support ticket' })
+  async createTicket(@Body() dto: CeCreateTicketDto) {
+    const data = await this.ceService.createTicket(dto);
+    return { success: true, message: 'Ticket created', data };
+  }
+
+  @Get('tickets')
+  @ApiOperation({ summary: 'List support tickets' })
+  async getTickets(@Query() query: CePaginationQueryDto) {
+    const data = await this.ceService.findTickets(query);
+    return { success: true, message: 'Tickets fetched', data };
+  }
+
+  @Patch('tickets/:id')
+  @ApiOperation({ summary: 'Update support ticket' })
+  async updateTicket(
+    @Param('id') id: string,
+    @Body() dto: CeUpdateTicketDto,
+  ) {
+    const data = await this.ceService.updateTicket(id, dto);
+    return { success: true, message: 'Ticket updated', data };
+  }
+}

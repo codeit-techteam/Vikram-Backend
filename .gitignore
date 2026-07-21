@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+coverage/
+*.tsbuildinfo
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment — never commit secrets
+.env
+.env.*
+!.env.example
+
+# Prisma generated client
+generated/
+
+# Local uploads (keep folder via .gitkeep)
+uploads/*
+!uploads/.gitkeep
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json

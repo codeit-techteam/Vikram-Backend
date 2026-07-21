@@ -1,0 +1,21 @@
+# Redis-only compose — use docker-compose.yml for the full stack (PostgreSQL + Redis)
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: bajriwala-redis
+    restart: unless-stopped
+    ports:
+      - '${REDIS_PORT:-6379}:6379'
+    volumes:
+      - redis_data:/data
+      - ./docker/redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    command: redis-server /usr/local/etc/redis/redis.conf
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  redis_data:

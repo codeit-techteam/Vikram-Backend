@@ -1,0 +1,61 @@
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  IsString, IsNumber, IsOptional, IsBoolean, IsInt, IsArray, IsEnum, Min,
+} from 'class-validator';
+import { Type } from 'class-transformer';
+
+export class CreateProductDto {
+  @ApiProperty() @IsString() name: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() nameHi?: string;
+  @ApiProperty() @IsString() slug: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() sku?: string;
+  @ApiProperty() @IsString() categoryId: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() brand?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() description?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() grade?: string;
+  @ApiProperty() @IsNumber() retailPrice: number;
+  @ApiPropertyOptional() @IsOptional() @IsNumber() bulkPrice?: number;
+  @ApiPropertyOptional() @IsOptional() @IsNumber() membershipPrice?: number;
+  @ApiPropertyOptional() @IsOptional() @IsInt() bulkThreshold?: number;
+  @ApiPropertyOptional() @IsOptional() @IsString() unit?: string;
+  @ApiPropertyOptional() @IsOptional() @IsInt() minOrder?: number;
+  @ApiPropertyOptional() @IsOptional() @IsInt() maxOrder?: number;
+  @ApiPropertyOptional() @IsOptional() @IsNumber() gst?: number;
+  @ApiPropertyOptional() @IsOptional() @IsBoolean() isFeatured?: boolean;
+  @ApiPropertyOptional() @IsOptional() @IsBoolean() isBestSelling?: boolean;
+  @ApiPropertyOptional() @IsOptional() @IsString() listingType?: string;
+  @ApiPropertyOptional() @IsOptional() @IsInt() displayOrder?: number;
+}
+
+export class UpdateProductDto {
+  @ApiPropertyOptional() @IsOptional() @IsString() name?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() categoryId?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() brand?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() description?: string;
+  @ApiPropertyOptional() @IsOptional() @IsNumber() retailPrice?: number;
+  @ApiPropertyOptional() @IsOptional() @IsNumber() bulkPrice?: number;
+  @ApiPropertyOptional() @IsOptional() @IsNumber() membershipPrice?: number;
+  @ApiPropertyOptional() @IsOptional() @IsBoolean() isFeatured?: boolean;
+  @ApiPropertyOptional() @IsOptional() @IsString() entityStatus?: string;
+  @ApiPropertyOptional() @IsOptional() @IsInt() displayOrder?: number;
+}
+
+export class UpdateStockDto {
+  @ApiProperty() @IsString() productId: string;
+  @ApiProperty() @IsString() status: string;
+}
+
+export class UpdateInventoryDto {
+  @ApiProperty() @IsString() hubId: string;
+  @ApiProperty() @IsInt() @Min(0) availableQty: number;
+  @ApiPropertyOptional() @IsOptional() @IsInt() @Min(0) reservedQty?: number;
+  @ApiPropertyOptional() @IsOptional() @IsInt() @Min(0) lowStockThreshold?: number;
+}
+
+export class ProductQueryDto {
+  @ApiPropertyOptional() @IsOptional() @IsString() search?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() categoryId?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() status?: string;
+  @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsInt() @Min(1) page?: number = 1;
+  @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsInt() @Min(1) limit?: number = 20;
+}
