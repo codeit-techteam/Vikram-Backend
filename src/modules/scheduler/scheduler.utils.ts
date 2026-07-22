@@ -33,19 +33,21 @@ export async function enqueueUniqueJob(
   options: JobsOptions,
   logger: Logger,
 ): Promise<void> {
-  const existing = await queue.getJob(jobId);
+  // BullMQ rejects custom IDs that contain `:`.
+  const safeJobId = jobId.replace(/:/g, '-');
+  const existing = await queue.getJob(safeJobId);
   if (existing) {
     const state = await existing.getState();
     if (state === 'waiting' || state === 'active' || state === 'delayed') {
       logger.debug(
-        `Skip enqueue ${jobName} (${jobId}) — already ${state}`,
+        `Skip enqueue ${jobName} (${safeJobId}) — already ${state}`,
       );
       return;
     }
   }
 
-  await queue.add(jobName, data, { ...options, jobId });
-  logger.log(`Enqueued ${jobName} → ${queue.name} (${jobId})`);
+  await queue.add(jobName, data, { ...options, jobId: safeJobId });
+  logger.log(`Enqueued ${jobName} → ${queue.name} (${safeJobId})`);
 }
 
 export function dayKey(date = new Date()): string {
@@ -56,7 +58,8 @@ export function dayKey(date = new Date()): string {
 }
 
 export function tenMinuteWindowKey(date = new Date()): string {
-  return `${dayKey(date)}T${String(date.getHours()).padStart(2, '0')}:${String(
+  // BullMQ custom job IDs cannot contain `:`.
+  return `${dayKey(date)}T${String(date.getHours()).padStart(2, '0')}${String(
     Math.floor(date.getMinutes() / 10) * 10,
   ).padStart(2, '0')}`;
 }

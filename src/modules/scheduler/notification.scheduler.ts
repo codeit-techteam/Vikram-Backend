@@ -42,13 +42,21 @@ export class NotificationScheduler implements OnModuleInit {
   }
 
   async enqueue(): Promise<void> {
-    await enqueueUniqueJob(
-      this.queue,
-      SCHEDULER_JOB_NAMES.DISPATCH_SCHEDULED_NOTIFICATIONS,
-      `notification-scheduler-${tenMinuteWindowKey()}`,
-      { triggeredAt: new Date().toISOString() },
-      buildSchedulerJobOptions(this.configService),
-      this.logger,
-    );
+    try {
+      await enqueueUniqueJob(
+        this.queue,
+        SCHEDULER_JOB_NAMES.DISPATCH_SCHEDULED_NOTIFICATIONS,
+        `notification-scheduler-${tenMinuteWindowKey()}`,
+        { triggeredAt: new Date().toISOString() },
+        buildSchedulerJobOptions(this.configService),
+        this.logger,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to enqueue notification scheduler job: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
   }
 }
