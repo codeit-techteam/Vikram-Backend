@@ -113,6 +113,14 @@ export class MembershipService {
       include: { plan: true },
     });
 
+    await this.prisma.customer.update({
+      where: { id: customerId },
+      data: {
+        isMember: true,
+        membershipId: membership.id,
+      },
+    });
+
     await this.cache.del(CACHE_KEYS.MEMBERSHIP(customerId));
     return this.mapMembership(membership);
   }
@@ -176,6 +184,14 @@ export class MembershipService {
       include: { plan: true },
     });
 
+    await this.prisma.customer.update({
+      where: { id: customerId },
+      data: {
+        isMember: true,
+        membershipId: membership.id,
+      },
+    });
+
     await this.cache.del(CACHE_KEYS.MEMBERSHIP(customerId));
     return this.mapMembership(membership);
   }
@@ -189,14 +205,27 @@ export class MembershipService {
   }
 
   private async expireStaleMemberships(customerId: string): Promise<void> {
-    await this.prisma.customerMembership.updateMany({
+    const stale = await this.prisma.customerMembership.findMany({
       where: {
         customerId,
         status: MembershipStatus.ACTIVE,
         expiryDate: { lte: new Date() },
       },
-      data: { status: MembershipStatus.EXPIRED },
+      select: { id: true },
     });
+
+    if (stale.length === 0) return;
+
+    await this.prisma.$transaction([
+      this.prisma.customerMembership.updateMany({
+        where: { id: { in: stale.map((m) => m.id) } },
+        data: { status: MembershipStatus.EXPIRED },
+      }),
+      this.prisma.customer.update({
+        where: { id: customerId },
+        data: { isMember: false, membershipId: null },
+      }),
+    ]);
   }
 
   private mapPlan(plan: {

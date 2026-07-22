@@ -32,6 +32,9 @@ enum NotificationType {
   ADMIN_ANNOUNCEMENT
   PAYMENT
   DELIVERY
+  MEMBERSHIP
+  LOYALTY
+  SYSTEM
 }
 
 enum BannerPlacement {
@@ -171,6 +174,39 @@ enum WalletTransactionStatus {
   SUCCESS
   FAILED
   PENDING
+}
+
+enum WalletCreditType {
+  PURCHASE
+  CASHBACK
+  PROMOTIONAL
+}
+
+enum WalletCreditStatus {
+  ACTIVE
+  EXPIRED
+  DEPLETED
+}
+
+enum ScheduledNotificationChannel {
+  PUSH
+  SMS
+  WHATSAPP
+  EMAIL
+  IN_APP
+}
+
+enum ScheduledNotificationStatus {
+  PENDING
+  SENT
+  FAILED
+  CANCELLED
+}
+
+enum SchedulerJobStatus {
+  RUNNING
+  SUCCESS
+  FAILED
 }
 
 enum LoyaltyTransactionType {
@@ -627,6 +663,7 @@ model Customer {
   walletId         String?        @unique @map("wallet_id") @db.Uuid
   loyaltyAccountId String?        @unique @map("loyalty_account_id") @db.Uuid
   isVerified       Boolean        @default(false) @map("is_verified")
+  isMember         Boolean        @default(false) @map("is_member")
   status           CustomerStatus @default(ACTIVE)
   roleSelected     Boolean        @default(false) @map("role_selected")
   profileCompleted Boolean        @default(false) @map("profile_completed")
@@ -645,6 +682,7 @@ model Customer {
   wishlist           Wishlist?
   cart               Cart?
   notifications      Notification[]
+  scheduledNotifications ScheduledNotification[]
   orders             Order[]
   reviews            Review[]
   supportTickets         SupportTicket[]
@@ -662,6 +700,7 @@ model Customer {
   @@index([phone])
   @@index([roleId])
   @@index([status])
+  @@index([isMember])
   @@index([membershipId])
   @@index([walletId])
   @@index([loyaltyAccountId])
@@ -1273,9 +1312,10 @@ model Wallet {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  customer    Customer            @relation("WalletCustomerOwner", fields: [customerId], references: [id], onDelete: Cascade)
-  pointedBy   Customer?           @relation("CustomerWalletPointer")
+  customer     Customer            @relation("WalletCustomerOwner", fields: [customerId], references: [id], onDelete: Cascade)
+  pointedBy    Customer?           @relation("CustomerWalletPointer")
   transactions WalletTransaction[]
+  creditLots   WalletCreditLot[]
 
   @@index([customerId])
   @@map("wallets")
@@ -1300,6 +1340,28 @@ model WalletTransaction {
   @@index([walletId, createdAt(sort: Desc)])
   @@index([referenceId, referenceType])
   @@map("wallet_transactions")
+}
+
+/// Expirable wallet credit lots. PURCHASE lots never expire (expiresAt = null).
+model WalletCreditLot {
+  id               String             @id @default(uuid()) @db.Uuid
+  walletId         String             @map("wallet_id") @db.Uuid
+  type             WalletCreditType
+  originalAmount   Decimal            @map("original_amount") @db.Decimal(12, 2)
+  remainingAmount  Decimal            @map("remaining_amount") @db.Decimal(12, 2)
+  expiresAt        DateTime?          @map("expires_at")
+  status           WalletCreditStatus @default(ACTIVE)
+  reason           String             @db.VarChar(300)
+  sourceTxId       String?            @map("source_tx_id") @db.VarChar(100)
+  createdAt        DateTime           @default(now()) @map("created_at")
+  updatedAt        DateTime           @updatedAt @map("updated_at")
+
+  wallet Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
+  @@index([walletId, status])
+  @@index([type, status, expiresAt])
+  @@index([expiresAt])
+  @@map("wallet_credit_lots")
 }
 
 // ─── Loyalty ─────────────────────────────────────────────────────────────────
@@ -1329,6 +1391,8 @@ model LoyaltyTransaction {
   type        LoyaltyTransactionType
   reason      String                 @db.VarChar(300)
   referenceId String?                @map("reference_id") @db.VarChar(100)
+  expiresAt   DateTime?              @map("expires_at")
+  remainingPoints Int?               @map("remaining_points")
   createdAt   DateTime               @default(now()) @map("created_at")
 
   account LoyaltyAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
@@ -1336,6 +1400,8 @@ model LoyaltyTransaction {
   @@index([accountId])
   @@index([createdAt])
   @@index([accountId, createdAt(sort: Desc)])
+  @@index([type, expiresAt])
+  @@index([expiresAt])
   @@map("loyalty_transactions")
 }
 
@@ -1731,4 +1797,78 @@ model SettlementBatch {
   @@index([periodStart, periodEnd])
   @@index([createdAt(sort: Desc)])
   @@map("settlement_batches")
+}
+
+// ─── Scheduler / Cron Jobs ───────────────────────────────────────────────────
+
+model DailyBusinessReport {
+  id                     String   @id @default(uuid()) @db.Uuid
+  date                   DateTime @unique @db.Date
+  orders                 Int      @default(0)
+  revenue                Decimal  @default(0) @db.Decimal(14, 2)
+  cancelledOrders        Int      @default(0) @map("cancelled_orders")
+  pendingOrders          Int      @default(0) @map("pending_orders")
+  deliveredOrders        Int      @default(0) @map("delivered_orders")
+  membershipPurchases    Int      @default(0) @map("membership_purchases")
+  membershipSalesAmount  Decimal  @default(0) @map("membership_sales_amount") @db.Decimal(14, 2)
+  walletRecharge         Decimal  @default(0) @map("wallet_recharge") @db.Decimal(14, 2)
+  walletUsage            Decimal  @default(0) @map("wallet_usage") @db.Decimal(14, 2)
+  walletTransactions     Int      @default(0) @map("wallet_transactions")
+  loyaltyEarned          Int      @default(0) @map("loyalty_earned")
+  loyaltyRedeemed        Int      @default(0) @map("loyalty_redeemed")
+  newCustomers           Int      @default(0) @map("new_customers")
+  bulkProcurementRequests Int     @default(0) @map("bulk_procurement_requests")
+  metrics                Json?    @db.JsonB
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
+
+  @@index([date(sort: Desc)])
+  @@map("daily_business_reports")
+}
+
+model ScheduledNotification {
+  id            String                        @id @default(uuid()) @db.Uuid
+  customerId    String?                       @map("customer_id") @db.Uuid
+  channel       ScheduledNotificationChannel  @default(IN_APP)
+  type          NotificationType              @default(SYSTEM)
+  title         String                        @db.VarChar(300)
+  body          String                        @db.Text
+  payload       Json?                         @db.JsonB
+  scheduledTime DateTime                      @map("scheduled_time")
+  status        ScheduledNotificationStatus   @default(PENDING)
+  sentAt        DateTime?                     @map("sent_at")
+  failureReason String?                       @map("failure_reason") @db.VarChar(500)
+  attempts      Int                           @default(0)
+  createdAt     DateTime                      @default(now()) @map("created_at")
+  updatedAt     DateTime                      @updatedAt @map("updated_at")
+
+  customer Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([status, scheduledTime])
+  @@index([customerId, status])
+  @@index([scheduledTime])
+  @@map("scheduled_notifications")
+}
+
+model SchedulerJobLog {
+  id             String             @id @default(uuid()) @db.Uuid
+  jobName        String             @map("job_name") @db.VarChar(100)
+  queueName      String             @map("queue_name") @db.VarChar(100)
+  bullJobId      String?            @map("bull_job_id") @db.VarChar(100)
+  startedAt      DateTime           @map("started_at")
+  finishedAt     DateTime?          @map("finished_at")
+  durationMs     Int?               @map("duration_ms")
+  processedCount Int                @default(0) @map("processed_count")
+  successCount   Int                @default(0) @map("success_count")
+  failedCount    Int                @default(0) @map("failed_count")
+  status         SchedulerJobStatus @default(RUNNING)
+  error          String?            @db.Text
+  metadata       Json?              @db.JsonB
+  createdAt      DateTime           @default(now()) @map("created_at")
+
+  @@index([jobName, startedAt(sort: Desc)])
+  @@index([queueName, startedAt(sort: Desc)])
+  @@index([status])
+  @@index([startedAt(sort: Desc)])
+  @@map("scheduler_job_logs")
 }

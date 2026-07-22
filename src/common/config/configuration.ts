@@ -55,4 +55,17 @@ export default () => ({
     ),
     hubSearchRadiusKm: parseInt(process.env.HUB_SEARCH_RADIUS_KM ?? '50', 10),
   },
+  scheduler: {
+    membershipCron: process.env.MEMBERSHIP_CRON ?? '0 30 0 * * *',
+    walletCron: process.env.WALLET_CRON ?? '0 0 2 * * 0',
+    loyaltyCron: process.env.LOYALTY_CRON ?? '0 0 1 * * *',
+    reportCron: process.env.REPORT_CRON ?? '0 50 23 * * *',
+    notificationCron: process.env.NOTIFICATION_CRON ?? '*/10 * * * *',
+    jobAttempts: parseInt(process.env.SCHEDULER_JOB_ATTEMPTS ?? '3', 10),
+    jobBackoffMs: parseInt(process.env.SCHEDULER_JOB_BACKOFF_MS ?? '5000', 10),
+    processorConcurrency: parseInt(
+      process.env.SCHEDULER_PROCESSOR_CONCURRENCY ?? '2',
+      10,
+    ),
+  },
 });

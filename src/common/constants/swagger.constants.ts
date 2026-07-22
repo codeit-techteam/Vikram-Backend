@@ -3,6 +3,7 @@ export const SWAGGER_BEARER_AUTH = 'access-token' as const;
 export const SWAGGER_TAGS = {
   ROOT: 'Root',
   HEALTH: 'Health',
+  SYSTEM: 'System',
   AUTH: 'Auth',
   USERS: 'Users',
   ROLES: 'Roles',

@@ -93,6 +93,38 @@ class EnvironmentVariables {
   @IsString()
   @IsOptional()
   OTP_DEV_BYPASS_CODE?: string;
+
+  @IsString()
+  @IsOptional()
+  MEMBERSHIP_CRON?: string;
+
+  @IsString()
+  @IsOptional()
+  WALLET_CRON?: string;
+
+  @IsString()
+  @IsOptional()
+  LOYALTY_CRON?: string;
+
+  @IsString()
+  @IsOptional()
+  REPORT_CRON?: string;
+
+  @IsString()
+  @IsOptional()
+  NOTIFICATION_CRON?: string;
+
+  @IsNumber()
+  @IsOptional()
+  SCHEDULER_JOB_ATTEMPTS?: number;
+
+  @IsNumber()
+  @IsOptional()
+  SCHEDULER_JOB_BACKOFF_MS?: number;
+
+  @IsNumber()
+  @IsOptional()
+  SCHEDULER_PROCESSOR_CONCURRENCY?: number;
 }
 
 export function validate(config: Record<string, unknown>) {

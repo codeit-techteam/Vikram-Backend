@@ -98,18 +98,32 @@ export class AdminMembershipService {
   }
 
   async approveMembership(id: string) {
-    await this.findCustomerMembership(id);
-    return this.prisma.customerMembership.update({
-      where: { id },
-      data: { paymentStatus: 'PAID' },
+    const membership = await this.findCustomerMembership(id);
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.customerMembership.update({
+        where: { id },
+        data: { paymentStatus: 'PAID', status: 'ACTIVE' },
+      });
+      await tx.customer.update({
+        where: { id: membership.customerId },
+        data: { isMember: true, membershipId: id },
+      });
+      return updated;
     });
   }
 
   async cancelMembership(id: string) {
-    await this.findCustomerMembership(id);
-    return this.prisma.customerMembership.update({
-      where: { id },
-      data: { status: 'CANCELLED' },
+    const membership = await this.findCustomerMembership(id);
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.customerMembership.update({
+        where: { id },
+        data: { status: 'CANCELLED' },
+      });
+      await tx.customer.update({
+        where: { id: membership.customerId },
+        data: { isMember: false, membershipId: null },
+      });
+      return updated;
     });
   }
 
@@ -118,14 +132,21 @@ export class AdminMembershipService {
     const newExpiry = new Date();
     newExpiry.setDate(newExpiry.getDate() + membership.plan.durationDays);
 
-    return this.prisma.customerMembership.update({
-      where: { id },
-      data: {
-        expiryDate: newExpiry,
-        status: 'ACTIVE',
-        renewalDate: new Date(),
-        paymentStatus: 'PAID',
-      },
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.customerMembership.update({
+        where: { id },
+        data: {
+          expiryDate: newExpiry,
+          status: 'ACTIVE',
+          renewalDate: new Date(),
+          paymentStatus: 'PAID',
+        },
+      });
+      await tx.customer.update({
+        where: { id: membership.customerId },
+        data: { isMember: true, membershipId: id },
+      });
+      return updated;
     });
   }
 }

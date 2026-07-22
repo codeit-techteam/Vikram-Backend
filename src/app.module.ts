@@ -37,6 +37,7 @@ import { TestimonialsModule } from './modules/testimonials/testimonials.module';
 import { EmergencyOrderModule } from './modules/emergency-order/emergency-order.module';
 import { AdminModule } from './admin/admin.module';
 import { HubModule } from './hub/hub.module';
+import { SchedulerModule } from './modules/scheduler/scheduler.module';
 
 @Module({
   imports: [
@@ -97,6 +98,7 @@ import { HubModule } from './hub/hub.module';
     EmergencyOrderModule,
     AdminModule,
     HubModule,
+    SchedulerModule,
   ],
   controllers: [AppController],
   providers: [AppService],
