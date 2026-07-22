@@ -17,7 +17,6 @@ export class AdminDashboardService {
       todayOrders,
       revenue,
       membershipCount,
-      totalWalletBalance,
       loyaltyPointsIssued,
       bulkProcurementRequests,
       emergencyOrders,
@@ -41,7 +40,6 @@ export class AdminDashboardService {
         _sum: { grandTotal: true },
       }),
       this.prisma.customerMembership.count({ where: { status: 'ACTIVE' } }),
-      this.prisma.wallet.aggregate({ _sum: { balance: true } }),
       this.prisma.loyaltyTransaction.aggregate({
         where: { type: 'EARN' },
         _sum: { points: true },
@@ -75,9 +73,6 @@ export class AdminDashboardService {
       },
       memberships: {
         active: membershipCount,
-      },
-      wallet: {
-        totalBalance: totalWalletBalance._sum.balance ?? 0,
       },
       loyalty: {
         totalPointsIssued: loyaltyPointsIssued._sum.points ?? 0,

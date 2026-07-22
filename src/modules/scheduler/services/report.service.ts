@@ -2,7 +2,6 @@ import { Injectable, Logger } from '@nestjs/common';
 import {
   LoyaltyTransactionType,
   OrderStatus,
-  WalletTransactionType,
 } from '../../../../generated/prisma/client';
 import { PrismaService } from '../../../common/database/prisma.service';
 import {
@@ -36,9 +35,6 @@ export class DailyReportService {
       deliveredOrders,
       membershipPurchases,
       membershipSales,
-      walletCredits,
-      walletDebits,
-      walletTxCount,
       loyaltyEarned,
       loyaltyRedeemed,
       newCustomers,
@@ -83,31 +79,6 @@ export class DailyReportService {
         where: { purchaseDate: { gte: from, lte: to } },
         include: { plan: { select: { price: true } } },
       }),
-      this.prisma.walletTransaction.aggregate({
-        where: {
-          type: {
-            in: [WalletTransactionType.CREDIT, WalletTransactionType.REFUND],
-          },
-          createdAt: { gte: from, lte: to },
-        },
-        _sum: { amount: true },
-      }),
-      this.prisma.walletTransaction.aggregate({
-        where: {
-          type: {
-            in: [
-              WalletTransactionType.DEBIT,
-              WalletTransactionType.ORDER_PAYMENT,
-              WalletTransactionType.MEMBERSHIP_PAYMENT,
-            ],
-          },
-          createdAt: { gte: from, lte: to },
-        },
-        _sum: { amount: true },
-      }),
-      this.prisma.walletTransaction.count({
-        where: { createdAt: { gte: from, lte: to } },
-      }),
       this.prisma.loyaltyTransaction.aggregate({
         where: {
           type: LoyaltyTransactionType.EARN,
@@ -143,9 +114,6 @@ export class DailyReportService {
       deliveredOrders,
       membershipPurchases,
       membershipSalesAmount,
-      walletRecharge: Number(walletCredits._sum.amount ?? 0),
-      walletUsage: Number(walletDebits._sum.amount ?? 0),
-      walletTransactions: walletTxCount,
       loyaltyEarned: loyaltyEarned._sum.points ?? 0,
       loyaltyRedeemed: loyaltyRedeemed._sum.points ?? 0,
       newCustomers,
@@ -163,9 +131,6 @@ export class DailyReportService {
         deliveredOrders: metrics.deliveredOrders,
         membershipPurchases: metrics.membershipPurchases,
         membershipSalesAmount: metrics.membershipSalesAmount,
-        walletRecharge: metrics.walletRecharge,
-        walletUsage: metrics.walletUsage,
-        walletTransactions: metrics.walletTransactions,
         loyaltyEarned: metrics.loyaltyEarned,
         loyaltyRedeemed: metrics.loyaltyRedeemed,
         newCustomers: metrics.newCustomers,
@@ -180,9 +145,6 @@ export class DailyReportService {
         deliveredOrders: metrics.deliveredOrders,
         membershipPurchases: metrics.membershipPurchases,
         membershipSalesAmount: metrics.membershipSalesAmount,
-        walletRecharge: metrics.walletRecharge,
-        walletUsage: metrics.walletUsage,
-        walletTransactions: metrics.walletTransactions,
         loyaltyEarned: metrics.loyaltyEarned,
         loyaltyRedeemed: metrics.loyaltyRedeemed,
         newCustomers: metrics.newCustomers,

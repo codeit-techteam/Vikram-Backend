@@ -40,7 +40,6 @@ export class AdminCustomersService {
         orderBy: { createdAt: 'desc' },
         include: {
           profile: true,
-          wallet: { select: { balance: true } },
           loyaltyAccount: { select: { availablePoints: true, tier: true } },
           memberships: {
             where: { status: 'ACTIVE' },
@@ -64,7 +63,6 @@ export class AdminCustomersService {
       include: {
         profile: true,
         addresses: { where: { deletedAt: null } },
-        wallet: { include: { transactions: { take: 10, orderBy: { createdAt: 'desc' } } } },
         loyaltyAccount: { include: { transactions: { take: 10, orderBy: { createdAt: 'desc' } } } },
         memberships: { include: { plan: true }, orderBy: { createdAt: 'desc' } },
         orders: { take: 10, orderBy: { createdAt: 'desc' } },

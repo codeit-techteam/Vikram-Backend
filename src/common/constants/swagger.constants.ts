@@ -38,7 +38,6 @@ export const SWAGGER_TAGS = {
   CART: 'Cart',
   CHECKOUT: 'Checkout',
   MEMBERSHIP: 'Membership',
-  WALLET: 'Wallet',
   LOYALTY: 'Loyalty',
   BULK: 'Bulk Procurement',
   TESTIMONIALS: 'Testimonials',
@@ -48,7 +47,6 @@ export const SWAGGER_TAGS = {
   ADMIN_DASHBOARD: 'Admin Dashboard',
   ADMIN_CUSTOMERS: 'Admin Customers',
   ADMIN_MEMBERSHIP: 'Admin Membership',
-  ADMIN_WALLET: 'Admin Wallet',
   ADMIN_LOYALTY: 'Admin Loyalty',
   ADMIN_PRODUCTS: 'Admin Products',
   ADMIN_CATEGORIES: 'Admin Categories',
@@ -64,6 +62,7 @@ export const SWAGGER_TAGS = {
   ADMIN_SEARCH: 'Admin Search',
   ADMIN_REPORTS: 'Admin Reports',
   ADMIN_AUDIT: 'Admin Audit Logs',
+  ADMIN_INVOICES: 'Admin Invoices',
   // Hub Panel
   HUB_AUTH: 'Hub Auth',
   HUB_DASHBOARD: 'Hub Dashboard',

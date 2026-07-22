@@ -250,9 +250,6 @@ export class OrderDetailResponseDto {
   isEmergency?: boolean;
 
   @ApiProperty()
-  walletAmountUsed!: number;
-
-  @ApiProperty()
   loyaltyPointsUsed!: number;
 
   @ApiProperty()

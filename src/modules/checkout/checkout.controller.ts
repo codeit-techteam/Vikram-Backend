@@ -57,7 +57,11 @@ export class CheckoutController {
     @CurrentUser() user: AuthenticatedCustomer,
     @Query() query: CheckoutQueryDto,
   ): Promise<{ success: boolean; message: string; data: CheckoutResponseDto }> {
-    const data = await this.checkoutService.getCheckout(user.id, query.addressId);
+    const data = await this.checkoutService.getCheckout(
+      user.id,
+      query.addressId,
+      query.loyaltyPointsToRedeem,
+    );
     return { success: true, message: 'Checkout summary prepared', data };
   }
 

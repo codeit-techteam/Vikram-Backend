@@ -18,7 +18,6 @@ import { AdminEmergencyService } from '../emergency/admin-emergency.service';
 import { AdminLoyaltyService } from '../loyalty/admin-loyalty.service';
 import { AdminMembershipService } from '../membership/admin-membership.service';
 import { AdminOrdersService } from '../orders/admin-orders.service';
-import { AdminWalletService } from '../wallet/admin-wallet.service';
 import type {
   CeBulkStatusDto,
   CeCancelOrderDto,
@@ -42,7 +41,6 @@ export class CustomerExecutiveService {
     private readonly prisma: PrismaService,
     private readonly customersService: AdminCustomersService,
     private readonly ordersService: AdminOrdersService,
-    private readonly walletService: AdminWalletService,
     private readonly membershipService: AdminMembershipService,
     private readonly loyaltyService: AdminLoyaltyService,
     private readonly bulkService: AdminBulkService,
@@ -138,18 +136,6 @@ export class CustomerExecutiveService {
 
     return this.prisma.customerProfile.create({
       data: { customerId: id, adminNotes: dto.note },
-    });
-  }
-
-  async getCustomerWallet(customerId: string) {
-    return this.walletService.findWalletByCustomer(customerId);
-  }
-
-  async getCustomerWalletHistory(customerId: string, query: CePaginationQueryDto) {
-    return this.walletService.getWalletHistory({
-      page: query.page,
-      limit: query.limit,
-      customerId,
     });
   }
 

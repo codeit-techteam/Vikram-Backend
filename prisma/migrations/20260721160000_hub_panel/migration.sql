@@ -218,6 +218,7 @@ CREATE TABLE "hub_dispatches" (
 
 CREATE UNIQUE INDEX "hub_dispatches_order_id_key" ON "hub_dispatches"("order_id");
 CREATE UNIQUE INDEX "hub_dispatches_dispatch_no_key" ON "hub_dispatches"("dispatch_no");
+CREATE INDEX "hub_dispatches_dispatch_no_idx" ON "hub_dispatches"("dispatch_no");
 CREATE INDEX "hub_dispatches_hub_id_status_idx" ON "hub_dispatches"("hub_id", "status");
 
 ALTER TABLE "hub_dispatches" ADD CONSTRAINT "hub_dispatches_order_id_fkey"

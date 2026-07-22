@@ -3,24 +3,22 @@ import { LoyaltyTier } from '../../../generated/prisma/client';
 import { PrismaService } from '../../common/database/prisma.service';
 import { CacheService } from '../../common/cache/cache.service';
 import { CACHE_KEYS, CACHE_TTL } from '../../common/cache/cache.constants';
+import { LoyaltyTransactionService } from './loyalty-transaction.service';
 import {
+  LoyaltyEarnDto,
   LoyaltyHistoryResponseDto,
+  LoyaltyRedeemDto,
+  LoyaltyRedeemResponseDto,
   LoyaltySummaryDto,
   LoyaltyTransactionResponseDto,
 } from './dto/loyalty.dto';
-
-const TIER_THRESHOLDS: Record<LoyaltyTier, number> = {
-  BRONZE: 0,
-  SILVER: 500,
-  GOLD: 2000,
-  PLATINUM: 5000,
-};
 
 @Injectable()
 export class LoyaltyService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly cache: CacheService,
+    private readonly loyaltyTransactionService: LoyaltyTransactionService,
   ) {}
 
   async getLoyaltySummary(customerId: string): Promise<LoyaltySummaryDto> {
@@ -28,34 +26,7 @@ export class LoyaltyService {
     const cached = await this.cache.get<LoyaltySummaryDto>(cacheKey);
     if (cached) return cached;
 
-    const account = await this.ensureAccount(customerId);
-    const result = this.mapAccount(account);
-    await this.cache.set(cacheKey, result, CACHE_TTL.LOYALTY);
-    return result;
-  }
-
-  async getLoyaltyHistory(customerId: string): Promise<LoyaltyHistoryResponseDto> {
-    const account = await this.ensureAccount(customerId);
-
-    const transactions = await this.prisma.loyaltyTransaction.findMany({
-      where: { accountId: account.id },
-      orderBy: { createdAt: 'desc' },
-      take: 50,
-    });
-
-    return {
-      account: this.mapAccount(account),
-      transactions: transactions.map((t) => this.mapTransaction(t)),
-    };
-  }
-
-  async getRedeemablePoints(customerId: string): Promise<number> {
-    const summary = await this.getLoyaltySummary(customerId);
-    return summary.redeemablePoints;
-  }
-
-  private async ensureAccount(customerId: string) {
-    return this.prisma.loyaltyAccount.upsert({
+    const account = await this.prisma.loyaltyAccount.upsert({
       where: { customerId },
       create: {
         customerId,
@@ -66,36 +37,94 @@ export class LoyaltyService {
       },
       update: {},
     });
-  }
 
-  private resolveTier(points: number): LoyaltyTier {
-    if (points >= TIER_THRESHOLDS.PLATINUM) return LoyaltyTier.PLATINUM;
-    if (points >= TIER_THRESHOLDS.GOLD) return LoyaltyTier.GOLD;
-    if (points >= TIER_THRESHOLDS.SILVER) return LoyaltyTier.SILVER;
-    return LoyaltyTier.BRONZE;
-  }
+    const [redeemablePoints, nextExpiry] = await Promise.all([
+      this.loyaltyTransactionService.getNonExpiredBalance(account.id),
+      this.loyaltyTransactionService.getNextExpiry(account.id),
+    ]);
 
-  private mapAccount(account: {
-    id: string;
-    customerId: string;
-    currentPoints: number;
-    redeemedPoints: number;
-    availablePoints: number;
-    tier: LoyaltyTier;
-  }): LoyaltySummaryDto {
-    const availablePoints = Math.max(
-      0,
-      account.currentPoints - account.redeemedPoints,
+    const result = this.loyaltyTransactionService.buildSummary(
+      account,
+      redeemablePoints,
+      nextExpiry,
     );
 
+    await this.cache.set(cacheKey, result, CACHE_TTL.LOYALTY);
+    return result;
+  }
+
+  async getLoyaltyHistory(customerId: string): Promise<LoyaltyHistoryResponseDto> {
+    const account = await this.prisma.loyaltyAccount.findUnique({
+      where: { customerId },
+    });
+
+    if (!account) {
+      const summary = await this.getLoyaltySummary(customerId);
+      return { account: summary, transactions: [] };
+    }
+
+    const [redeemablePoints, nextExpiry, transactions] = await Promise.all([
+      this.loyaltyTransactionService.getNonExpiredBalance(account.id),
+      this.loyaltyTransactionService.getNextExpiry(account.id),
+      this.prisma.loyaltyTransaction.findMany({
+        where: { accountId: account.id },
+        orderBy: { createdAt: 'desc' },
+        take: 50,
+      }),
+    ]);
+
     return {
-      id: account.id,
-      customerId: account.customerId,
-      currentPoints: account.currentPoints,
-      redeemedPoints: account.redeemedPoints,
-      availablePoints,
-      tier: this.resolveTier(account.currentPoints),
-      redeemablePoints: availablePoints,
+      account: this.loyaltyTransactionService.buildSummary(
+        account,
+        redeemablePoints,
+        nextExpiry,
+      ),
+      transactions: transactions.map((t) => this.mapTransaction(t)),
+    };
+  }
+
+  async getRedeemablePoints(customerId: string): Promise<number> {
+    return this.loyaltyTransactionService.getNonExpiredBalanceForCustomer(
+      customerId,
+    );
+  }
+
+  async redeemPoints(
+    customerId: string,
+    dto: LoyaltyRedeemDto,
+  ): Promise<LoyaltyRedeemResponseDto> {
+    const result = await this.loyaltyTransactionService.redeemForOrder({
+      customerId,
+      orderId: dto.orderId,
+      points: dto.points,
+    });
+
+    return {
+      discount: result.discountAmount,
+      pointsRedeemed: result.points,
+      remainingBalance: result.closingPoints,
+      transactionId: result.id,
+    };
+  }
+
+  async earnForOrder(dto: LoyaltyEarnDto) {
+    const result = await this.loyaltyTransactionService.earnForDeliveredOrder(
+      dto.orderId,
+    );
+
+    if (!result) {
+      return {
+        earned: false,
+        points: 0,
+        message: 'No points earned (order not delivered or already processed)',
+      };
+    }
+
+    return {
+      earned: true,
+      points: result.points,
+      transactionId: result.id,
+      message: `${result.points} points credited`,
     };
   }
 
@@ -105,6 +134,10 @@ export class LoyaltyService {
     type: LoyaltyTransactionResponseDto['type'];
     reason: string;
     referenceId: string | null;
+    referenceOrderId: string | null;
+    openingPoints: number | null;
+    closingPoints: number | null;
+    expiresAt: Date | null;
     createdAt: Date;
   }): LoyaltyTransactionResponseDto {
     return {
@@ -113,6 +146,10 @@ export class LoyaltyService {
       type: tx.type,
       reason: tx.reason,
       referenceId: tx.referenceId,
+      referenceOrderId: tx.referenceOrderId,
+      openingPoints: tx.openingPoints,
+      closingPoints: tx.closingPoints,
+      expiresAt: tx.expiresAt?.toISOString() ?? null,
       createdAt: tx.createdAt.toISOString(),
     };
   }

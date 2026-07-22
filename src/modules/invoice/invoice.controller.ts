@@ -1,12 +1,21 @@
-import { Controller, Get, Param, ParseUUIDPipe } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Header,
+  Param,
+  ParseUUIDPipe,
+  StreamableFile,
+} from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOperation,
   ApiParam,
+  ApiProduces,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
 import { SWAGGER_BEARER_AUTH, SWAGGER_TAGS } from '../../common/constants/swagger.constants';
+import { SkipResponseWrap } from '../../common/decorators/skip-response-wrap.decorator';
 import { ApiErrorResponseDto } from '../../common/dto/api-response.dto';
 import { CurrentCustomer } from '../../common/decorators/current-customer.decorator';
 import type { AuthenticatedCustomer } from '../../auth/jwt/jwt-payload.interface';
@@ -23,7 +32,7 @@ export class InvoiceController {
   @ApiOperation({
     summary: 'Get order invoice (JSON)',
     description:
-      'Returns invoice details for MVP as JSON. PDF generation will be added in a later phase. Auto-generates invoice on first request if missing.',
+      'Returns GST invoice details as JSON. Auto-generates invoice on first request if missing.',
   })
   @ApiParam({ name: 'orderId', description: 'Order UUID' })
   @ApiResponse({ status: 200, type: InvoiceResponseDto })
@@ -38,5 +47,31 @@ export class InvoiceController {
       message: 'Invoice fetched successfully',
       data,
     };
+  }
+
+  @Get(':orderId/invoice/pdf')
+  @SkipResponseWrap()
+  @Header('Content-Type', 'application/pdf')
+  @ApiProduces('application/pdf')
+  @ApiOperation({
+    summary: 'Download order invoice PDF',
+    description:
+      'Generates and returns a GST-compliant PDF invoice. PDF is cached on disk after first generation.',
+  })
+  @ApiParam({ name: 'orderId', description: 'Order UUID' })
+  @ApiResponse({ status: 200, description: 'PDF file stream' })
+  @ApiResponse({ status: 404, description: 'Order not found', type: ApiErrorResponseDto })
+  async getInvoicePdf(
+    @CurrentCustomer() customer: AuthenticatedCustomer,
+    @Param('orderId', ParseUUIDPipe) orderId: string,
+  ): Promise<StreamableFile> {
+    const { buffer, filename } = await this.invoiceService.getInvoicePdf(
+      customer.id,
+      orderId,
+    );
+    return new StreamableFile(buffer, {
+      type: 'application/pdf',
+      disposition: `attachment; filename="${filename}"`,
+    });
   }
 }

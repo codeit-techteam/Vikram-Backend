@@ -55,16 +55,6 @@ export class LoyaltyExpiryService {
             data: { remainingPoints: 0 },
           });
 
-          await tx.loyaltyTransaction.create({
-            data: {
-              accountId: lot.accountId,
-              points: pointsToExpire,
-              type: LoyaltyTransactionType.EXPIRE,
-              reason: 'Loyalty points expired',
-              referenceId: lot.id,
-            },
-          });
-
           const account = await tx.loyaltyAccount.findUnique({
             where: { id: lot.accountId },
           });
@@ -75,6 +65,18 @@ export class LoyaltyExpiryService {
             0,
             account.availablePoints - pointsToExpire,
           );
+
+          await tx.loyaltyTransaction.create({
+            data: {
+              accountId: lot.accountId,
+              points: pointsToExpire,
+              type: LoyaltyTransactionType.EXPIRE,
+              reason: 'Loyalty points expired',
+              referenceId: lot.id,
+              openingPoints: account.availablePoints,
+              closingPoints: nextAvailable,
+            },
+          });
 
           await tx.loyaltyAccount.update({
             where: { id: account.id },

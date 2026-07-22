@@ -20,7 +20,6 @@ export const CACHE_TTL = {
   REVIEWS: 300,
   SUPPORT: 180,
   MEMBERSHIP: 300,
-  WALLET: 120,
   LOYALTY: 120,
   BULK: 180,
   TESTIMONIALS: 600,
@@ -61,7 +60,6 @@ export const CACHE_KEYS = {
   SUPPORT: (customerId: string) => `support:${customerId}`,
   MEMBERSHIP: (customerId: string) => `membership:${customerId}`,
   MEMBERSHIP_PLANS: 'membership:plans',
-  WALLET: (customerId: string) => `wallet:${customerId}`,
   LOYALTY: (customerId: string) => `loyalty:${customerId}`,
   BULK: (customerId: string) => `bulk:${customerId}`,
   BULK_DETAIL: (customerId: string, id: string) => `bulk:${customerId}:${id}`,
@@ -88,8 +86,6 @@ export const CACHE_PATTERNS = {
     customerId ? `support:${customerId}*` : 'support:*',
   MEMBERSHIP: (customerId?: string) =>
     customerId ? `membership:${customerId}*` : 'membership:*',
-  WALLET: (customerId?: string) =>
-    customerId ? `wallet:${customerId}*` : 'wallet:*',
   LOYALTY: (customerId?: string) =>
     customerId ? `loyalty:${customerId}*` : 'loyalty:*',
   BULK: (customerId?: string) =>

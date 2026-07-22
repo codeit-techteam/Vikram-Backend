@@ -7,8 +7,11 @@ import { EntityStatus } from '../../../generated/prisma/client';
 import { PrismaService } from '../../common/database/prisma.service';
 import { CartService } from '../cart/cart.service';
 import { MembershipService } from '../membership/membership.service';
-import { WalletService } from '../wallet/wallet.service';
 import { LoyaltyService } from '../loyalty/loyalty.service';
+import { LoyaltyTransactionService } from '../loyalty/loyalty-transaction.service';
+import {
+  calculateMaxRedeemablePoints,
+} from '../loyalty/loyalty.constants';
 import {
   decimalToNumber,
   haversineKm,
@@ -30,15 +33,19 @@ export class CheckoutService {
     private readonly prisma: PrismaService,
     private readonly cartService: CartService,
     private readonly membershipService: MembershipService,
-    private readonly walletService: WalletService,
     private readonly loyaltyService: LoyaltyService,
+    private readonly loyaltyTransactionService: LoyaltyTransactionService,
   ) {}
 
   async getCheckout(
     customerId: string,
     addressId?: string,
+    loyaltyPointsToRedeem?: number,
   ): Promise<CheckoutResponseDto> {
-    return this.prepareCheckout(customerId, { addressId });
+    return this.prepareCheckout(customerId, {
+      addressId,
+      loyaltyPointsToRedeem,
+    });
   }
 
   async prepareCheckout(
@@ -68,11 +75,12 @@ export class CheckoutService {
 
     const hubAvailable = nearestHub?.canFulfill === true;
 
-    const [membershipSummary, walletBalance, loyaltySummary] = await Promise.all([
-      this.membershipService.getCurrentMembership(customerId),
-      this.walletService.getBalance(customerId),
-      this.loyaltyService.getLoyaltySummary(customerId),
-    ]);
+    const [membershipSummary, loyaltySummary, redeemablePoints] =
+      await Promise.all([
+        this.membershipService.getCurrentMembership(customerId),
+        this.loyaltyService.getLoyaltySummary(customerId),
+        this.loyaltyService.getRedeemablePoints(customerId),
+      ]);
 
     const hasActiveMembership = membershipSummary.current?.isActive === true;
     const membershipDiscountPercent = hasActiveMembership ? 5 : 0;
@@ -83,14 +91,33 @@ export class CheckoutService {
     const unloadingCharges = UNLOADING_CHARGE;
     const bikeDeliveryFree =
       hasActiveMembership || cart.subtotal >= FREE_DELIVERY_THRESHOLD;
+    const deliveryCharge = bikeDeliveryFree ? 0 : cart.deliveryCharge;
+
+    const orderValueBeforeLoyalty =
+      cart.subtotal + cart.gstAmount + deliveryCharge - membershipDiscount;
+
+    const maxRedeemablePoints = calculateMaxRedeemablePoints(
+      orderValueBeforeLoyalty,
+      redeemablePoints,
+    );
+
+    const requestedLoyaltyPoints = dto.loyaltyPointsToRedeem ?? 0;
+    let loyaltyUsed = 0;
+    let loyaltyDiscount = 0;
+
+    if (requestedLoyaltyPoints > 0) {
+      const validation = this.loyaltyTransactionService.validateRedemption({
+        requestedPoints: requestedLoyaltyPoints,
+        orderValueInr: orderValueBeforeLoyalty,
+        availablePoints: redeemablePoints,
+      });
+      loyaltyUsed = validation.allowedPoints;
+      loyaltyDiscount = validation.discountAmount;
+    }
 
     const adjustedGrandTotal = Math.max(
       0,
-      cart.grandTotal -
-        membershipDiscount +
-        loadingCharges +
-        unloadingCharges -
-        (bikeDeliveryFree && cart.deliveryCharge > 0 ? cart.deliveryCharge : 0),
+      orderValueBeforeLoyalty - loyaltyDiscount,
     );
 
     return {
@@ -98,7 +125,7 @@ export class CheckoutService {
       items: cart.items,
       subtotal: cart.subtotal,
       gstAmount: cart.gstAmount,
-      deliveryCharge: bikeDeliveryFree ? 0 : cart.deliveryCharge,
+      deliveryCharge,
       grandTotal: adjustedGrandTotal,
       itemCount: cart.itemCount,
       nearestHub,
@@ -109,10 +136,12 @@ export class CheckoutService {
       paymentMethod: 'CASH',
       notes: dto.notes ?? null,
       membershipDiscount,
-      walletBalance,
-      walletApplied: 0,
       loyaltyPoints: loyaltySummary.currentPoints,
-      redeemablePoints: loyaltySummary.redeemablePoints,
+      redeemablePoints,
+      maxRedeemablePoints,
+      loyaltyUsed,
+      loyaltyDiscount,
+      discount: membershipDiscount + loyaltyDiscount,
       loadingCharges,
       unloadingCharges,
       bikeDeliveryFree,

@@ -101,8 +101,11 @@ enum SupportTicketStatus {
   OPEN
   ASSIGNED
   IN_PROGRESS
+  WAITING_FOR_CUSTOMER
+  WAITING_FOR_ADMIN
   RESOLVED
   CLOSED
+  REOPENED
 }
 
 enum SupportTicketPriority {
@@ -112,9 +115,17 @@ enum SupportTicketPriority {
   URGENT
 }
 
-enum SupportTicketMessageSender {
+enum SupportMessageSenderType {
   CUSTOMER
   ADMIN
+  CUSTOMER_EXECUTIVE
+}
+
+enum SupportMessageAttachmentType {
+  IMAGE
+  PDF
+  DOCUMENT
+  OTHER
 }
 
 enum SupportTicketHistoryAction {
@@ -161,31 +172,10 @@ enum MembershipStatus {
   PENDING
 }
 
-enum WalletTransactionType {
-  CREDIT
-  DEBIT
-  REFUND
-  ORDER_PAYMENT
-  MEMBERSHIP_PAYMENT
-  ADMIN_ADJUSTMENT
-}
-
-enum WalletTransactionStatus {
-  SUCCESS
-  FAILED
+enum RefundStatus {
   PENDING
-}
-
-enum WalletCreditType {
-  PURCHASE
-  CASHBACK
-  PROMOTIONAL
-}
-
-enum WalletCreditStatus {
-  ACTIVE
-  EXPIRED
-  DEPLETED
+  APPROVED
+  REJECTED
 }
 
 enum ScheduledNotificationChannel {
@@ -214,6 +204,7 @@ enum LoyaltyTransactionType {
   REDEEM
   EXPIRE
   ADMIN
+  ADJUSTMENT
 }
 
 enum LoyaltyTier {
@@ -660,7 +651,6 @@ model Customer {
   fullName         String?        @map("full_name") @db.VarChar(200)
   roleId           String?        @map("role_id") @db.Uuid
   membershipId     String?        @unique @map("membership_id") @db.Uuid
-  walletId         String?        @unique @map("wallet_id") @db.Uuid
   loyaltyAccountId String?        @unique @map("loyalty_account_id") @db.Uuid
   isVerified       Boolean        @default(false) @map("is_verified")
   isMember         Boolean        @default(false) @map("is_member")
@@ -685,24 +675,22 @@ model Customer {
   scheduledNotifications ScheduledNotification[]
   orders             Order[]
   reviews            Review[]
-  supportTickets         SupportTicket[]
-  supportTicketMessages  SupportTicketMessage[]
+  supportTickets SupportTicket[]
+  supportMessages  SupportMessage[]
   searchHistory      SearchHistory[]
   activeMembership   CustomerMembership? @relation("ActiveMembership", fields: [membershipId], references: [id], onDelete: SetNull)
-  walletByPointer    Wallet?             @relation("CustomerWalletPointer", fields: [walletId], references: [id], onDelete: SetNull)
   loyaltyByPointer   LoyaltyAccount?     @relation("CustomerLoyaltyPointer", fields: [loyaltyAccountId], references: [id], onDelete: SetNull)
-  wallet             Wallet?             @relation("WalletCustomerOwner")
   loyaltyAccount     LoyaltyAccount?       @relation("LoyaltyCustomerOwner")
   memberships        CustomerMembership[] @relation("MembershipHistory")
   bulkEnquiries      BulkEnquiry[]
   emergencyOrders    EmergencyOrder[]
+  refunds            Refund[]
 
   @@index([phone])
   @@index([roleId])
   @@index([status])
   @@index([isMember])
   @@index([membershipId])
-  @@index([walletId])
   @@index([loyaltyAccountId])
   @@index([deletedAt])
   @@map("customers")
@@ -989,7 +977,6 @@ model Order {
   discountAmount  Decimal       @default(0) @map("discount_amount") @db.Decimal(12, 2)
   grandTotal      Decimal       @map("grand_total") @db.Decimal(12, 2)
   isEmergency         Boolean       @default(false) @map("is_emergency")
-  walletAmountUsed    Decimal       @default(0) @map("wallet_amount_used") @db.Decimal(12, 2)
   loyaltyPointsUsed   Int           @default(0) @map("loyalty_points_used")
   membershipDiscount  Decimal       @default(0) @map("membership_discount") @db.Decimal(12, 2)
   bulkOrder           Boolean       @default(false) @map("bulk_procurement")
@@ -1030,6 +1017,7 @@ model Order {
   unloadingRecord HubUnloadingRecord?
   dispatch       HubDispatch?
   proofOfDelivery ProofOfDelivery?
+  refunds         Refund[]
 
   @@index([customerId, orderStatus, createdAt(sort: Desc)])
   @@index([customerId, createdAt(sort: Desc)])
@@ -1093,10 +1081,13 @@ model Invoice {
   grandTotal       Decimal        @map("grand_total") @db.Decimal(12, 2)
   paymentMethod    PaymentMethod  @map("payment_method")
   paymentStatus    PaymentStatus  @map("payment_status")
-  customerSnapshot Json?          @map("customer_snapshot") @db.JsonB
-  itemsSnapshot    Json?          @map("items_snapshot") @db.JsonB
-  addressSnapshot  Json?          @map("address_snapshot") @db.JsonB
-  deletedAt        DateTime?      @map("deleted_at")
+  customerSnapshot   Json?     @map("customer_snapshot") @db.JsonB
+  itemsSnapshot      Json?     @map("items_snapshot") @db.JsonB
+  addressSnapshot    Json?     @map("address_snapshot") @db.JsonB
+  financialSnapshot  Json?     @map("financial_snapshot") @db.JsonB
+  pdfPath            String?   @map("pdf_path") @db.VarChar(500)
+  pdfGeneratedAt     DateTime? @map("pdf_generated_at")
+  deletedAt          DateTime? @map("deleted_at")
   createdAt        DateTime       @default(now()) @map("created_at")
   updatedAt        DateTime       @updatedAt @map("updated_at")
 
@@ -1104,6 +1095,7 @@ model Invoice {
 
   @@index([invoiceNumber])
   @@index([invoiceDate(sort: Desc)])
+  @@index([pdfPath])
   @@index([deletedAt])
   @@map("invoices")
 }
@@ -1157,6 +1149,10 @@ model SupportTicket {
   priority            SupportTicketPriority @default(MEDIUM)
   resolvedAt          DateTime?             @map("resolved_at")
   closedAt            DateTime?             @map("closed_at")
+  lastMessage         String?               @map("last_message") @db.VarChar(500)
+  lastMessageAt       DateTime?             @map("last_message_at")
+  unreadCustomerCount Int                   @default(0) @map("unread_customer_count")
+  unreadAdminCount    Int                   @default(0) @map("unread_admin_count")
   deletedAt           DateTime?             @map("deleted_at")
   createdAt           DateTime              @default(now()) @map("created_at")
   updatedAt           DateTime              @updatedAt @map("updated_at")
@@ -1164,7 +1160,7 @@ model SupportTicket {
   customer          Customer                 @relation(fields: [customerId], references: [id], onDelete: Cascade)
   order             Order?                   @relation(fields: [orderId], references: [id], onDelete: SetNull)
   assignedExecutive AdminUser?               @relation("AssignedSupportTickets", fields: [assignedExecutiveId], references: [id], onDelete: SetNull)
-  messages          SupportTicketMessage[]
+  messages          SupportMessage[]
   notes             SupportTicketNote[]
   history           SupportTicketHistory[]
 
@@ -1177,20 +1173,28 @@ model SupportTicket {
   @@map("support_tickets")
 }
 
-model SupportTicketMessage {
-  id         String                     @id @default(uuid()) @db.Uuid
-  ticketId   String                     @map("ticket_id") @db.Uuid
-  senderType SupportTicketMessageSender @map("sender_type")
-  adminId    String?                    @map("admin_id") @db.Uuid
-  customerId String?                    @map("customer_id") @db.Uuid
-  body       String                     @db.Text
-  createdAt  DateTime                   @default(now()) @map("created_at")
+model SupportMessage {
+  id             String                        @id @default(uuid()) @db.Uuid
+  ticketId       String                        @map("ticket_id") @db.Uuid
+  senderType     SupportMessageSenderType      @map("sender_type")
+  senderId       String                        @map("sender_id") @db.Uuid
+  message        String                        @db.Text
+  attachmentUrl  String?                       @map("attachment_url") @db.VarChar(2048)
+  attachmentType SupportMessageAttachmentType? @map("attachment_type")
+  isInternal     Boolean                       @default(false) @map("is_internal")
+  readAt         DateTime?                     @map("read_at")
+  adminId        String?                       @map("admin_id") @db.Uuid
+  customerId     String?                       @map("customer_id") @db.Uuid
+  createdAt      DateTime                      @default(now()) @map("created_at")
+  updatedAt      DateTime                      @updatedAt @map("updated_at")
 
   ticket   SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
   admin    AdminUser?    @relation(fields: [adminId], references: [id], onDelete: SetNull)
   customer Customer?     @relation(fields: [customerId], references: [id], onDelete: SetNull)
 
   @@index([ticketId, createdAt(sort: Asc)])
+  @@index([ticketId])
+  @@index([createdAt])
   @@map("support_ticket_messages")
 }
 
@@ -1301,67 +1305,26 @@ model CustomerMembership {
   @@map("customer_memberships")
 }
 
-// ─── Wallet ──────────────────────────────────────────────────────────────────
+// ─── Refunds ─────────────────────────────────────────────────────────────────
 
-model Wallet {
-  id           String   @id @default(uuid()) @db.Uuid
-  customerId   String   @unique @map("customer_id") @db.Uuid
-  balance      Decimal  @default(0) @db.Decimal(12, 2)
-  totalCredits Decimal  @default(0) @map("total_credits") @db.Decimal(12, 2)
-  totalDebits  Decimal  @default(0) @map("total_debits") @db.Decimal(12, 2)
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+model Refund {
+  id           String       @id @default(uuid()) @db.Uuid
+  customerId   String       @map("customer_id") @db.Uuid
+  orderId      String?      @map("order_id") @db.Uuid
+  amount       Decimal      @db.Decimal(12, 2)
+  reason       String       @db.VarChar(300)
+  rejectReason String?      @map("reject_reason") @db.VarChar(500)
+  status       RefundStatus @default(PENDING)
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
 
-  customer     Customer            @relation("WalletCustomerOwner", fields: [customerId], references: [id], onDelete: Cascade)
-  pointedBy    Customer?           @relation("CustomerWalletPointer")
-  transactions WalletTransaction[]
-  creditLots   WalletCreditLot[]
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  order    Order?   @relation(fields: [orderId], references: [id], onDelete: SetNull)
 
-  @@index([customerId])
-  @@map("wallets")
-}
-
-model WalletTransaction {
-  id            String                  @id @default(uuid()) @db.Uuid
-  walletId      String                  @map("wallet_id") @db.Uuid
-  type          WalletTransactionType
-  amount        Decimal                 @db.Decimal(12, 2)
-  reason        String                  @db.VarChar(300)
-  referenceId   String?                 @map("reference_id") @db.VarChar(100)
-  referenceType String?                 @map("reference_type") @db.VarChar(50)
-  status        WalletTransactionStatus @default(SUCCESS)
-  createdAt     DateTime                @default(now()) @map("created_at")
-
-  wallet Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
-
-  @@index([walletId])
-  @@index([type])
-  @@index([createdAt])
-  @@index([walletId, createdAt(sort: Desc)])
-  @@index([referenceId, referenceType])
-  @@map("wallet_transactions")
-}
-
-/// Expirable wallet credit lots. PURCHASE lots never expire (expiresAt = null).
-model WalletCreditLot {
-  id               String             @id @default(uuid()) @db.Uuid
-  walletId         String             @map("wallet_id") @db.Uuid
-  type             WalletCreditType
-  originalAmount   Decimal            @map("original_amount") @db.Decimal(12, 2)
-  remainingAmount  Decimal            @map("remaining_amount") @db.Decimal(12, 2)
-  expiresAt        DateTime?          @map("expires_at")
-  status           WalletCreditStatus @default(ACTIVE)
-  reason           String             @db.VarChar(300)
-  sourceTxId       String?            @map("source_tx_id") @db.VarChar(100)
-  createdAt        DateTime           @default(now()) @map("created_at")
-  updatedAt        DateTime           @updatedAt @map("updated_at")
-
-  wallet Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
-
-  @@index([walletId, status])
-  @@index([type, status, expiresAt])
-  @@index([expiresAt])
-  @@map("wallet_credit_lots")
+  @@index([customerId, status, createdAt(sort: Desc)])
+  @@index([orderId])
+  @@index([status])
+  @@map("refunds")
 }
 
 // ─── Loyalty ─────────────────────────────────────────────────────────────────
@@ -1385,15 +1348,18 @@ model LoyaltyAccount {
 }
 
 model LoyaltyTransaction {
-  id          String                 @id @default(uuid()) @db.Uuid
-  accountId   String                 @map("account_id") @db.Uuid
-  points      Int
-  type        LoyaltyTransactionType
-  reason      String                 @db.VarChar(300)
-  referenceId String?                @map("reference_id") @db.VarChar(100)
-  expiresAt   DateTime?              @map("expires_at")
-  remainingPoints Int?               @map("remaining_points")
-  createdAt   DateTime               @default(now()) @map("created_at")
+  id              String                 @id @default(uuid()) @db.Uuid
+  accountId       String                 @map("account_id") @db.Uuid
+  points          Int
+  type            LoyaltyTransactionType
+  reason          String                 @db.VarChar(300)
+  referenceId     String?                @map("reference_id") @db.VarChar(100)
+  referenceOrderId String?               @map("reference_order_id") @db.Uuid
+  openingPoints   Int?                   @map("opening_points")
+  closingPoints   Int?                   @map("closing_points")
+  expiresAt       DateTime?              @map("expires_at")
+  remainingPoints Int?                   @map("remaining_points")
+  createdAt       DateTime               @default(now()) @map("created_at")
 
   account LoyaltyAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
@@ -1402,6 +1368,7 @@ model LoyaltyTransaction {
   @@index([accountId, createdAt(sort: Desc)])
   @@index([type, expiresAt])
   @@index([expiresAt])
+  @@index([referenceOrderId])
   @@map("loyalty_transactions")
 }
 
@@ -1472,7 +1439,7 @@ model AdminUser {
   refreshTokens             AdminRefreshToken[]
   auditLogs                 AuditLog[]
   assignedSupportTickets    SupportTicket[]         @relation("AssignedSupportTickets")
-  supportTicketMessages     SupportTicketMessage[]
+  supportMessages           SupportMessage[]
   supportTicketNotes        SupportTicketNote[]
   supportTicketHistory      SupportTicketHistory[]
   generatedSettlements      SettlementBatch[]       @relation("SettlementGeneratedBy")
@@ -1811,9 +1778,6 @@ model DailyBusinessReport {
   deliveredOrders        Int      @default(0) @map("delivered_orders")
   membershipPurchases    Int      @default(0) @map("membership_purchases")
   membershipSalesAmount  Decimal  @default(0) @map("membership_sales_amount") @db.Decimal(14, 2)
-  walletRecharge         Decimal  @default(0) @map("wallet_recharge") @db.Decimal(14, 2)
-  walletUsage            Decimal  @default(0) @map("wallet_usage") @db.Decimal(14, 2)
-  walletTransactions     Int      @default(0) @map("wallet_transactions")
   loyaltyEarned          Int      @default(0) @map("loyalty_earned")
   loyaltyRedeemed        Int      @default(0) @map("loyalty_redeemed")
   newCustomers           Int      @default(0) @map("new_customers")

@@ -5,7 +5,6 @@ import { OfferModule } from '../offer/offer.module';
 import { ProductModule } from '../product/product.module';
 import { VideoModule } from '../video/video.module';
 import { MembershipModule } from '../membership/membership.module';
-import { WalletModule } from '../wallet/wallet.module';
 import { LoyaltyModule } from '../loyalty/loyalty.module';
 import { TestimonialsModule } from '../testimonials/testimonials.module';
 import { OrdersModule } from '../orders/orders.module';
@@ -20,7 +19,6 @@ import { HomeService } from './home.service';
     ProductModule,
     VideoModule,
     MembershipModule,
-    WalletModule,
     LoyaltyModule,
     TestimonialsModule,
     OrdersModule,

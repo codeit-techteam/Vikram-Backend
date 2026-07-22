@@ -20,6 +20,7 @@ import { formatOrderNumber } from '../../common/shopping/pricing.util';
 import { hashQueryParams } from '../../common/utils/prisma.util';
 import { CheckoutService } from '../checkout/checkout.service';
 import { NotificationService } from '../notification/notification.service';
+import { LoyaltyTransactionService } from '../loyalty/loyalty-transaction.service';
 import { CancelOrderDto } from './dto/cancel-order.dto';
 import { PlaceOrderDto, OrderResponseDto } from './dto/order.dto';
 import { OrderListQueryDto } from './dto/order-query.dto';
@@ -78,6 +79,7 @@ export class OrdersService {
     private readonly cache: CacheService,
     private readonly notificationService: NotificationService,
     private readonly checkoutService: CheckoutService,
+    private readonly loyaltyTransactionService: LoyaltyTransactionService,
   ) {}
 
   async placeOrder(
@@ -98,6 +100,7 @@ export class OrdersService {
     const checkout = await this.checkoutService.prepareCheckout(customerId, {
       addressId: dto.addressId,
       notes: dto.notes,
+      loyaltyPointsToRedeem: dto.loyaltyPointsToRedeem,
     });
 
     const order = await this.prisma.$transaction(
@@ -149,8 +152,9 @@ export class OrdersService {
             subtotal: checkout.subtotal,
             gstAmount: checkout.gstAmount,
             deliveryCharge: checkout.deliveryCharge,
-            discountAmount: checkout.membershipDiscount,
+            discountAmount: checkout.discount,
             membershipDiscount: checkout.membershipDiscount,
+            loyaltyPointsUsed: checkout.loyaltyUsed,
             grandTotal: checkout.grandTotal,
             notes: dto.notes ?? null,
             deliveryAddress: {
@@ -215,10 +219,24 @@ export class OrdersService {
           await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
         }
 
+        if (checkout.loyaltyUsed > 0) {
+          await this.loyaltyTransactionService.commitRedemptionForPlacedOrder({
+            customerId,
+            orderId: created.id,
+            orderNumber: created.orderNumber,
+            points: checkout.loyaltyUsed,
+            tx,
+          });
+        }
+
         return created;
       },
       { timeout: 15000 },
     );
+
+    if (checkout.loyaltyUsed > 0) {
+      await this.cache.del(CACHE_KEYS.LOYALTY(customerId));
+    }
 
     await this.notificationService.createForCustomer({
       customerId,
@@ -455,6 +473,10 @@ export class OrdersService {
       });
     });
 
+    await this.loyaltyTransactionService.refundRedemptionForCancelledOrder(
+      orderId,
+    );
+
     await this.notificationService.createForCustomer({
       customerId,
       type: NotificationType.ORDER,
@@ -602,7 +624,6 @@ export class OrdersService {
       invoiceStatus: order.invoice?.status ?? null,
       invoiceNumber: order.invoice?.invoiceNumber ?? null,
       isEmergency: order.isEmergency,
-      walletAmountUsed: decimalToNumber(order.walletAmountUsed),
       loyaltyPointsUsed: order.loyaltyPointsUsed,
       membershipDiscount: decimalToNumber(order.membershipDiscount),
       bulkProcurement: order.bulkOrder,

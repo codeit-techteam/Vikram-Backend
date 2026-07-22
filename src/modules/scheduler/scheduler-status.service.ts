@@ -37,8 +37,6 @@ export class SchedulerStatusService {
   constructor(
     @InjectQueue(SCHEDULER_QUEUES.MEMBERSHIP_EXPIRY)
     private readonly membershipQueue: Queue,
-    @InjectQueue(SCHEDULER_QUEUES.WALLET_CLEANUP)
-    private readonly walletQueue: Queue,
     @InjectQueue(SCHEDULER_QUEUES.LOYALTY_EXPIRY)
     private readonly loyaltyQueue: Queue,
     @InjectQueue(SCHEDULER_QUEUES.DAILY_REPORT)
@@ -62,14 +60,6 @@ export class SchedulerStatusService {
         cronKey: 'scheduler.membershipCron',
         cronDefault: '0 30 0 * * *',
         cronJobName: 'membership-expiry-cron',
-      },
-      {
-        queue: this.walletQueue,
-        name: SCHEDULER_QUEUES.WALLET_CLEANUP,
-        jobName: SCHEDULER_JOB_NAMES.CLEANUP_WALLET_CREDITS,
-        cronKey: 'scheduler.walletCron',
-        cronDefault: '0 0 2 * * 0',
-        cronJobName: 'wallet-cleanup-cron',
       },
       {
         queue: this.loyaltyQueue,

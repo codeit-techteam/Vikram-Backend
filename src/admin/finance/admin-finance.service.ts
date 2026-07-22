@@ -6,10 +6,9 @@ import {
 import {
   OrderStatus,
   PaymentStatus,
+  RefundStatus,
   SettlementStatus,
   SettlementType,
-  WalletTransactionStatus,
-  WalletTransactionType,
 } from '../../../generated/prisma/client';
 import { PrismaService } from '../../common/database/prisma.service';
 import type {
@@ -22,7 +21,6 @@ import type {
   RejectRefundDto,
   RejectSettlementDto,
   VendorSettlementQueryDto,
-  WalletSettlementQueryDto,
 } from './dto/admin-finance.dto';
 
 const DEFAULT_HUB_COMMISSION_RATE = 5;
@@ -96,7 +94,7 @@ export class AdminFinanceService {
 
     const [
       todaysCollection,
-      walletBalance,
+      membershipRevenue,
       refundPendingAgg,
       hubPendingAgg,
       vendorPendingAgg,
@@ -109,12 +107,15 @@ export class AdminFinanceService {
         },
         _sum: { grandTotal: true },
       }),
-      this.prisma.wallet.aggregate({ _sum: { balance: true } }),
-      this.prisma.walletTransaction.aggregate({
+      this.prisma.customerMembership.findMany({
         where: {
-          type: WalletTransactionType.REFUND,
-          status: WalletTransactionStatus.PENDING,
+          paymentStatus: PaymentStatus.PAID,
+          purchaseDate: { gte: start, lt: end },
         },
+        include: { plan: { select: { price: true } } },
+      }),
+      this.prisma.refund.aggregate({
+        where: { status: RefundStatus.PENDING },
         _sum: { amount: true },
         _count: { _all: true },
       }),
@@ -132,7 +133,10 @@ export class AdminFinanceService {
 
     return {
       todaysCollection: this.toNumber(todaysCollection._sum.grandTotal),
-      walletBalance: this.toNumber(walletBalance._sum.balance),
+      membershipRevenue: membershipRevenue.reduce(
+        (sum, membership) => sum + this.toNumber(membership.plan.price),
+        0,
+      ),
       refundPending: this.toNumber(refundPendingAgg._sum.amount),
       vendorPending: this.toNumber(vendorPendingAgg._sum.netAmount),
       hubPending: this.toNumber(hubPendingAgg._sum.netAmount),
@@ -159,7 +163,6 @@ export class AdminFinanceService {
       paidOrders,
       cashOrders,
       manualOrders,
-      walletUsage,
       refundApproved,
       refundPending,
       ordersPlaced,
@@ -196,27 +199,16 @@ export class AdminFinanceService {
         },
         _sum: { grandTotal: true },
       }),
-      this.prisma.walletTransaction.aggregate({
+      this.prisma.refund.aggregate({
         where: {
-          type: WalletTransactionType.ORDER_PAYMENT,
-          status: WalletTransactionStatus.SUCCESS,
-          createdAt: { gte: start, lt: end },
-        },
-        _sum: { amount: true },
-        _count: { _all: true },
-      }),
-      this.prisma.walletTransaction.aggregate({
-        where: {
-          type: WalletTransactionType.REFUND,
-          status: WalletTransactionStatus.SUCCESS,
+          status: RefundStatus.APPROVED,
           createdAt: { gte: start, lt: end },
         },
         _sum: { amount: true },
       }),
-      this.prisma.walletTransaction.aggregate({
+      this.prisma.refund.aggregate({
         where: {
-          type: WalletTransactionType.REFUND,
-          status: WalletTransactionStatus.PENDING,
+          status: RefundStatus.PENDING,
           createdAt: { gte: start, lt: end },
         },
         _sum: { amount: true },
@@ -266,10 +258,6 @@ export class AdminFinanceService {
         manual: this.toNumber(manualOrders._sum.grandTotal),
         orderCount: paidOrders._count._all,
       },
-      walletUsage: {
-        totalUsed: this.toNumber(walletUsage._sum.amount),
-        transactionCount: walletUsage._count._all,
-      },
       refunds: {
         approved: this.toNumber(refundApproved._sum.amount),
         pending: this.toNumber(refundPending._sum.amount),
@@ -290,101 +278,29 @@ export class AdminFinanceService {
     };
   }
 
-  async listWalletTransactions(query: WalletSettlementQueryDto) {
-    const { skip, take, page, limit } = this.getPagination(query.page, query.limit);
-    const createdAt = this.getDateRange(query.fromDate, query.toDate);
-
-    const where: Record<string, unknown> = {};
-    if (query.type) where['type'] = query.type;
-    if (query.status) where['status'] = query.status;
-    if (createdAt) where['createdAt'] = createdAt;
-
-    if (query.customerId) {
-      const wallet = await this.prisma.wallet.findUnique({
-        where: { customerId: query.customerId },
-      });
-      if (!wallet) {
-        return { data: [], meta: { page, limit, total: 0, totalPages: 0 } };
-      }
-      where['walletId'] = wallet.id;
-    }
-
-    const [data, total] = await Promise.all([
-      this.prisma.walletTransaction.findMany({
-        where,
-        skip,
-        take,
-        orderBy: { createdAt: 'desc' },
-        include: {
-          wallet: {
-            include: {
-              customer: { select: { id: true, phone: true, fullName: true } },
-            },
-          },
-        },
-      }),
-      this.prisma.walletTransaction.count({ where }),
-    ]);
-
-    return { data, meta: { page, limit, total, totalPages: Math.ceil(total / limit) } };
-  }
-
-  async getCustomerWalletLedger(customerId: string) {
-    const wallet = await this.prisma.wallet.findUnique({
-      where: { customerId },
-      include: {
-        customer: { select: { id: true, phone: true, fullName: true, email: true } },
-        transactions: { orderBy: { createdAt: 'desc' } },
-      },
-    });
-    if (!wallet) throw new NotFoundException('Wallet not found for customer');
-
-    const summary = await this.prisma.walletTransaction.groupBy({
-      by: ['type', 'status'],
-      where: { walletId: wallet.id },
-      _sum: { amount: true },
-      _count: { _all: true },
-    });
-
-    return { wallet, summary };
-  }
-
   async listRefunds(query: RefundLedgerQueryDto) {
     const { skip, take, page, limit } = this.getPagination(query.page, query.limit);
     const createdAt = this.getDateRange(query.fromDate, query.toDate);
 
-    const where: Record<string, unknown> = { type: WalletTransactionType.REFUND };
+    const where: Record<string, unknown> = {};
     if (query.status) where['status'] = query.status;
+    if (query.customerId) where['customerId'] = query.customerId;
     if (createdAt) where['createdAt'] = createdAt;
 
-    if (query.customerId) {
-      const wallet = await this.prisma.wallet.findUnique({
-        where: { customerId: query.customerId },
-      });
-      if (!wallet) {
-        return { data: [], summary: { pending: 0, approved: 0, rejected: 0 }, meta: { page, limit, total: 0, totalPages: 0 } };
-      }
-      where['walletId'] = wallet.id;
-    }
-
     const [data, total, statusSummary] = await Promise.all([
-      this.prisma.walletTransaction.findMany({
+      this.prisma.refund.findMany({
         where,
         skip,
         take,
         orderBy: { createdAt: 'desc' },
         include: {
-          wallet: {
-            include: {
-              customer: { select: { id: true, phone: true, fullName: true } },
-            },
-          },
+          customer: { select: { id: true, phone: true, fullName: true } },
+          order: { select: { id: true, orderNumber: true } },
         },
       }),
-      this.prisma.walletTransaction.count({ where }),
-      this.prisma.walletTransaction.groupBy({
+      this.prisma.refund.count({ where }),
+      this.prisma.refund.groupBy({
         by: ['status'],
-        where: { type: WalletTransactionType.REFUND },
         _sum: { amount: true },
         _count: { _all: true },
       }),
@@ -397,19 +313,19 @@ export class AdminFinanceService {
     };
     for (const row of statusSummary) {
       const amount = this.toNumber(row._sum.amount);
-      if (row.status === WalletTransactionStatus.PENDING) summary.pending = amount;
-      if (row.status === WalletTransactionStatus.SUCCESS) summary.approved = amount;
-      if (row.status === WalletTransactionStatus.FAILED) summary.rejected = amount;
+      if (row.status === RefundStatus.PENDING) summary.pending = amount;
+      if (row.status === RefundStatus.APPROVED) summary.approved = amount;
+      if (row.status === RefundStatus.REJECTED) summary.rejected = amount;
     }
 
     return { data, summary, meta: { page, limit, total, totalPages: Math.ceil(total / limit) } };
   }
 
   async createRefund(dto: CreateRefundDto) {
-    const wallet = await this.prisma.wallet.findUnique({
-      where: { customerId: dto.customerId },
+    const customer = await this.prisma.customer.findFirst({
+      where: { id: dto.customerId, deletedAt: null },
     });
-    if (!wallet) throw new NotFoundException('Wallet not found for customer');
+    if (!customer) throw new NotFoundException('Customer not found');
 
     if (dto.orderId) {
       const order = await this.prisma.order.findFirst({
@@ -417,13 +333,10 @@ export class AdminFinanceService {
       });
       if (!order) throw new NotFoundException('Order not found for customer');
 
-      const existing = await this.prisma.walletTransaction.findFirst({
+      const existing = await this.prisma.refund.findFirst({
         where: {
-          walletId: wallet.id,
-          type: WalletTransactionType.REFUND,
-          referenceId: dto.orderId,
-          referenceType: 'ORDER',
-          status: { in: [WalletTransactionStatus.PENDING, WalletTransactionStatus.SUCCESS] },
+          orderId: dto.orderId,
+          status: { in: [RefundStatus.PENDING, RefundStatus.APPROVED] },
         },
       });
       if (existing) {
@@ -431,66 +344,47 @@ export class AdminFinanceService {
       }
     }
 
-    return this.prisma.walletTransaction.create({
+    return this.prisma.refund.create({
       data: {
-        walletId: wallet.id,
-        type: WalletTransactionType.REFUND,
+        customerId: dto.customerId,
+        orderId: dto.orderId,
         amount: dto.amount,
         reason: dto.reason,
-        referenceId: dto.orderId,
-        referenceType: dto.orderId ? 'ORDER' : 'ADMIN',
-        status: WalletTransactionStatus.PENDING,
+        status: RefundStatus.PENDING,
       },
       include: {
-        wallet: {
-          include: {
-            customer: { select: { id: true, phone: true, fullName: true } },
-          },
-        },
+        customer: { select: { id: true, phone: true, fullName: true } },
+        order: { select: { id: true, orderNumber: true } },
       },
     });
   }
 
   async approveRefund(id: string) {
-    const refund = await this.prisma.walletTransaction.findUnique({
-      where: { id },
-      include: { wallet: true },
-    });
-    if (!refund || refund.type !== WalletTransactionType.REFUND) {
+    const refund = await this.prisma.refund.findUnique({ where: { id } });
+    if (!refund) {
       throw new NotFoundException('Refund not found');
     }
-    if (refund.status !== WalletTransactionStatus.PENDING) {
+    if (refund.status !== RefundStatus.PENDING) {
       throw new BadRequestException('Refund is not pending approval');
     }
 
     return this.prisma.$transaction(async (tx) => {
-      await tx.wallet.update({
-        where: { id: refund.walletId },
-        data: {
-          balance: { increment: refund.amount },
-          totalCredits: { increment: refund.amount },
-        },
-      });
-
-      const updated = await tx.walletTransaction.update({
+      const updated = await tx.refund.update({
         where: { id },
-        data: { status: WalletTransactionStatus.SUCCESS },
+        data: { status: RefundStatus.APPROVED },
         include: {
-          wallet: {
-            include: {
-              customer: { select: { id: true, phone: true, fullName: true } },
-            },
-          },
+          customer: { select: { id: true, phone: true, fullName: true } },
+          order: { select: { id: true, orderNumber: true } },
         },
       });
 
-      if (refund.referenceId && refund.referenceType === 'ORDER') {
+      if (refund.orderId) {
         await tx.order.updateMany({
-          where: { id: refund.referenceId },
+          where: { id: refund.orderId },
           data: { paymentStatus: PaymentStatus.REFUNDED },
         });
         await tx.invoice.updateMany({
-          where: { orderId: refund.referenceId },
+          where: { orderId: refund.orderId },
           data: { paymentStatus: PaymentStatus.REFUNDED },
         });
       }
@@ -500,26 +394,23 @@ export class AdminFinanceService {
   }
 
   async rejectRefund(id: string, dto: RejectRefundDto) {
-    const refund = await this.prisma.walletTransaction.findUnique({ where: { id } });
-    if (!refund || refund.type !== WalletTransactionType.REFUND) {
+    const refund = await this.prisma.refund.findUnique({ where: { id } });
+    if (!refund) {
       throw new NotFoundException('Refund not found');
     }
-    if (refund.status !== WalletTransactionStatus.PENDING) {
+    if (refund.status !== RefundStatus.PENDING) {
       throw new BadRequestException('Refund is not pending approval');
     }
 
-    return this.prisma.walletTransaction.update({
+    return this.prisma.refund.update({
       where: { id },
       data: {
-        status: WalletTransactionStatus.FAILED,
-        reason: `${refund.reason} [REJECTED: ${dto.reason}]`,
+        status: RefundStatus.REJECTED,
+        rejectReason: dto.reason,
       },
       include: {
-        wallet: {
-          include: {
-            customer: { select: { id: true, phone: true, fullName: true } },
-          },
-        },
+        customer: { select: { id: true, phone: true, fullName: true } },
+        order: { select: { id: true, orderNumber: true } },
       },
     });
   }

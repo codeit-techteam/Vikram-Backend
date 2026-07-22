@@ -54,7 +54,7 @@ Places an order from the customer cart (MVP — Cash/Manual payment only).
 7. Clear cart
 8. Create customer notification
 
-Does **not** charge online payment, apply coupons, wallet, EMI, or credit.
+Does **not** charge online payment, apply coupons, EMI, or credit. Supports loyalty redemption at placement.
     `,
   })
   @ApiBody({

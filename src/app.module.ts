@@ -5,6 +5,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import configuration from './common/config/configuration';
 import { validate } from './common/config/env.validation';
+import { EmailModule } from './common/email/email.module';
 import { DatabaseModule } from './common/database/database.module';
 import { RedisModule } from './common/database/redis.module';
 import { CacheModule } from './common/cache/cache.module';
@@ -30,7 +31,6 @@ import { ReviewsModule } from './modules/reviews/reviews.module';
 import { SupportModule } from './modules/support/support.module';
 import { CustomerProfileModule } from './modules/customer-profile/customer-profile.module';
 import { MembershipModule } from './modules/membership/membership.module';
-import { WalletModule } from './modules/wallet/wallet.module';
 import { LoyaltyModule } from './modules/loyalty/loyalty.module';
 import { BulkModule } from './modules/bulk/bulk.module';
 import { TestimonialsModule } from './modules/testimonials/testimonials.module';
@@ -67,6 +67,7 @@ import { SchedulerModule } from './modules/scheduler/scheduler.module';
       }),
     }),
     DatabaseModule,
+    EmailModule,
     RedisModule,
     CacheModule,
     QueueModule,
@@ -91,7 +92,6 @@ import { SchedulerModule } from './modules/scheduler/scheduler.module';
     ReviewsModule,
     SupportModule,
     MembershipModule,
-    WalletModule,
     LoyaltyModule,
     BulkModule,
     TestimonialsModule,

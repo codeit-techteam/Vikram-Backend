@@ -9,17 +9,14 @@ import {
 import { SchedulerStatusController } from './scheduler-status.controller';
 import { SchedulerStatusService } from './scheduler-status.service';
 import { MembershipProcessor } from './processors/membership.processor';
-import { WalletProcessor } from './processors/wallet.processor';
 import { LoyaltyProcessor } from './processors/loyalty.processor';
 import { ReportProcessor } from './processors/report.processor';
 import { NotificationProcessor } from './processors/notification.processor';
 import { MembershipScheduler } from './membership.scheduler';
-import { WalletScheduler } from './wallet.scheduler';
 import { LoyaltyScheduler } from './loyalty.scheduler';
 import { ReportScheduler } from './report.scheduler';
 import { NotificationScheduler } from './notification.scheduler';
 import { MembershipExpiryService } from './services/membership.service';
-import { WalletCleanupService } from './services/wallet.service';
 import { LoyaltyExpiryService } from './services/loyalty.service';
 import { DailyReportService } from './services/report.service';
 import { ScheduledNotificationDispatchService } from './services/notification.service';
@@ -40,17 +37,14 @@ import { SchedulerLogService } from './services/scheduler-log.service';
   providers: [
     SchedulerLogService,
     MembershipExpiryService,
-    WalletCleanupService,
     LoyaltyExpiryService,
     DailyReportService,
     ScheduledNotificationDispatchService,
     MembershipProcessor,
-    WalletProcessor,
     LoyaltyProcessor,
     ReportProcessor,
     NotificationProcessor,
     MembershipScheduler,
-    WalletScheduler,
     LoyaltyScheduler,
     ReportScheduler,
     NotificationScheduler,
@@ -60,7 +54,6 @@ import { SchedulerLogService } from './services/scheduler-log.service';
     BullModule,
     SchedulerLogService,
     MembershipExpiryService,
-    WalletCleanupService,
     LoyaltyExpiryService,
     DailyReportService,
     ScheduledNotificationDispatchService,

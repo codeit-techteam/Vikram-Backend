@@ -2,7 +2,6 @@ import type { DefaultJobOptions } from 'bullmq';
 
 export const SCHEDULER_QUEUES = {
   MEMBERSHIP_EXPIRY: 'membership-expiry',
-  WALLET_CLEANUP: 'wallet-cleanup',
   LOYALTY_EXPIRY: 'loyalty-expiry',
   DAILY_REPORT: 'daily-report',
   NOTIFICATION_SCHEDULER: 'notification-scheduler',
@@ -13,7 +12,6 @@ export type SchedulerQueueName =
 
 export const SCHEDULER_JOB_NAMES = {
   EXPIRE_MEMBERSHIPS: 'expire-memberships',
-  CLEANUP_WALLET_CREDITS: 'cleanup-wallet-credits',
   EXPIRE_LOYALTY_POINTS: 'expire-loyalty-points',
   GENERATE_DAILY_REPORT: 'generate-daily-report',
   DISPATCH_SCHEDULED_NOTIFICATIONS: 'dispatch-scheduled-notifications',

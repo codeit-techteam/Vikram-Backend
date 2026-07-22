@@ -45,10 +45,6 @@ import { AdminHubsService } from './hubs/admin-hubs.service';
 import { AdminMembershipController } from './membership/admin-membership.controller';
 import { AdminMembershipService } from './membership/admin-membership.service';
 
-// Wallet
-import { AdminWalletController } from './wallet/admin-wallet.controller';
-import { AdminWalletService } from './wallet/admin-wallet.service';
-
 // Loyalty
 import { AdminLoyaltyController } from './loyalty/admin-loyalty.controller';
 import { AdminLoyaltyService } from './loyalty/admin-loyalty.service';
@@ -108,6 +104,7 @@ import { AdminReportsService } from './reports/admin-reports.service';
 // Finance
 import { AdminFinanceController } from './finance/admin-finance.controller';
 import { AdminFinanceService } from './finance/admin-finance.service';
+import { AdminInvoicesController } from './invoices/admin-invoices.controller';
 
 // Support
 import { AdminSupportController } from './support/admin-support.controller';
@@ -116,14 +113,20 @@ import { AdminSupportService } from './support/admin-support.service';
 // Shared modules
 import { OrdersModule } from '../modules/orders/orders.module';
 import { NotificationModule } from '../modules/notification/notification.module';
+import { SupportModule } from '../modules/support/support.module';
+import { InvoiceModule } from '../modules/invoice/invoice.module';
 import { HubModule } from '../hub/hub.module';
+import { LoyaltyModule } from '../modules/loyalty/loyalty.module';
 
 @Module({
   imports: [
     PassportModule,
     OrdersModule,
     NotificationModule,
+    SupportModule,
+    InvoiceModule,
     HubModule,
+    LoyaltyModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -142,7 +145,6 @@ import { HubModule } from '../hub/hub.module';
     AdminUsersController,
     AdminHubsController,
     AdminMembershipController,
-    AdminWalletController,
     AdminLoyaltyController,
     AdminProductsController,
     AdminCategoriesController,
@@ -158,6 +160,7 @@ import { HubModule } from '../hub/hub.module';
     AdminSearchController,
     AdminReportsController,
     AdminFinanceController,
+    AdminInvoicesController,
     AdminSupportController,
   ],
   providers: [
@@ -174,7 +177,6 @@ import { HubModule } from '../hub/hub.module';
     AdminUsersService,
     AdminHubsService,
     AdminMembershipService,
-    AdminWalletService,
     AdminLoyaltyService,
     AdminProductsService,
     AdminCategoriesService,

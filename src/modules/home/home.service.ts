@@ -9,7 +9,6 @@ import { OfferService } from '../offer/offer.service';
 import { ProductService } from '../product/product.service';
 import { VideoService } from '../video/video.service';
 import { MembershipService } from '../membership/membership.service';
-import { WalletService } from '../wallet/wallet.service';
 import { LoyaltyService } from '../loyalty/loyalty.service';
 import { TestimonialsService } from '../testimonials/testimonials.service';
 import { OrdersService } from '../orders/orders.service';
@@ -17,7 +16,7 @@ import { HomeResponseDto } from './dto/home-response.dto';
 
 type PublicHomeData = Omit<
   HomeResponseDto,
-  'membership' | 'wallet' | 'loyalty' | 'lastOrders'
+  'membership' | 'loyalty' | 'lastOrders'
 >;
 
 @Injectable()
@@ -31,7 +30,6 @@ export class HomeService {
     private readonly productService: ProductService,
     private readonly videoService: VideoService,
     private readonly membershipService: MembershipService,
-    private readonly walletService: WalletService,
     private readonly loyaltyService: LoyaltyService,
     private readonly testimonialsService: TestimonialsService,
     private readonly ordersService: OrdersService,
@@ -44,15 +42,13 @@ export class HomeService {
       return {
         ...publicData,
         membership: null,
-        wallet: null,
         loyalty: null,
         lastOrders: [],
       };
     }
 
-    const [membership, wallet, loyalty, lastOrders] = await Promise.all([
+    const [membership, loyalty, lastOrders] = await Promise.all([
       this.membershipService.getCurrentMembership(customerId),
-      this.walletService.getWalletSummary(customerId),
       this.loyaltyService.getLoyaltySummary(customerId),
       this.ordersService.getRecentOrders(customerId, 3),
     ]);
@@ -60,7 +56,6 @@ export class HomeService {
     return {
       ...publicData,
       membership,
-      wallet,
       loyalty,
       lastOrders,
     };

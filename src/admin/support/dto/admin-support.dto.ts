@@ -11,7 +11,8 @@ import {
 } from 'class-validator';
 import {
   SupportTicketHistoryAction,
-  SupportTicketMessageSender,
+  SupportMessageAttachmentType,
+  SupportMessageSenderType,
   SupportTicketPriority,
   SupportTicketReason,
   SupportTicketStatus,
@@ -150,6 +151,15 @@ export class SupportTicketListItemDto {
   @ApiPropertyOptional({ type: SupportExecutiveSummaryDto })
   assignedExecutive?: SupportExecutiveSummaryDto | null;
 
+  @ApiPropertyOptional({ description: 'Preview of the most recent message' })
+  lastMessage?: string | null;
+
+  @ApiPropertyOptional()
+  lastMessageAt?: string | null;
+
+  @ApiPropertyOptional({ description: 'Unread messages from customer' })
+  unreadCount?: number;
+
   @ApiPropertyOptional()
   resolvedAt?: string | null;
 
@@ -175,11 +185,26 @@ export class SupportTicketMessageDto {
   @ApiProperty()
   id!: string;
 
-  @ApiProperty({ enum: SupportTicketMessageSender })
-  senderType!: SupportTicketMessageSender;
+  @ApiProperty({ enum: SupportMessageSenderType })
+  senderType!: SupportMessageSenderType;
 
   @ApiProperty()
-  body!: string;
+  senderId!: string;
+
+  @ApiProperty()
+  message!: string;
+
+  @ApiPropertyOptional()
+  attachmentUrl?: string | null;
+
+  @ApiPropertyOptional({ enum: SupportMessageAttachmentType })
+  attachmentType?: SupportMessageAttachmentType | null;
+
+  @ApiProperty()
+  isInternal!: boolean;
+
+  @ApiPropertyOptional()
+  readAt?: string | null;
 
   @ApiPropertyOptional()
   adminName?: string | null;
@@ -189,6 +214,9 @@ export class SupportTicketMessageDto {
 
   @ApiProperty()
   createdAt!: string;
+
+  @ApiProperty()
+  updatedAt!: string;
 }
 
 export class SupportTicketNoteDto {

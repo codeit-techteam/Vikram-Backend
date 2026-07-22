@@ -12,7 +12,7 @@ import {
   SupportTicketReason,
   SupportTicketStatus,
   SupportTicketPriority,
-  SupportTicketMessageSender,
+  SupportMessageSenderType,
 } from '../../../../generated/prisma/client';
 import { PaginationMetaDto } from '../../../common/dto/pagination.dto';
 
@@ -77,23 +77,34 @@ export class SupportTicketResponseDto {
   @ApiPropertyOptional()
   assignedExecutiveName?: string | null;
 
+  @ApiPropertyOptional({ description: 'Preview of the most recent message' })
+  lastMessage?: string | null;
+
+  @ApiPropertyOptional()
+  lastMessageAt?: string | null;
+
+  @ApiPropertyOptional({ description: 'Unread messages from admin/executive' })
+  unreadCount?: number;
+
   @ApiPropertyOptional({
     type: 'array',
     items: {
       type: 'object',
       properties: {
         id: { type: 'string' },
-        senderType: { enum: Object.values(SupportTicketMessageSender) },
-        body: { type: 'string' },
+        senderType: { enum: Object.values(SupportMessageSenderType) },
+        message: { type: 'string' },
         adminName: { type: 'string', nullable: true },
         createdAt: { type: 'string' },
       },
     },
+    deprecated: true,
+    description: 'Use GET /support/:ticketId/messages for conversation history',
   })
   messages?: Array<{
     id: string;
-    senderType: SupportTicketMessageSender;
-    body: string;
+    senderType: SupportMessageSenderType;
+    message: string;
     adminName?: string | null;
     createdAt: string;
   }>;

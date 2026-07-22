@@ -74,28 +74,6 @@ export class AdminReportsService {
     return { summary, memberships };
   }
 
-  async walletReport(params: ReportParams) {
-    const dateFilter = this.getDateFilter(params);
-    const where: Record<string, unknown> = {};
-    if (dateFilter) where['createdAt'] = dateFilter;
-
-    const [summary, transactions] = await Promise.all([
-      this.prisma.walletTransaction.groupBy({
-        by: ['type'],
-        _count: { _all: true },
-        where,
-      }),
-      this.prisma.walletTransaction.findMany({
-        where,
-        include: { wallet: { include: { customer: { select: { phone: true, fullName: true } } } } },
-        orderBy: { createdAt: 'desc' },
-        take: 100,
-      }),
-    ]);
-
-    return { summary, transactions };
-  }
-
   async bulkReport(params: ReportParams) {
     const dateFilter = this.getDateFilter(params);
     const where: Record<string, unknown> = {};

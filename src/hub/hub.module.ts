@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { PassportModule } from '@nestjs/passport';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { LoyaltyModule } from '../modules/loyalty/loyalty.module';
 
 // Auth
 import { HubAuthController } from './auth/hub-auth.controller';
@@ -78,6 +79,7 @@ import { HubSearchService } from './search/hub-search.service';
 
 @Module({
   imports: [
+    LoyaltyModule,
     PassportModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],

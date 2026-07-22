@@ -29,6 +29,23 @@ export class AdminLoyaltyController {
     return { success: true, message: 'Loyalty accounts fetched', data };
   }
 
+  @Get('stats')
+  @AdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
+  @ApiOperation({ summary: 'Loyalty dashboard stats and tier distribution' })
+  async getStats() {
+    const data = await this.loyaltyService.getStats();
+    return { success: true, message: 'Loyalty stats fetched', data };
+  }
+
+  @Get('leaderboard')
+  @AdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
+  @ApiOperation({ summary: 'Top customers by loyalty points' })
+  async getLeaderboard(@Query('limit') limit?: string) {
+    const parsedLimit = limit ? parseInt(limit, 10) : 10;
+    const data = await this.loyaltyService.getLeaderboard(parsedLimit);
+    return { success: true, message: 'Loyalty leaderboard fetched', data };
+  }
+
   @Get(':customerId')
   @AdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
   @ApiOperation({ summary: 'Get loyalty account by customer ID' })
@@ -39,7 +56,7 @@ export class AdminLoyaltyController {
 
   @Patch(':customerId/adjust')
   @AdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
-  @ApiOperation({ summary: 'Adjust loyalty points (positive or negative)' })
+  @ApiOperation({ summary: 'Adjust loyalty points (credit or debit)' })
   async adjust(@Param('customerId') customerId: string, @Body() dto: LoyaltyAdjustDto, @CurrentAdmin() admin: AuthenticatedAdmin) {
     const data = await this.loyaltyService.adjustPoints(customerId, dto);
     await this.auditService.log({ adminUserId: admin.id, adminEmail: admin.email, action: 'UPDATE', resource: 'LoyaltyAccount', resourceId: customerId, newValue: dto });
@@ -48,7 +65,7 @@ export class AdminLoyaltyController {
 
   @Post(':customerId/reward')
   @AdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
-  @ApiOperation({ summary: 'Reward loyalty points to customer' })
+  @ApiOperation({ summary: 'Credit loyalty points to customer' })
   async reward(@Param('customerId') customerId: string, @Body() dto: LoyaltyRewardDto, @CurrentAdmin() admin: AuthenticatedAdmin) {
     const data = await this.loyaltyService.rewardPoints(customerId, dto);
     await this.auditService.log({ adminUserId: admin.id, adminEmail: admin.email, action: 'CREDIT', resource: 'LoyaltyAccount', resourceId: customerId, newValue: dto });
@@ -57,7 +74,7 @@ export class AdminLoyaltyController {
 
   @Post(':customerId/redeem')
   @AdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
-  @ApiOperation({ summary: 'Redeem loyalty points for customer' })
+  @ApiOperation({ summary: 'Debit loyalty points for customer' })
   async redeem(@Param('customerId') customerId: string, @Body() dto: LoyaltyRedeemDto, @CurrentAdmin() admin: AuthenticatedAdmin) {
     const data = await this.loyaltyService.redeemPoints(customerId, dto);
     await this.auditService.log({ adminUserId: admin.id, adminEmail: admin.email, action: 'DEBIT', resource: 'LoyaltyAccount', resourceId: customerId, newValue: dto });

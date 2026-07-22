@@ -5,7 +5,6 @@ import { OfferResponseDto } from '../../offer/dto/offer-response.dto';
 import { ProductResponseDto } from '../../product/dto/product-response.dto';
 import { VideoResponseDto } from '../../video/dto/video-response.dto';
 import { MembershipSummaryDto } from '../../membership/dto/membership.dto';
-import { WalletSummaryDto } from '../../wallet/dto/wallet.dto';
 import { LoyaltySummaryDto } from '../../loyalty/dto/loyalty.dto';
 import { TestimonialResponseDto } from '../../testimonials/dto/testimonials.dto';
 import { OrderListItemDto } from '../../orders/dto/order-response.dto';
@@ -99,13 +98,6 @@ export class HomeResponseDto {
     description: 'Present when authenticated',
   })
   membership?: MembershipSummaryDto | null;
-
-  @ApiPropertyOptional({
-    type: WalletSummaryDto,
-    nullable: true,
-    description: 'Present when authenticated',
-  })
-  wallet?: WalletSummaryDto | null;
 
   @ApiPropertyOptional({
     type: LoyaltySummaryDto,

@@ -2,8 +2,8 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import {
   NotificationType,
   Prisma,
+  SupportMessageSenderType,
   SupportTicketHistoryAction,
-  SupportTicketMessageSender,
 } from '../../../generated/prisma/client';
 import { PrismaService } from '../../common/database/prisma.service';
 import { CacheService } from '../../common/cache/cache.service';
@@ -15,6 +15,14 @@ import {
   SupportTicketListResponseDto,
   SupportTicketResponseDto,
 } from './dto/support.dto';
+import { SupportMessageService } from './support-message.service';
+import type { SendSupportMessageDto } from './dto/support-message.dto';
+import {
+  MarkMessagesReadResponseDto,
+  SupportConversationResponseDto,
+  SupportMessageListResponseDto,
+  SupportUnreadCountResponseDto,
+} from './dto/support-message.dto';
 
 @Injectable()
 export class SupportService {
@@ -22,6 +30,7 @@ export class SupportService {
     private readonly prisma: PrismaService,
     private readonly cache: CacheService,
     private readonly notificationService: NotificationService,
+    private readonly messageService: SupportMessageService,
   ) {}
 
   async create(
@@ -41,25 +50,42 @@ export class SupportService {
     const year = new Date().getFullYear();
     const ticketNumber = await this.nextTicketNumber(year);
 
-    const ticket = await this.prisma.supportTicket.create({
-      data: {
-        ticketNumber,
-        customerId,
-        orderId: dto.orderId,
-        reason: dto.reason,
-        subject: dto.subject,
-        description: dto.description,
-        history: {
-          create: {
-            action: SupportTicketHistoryAction.CREATED,
-            field: 'status',
-            newValue: 'OPEN',
+    const ticket = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.supportTicket.create({
+        data: {
+          ticketNumber,
+          customerId,
+          orderId: dto.orderId,
+          reason: dto.reason,
+          subject: dto.subject,
+          description: dto.description,
+          lastMessage: dto.description.slice(0, 500),
+          lastMessageAt: new Date(),
+          unreadAdminCount: 1,
+          history: {
+            create: {
+              action: SupportTicketHistoryAction.CREATED,
+              field: 'status',
+              newValue: 'OPEN',
+            },
           },
         },
-      },
-      include: {
-        order: { select: { orderNumber: true } },
-      },
+        include: {
+          order: { select: { orderNumber: true } },
+        },
+      });
+
+      await tx.supportMessage.create({
+        data: {
+          ticketId: created.id,
+          senderType: SupportMessageSenderType.CUSTOMER,
+          senderId: customerId,
+          message: dto.description,
+          customerId,
+        },
+      });
+
+      return created;
     });
 
     await this.notificationService.createForCustomer({
@@ -102,6 +128,7 @@ export class SupportService {
         take: limit,
         include: {
           order: { select: { orderNumber: true } },
+          assignedExecutive: { select: { id: true, fullName: true } },
         },
       }),
     ]);
@@ -124,12 +151,6 @@ export class SupportService {
       include: {
         order: { select: { orderNumber: true } },
         assignedExecutive: { select: { id: true, fullName: true } },
-        messages: {
-          orderBy: { createdAt: 'asc' },
-          include: {
-            admin: { select: { fullName: true } },
-          },
-        },
       },
     });
 
@@ -137,7 +158,75 @@ export class SupportService {
       throw new NotFoundException('Support ticket not found');
     }
 
+    await this.messageService.markMessagesRead(ticketId, 'customer', {
+      customerId,
+    });
+
     return this.mapTicket(ticket);
+  }
+
+  async sendMessage(
+    customerId: string,
+    ticketId: string,
+    dto: SendSupportMessageDto,
+  ) {
+    return this.messageService.sendMessage(
+      {
+        ticketId,
+        senderType: SupportMessageSenderType.CUSTOMER,
+        senderId: customerId,
+      },
+      dto,
+    );
+  }
+
+  async getMessages(
+    customerId: string,
+    ticketId: string,
+    page = 1,
+    limit = 50,
+  ): Promise<SupportMessageListResponseDto> {
+    return this.messageService.getMessages(ticketId, page, limit, {
+      customerId,
+    });
+  }
+
+  async getConversation(
+    customerId: string,
+    ticketId: string,
+    page = 1,
+    limit = 50,
+  ): Promise<SupportConversationResponseDto> {
+    const conversation = await this.messageService.getConversation(
+      ticketId,
+      page,
+      limit,
+      { customerId },
+    );
+
+    await this.messageService.markMessagesRead(ticketId, 'customer', {
+      customerId,
+    });
+
+    return conversation;
+  }
+
+  async markMessagesRead(
+    customerId: string,
+    ticketId: string,
+  ): Promise<MarkMessagesReadResponseDto> {
+    return this.messageService.markMessagesRead(ticketId, 'customer', {
+      customerId,
+    });
+  }
+
+  async getUnreadCount(
+    customerId: string,
+    ticketId: string,
+  ): Promise<SupportUnreadCountResponseDto> {
+    return this.messageService.getUnreadCount(ticketId, 'customer', {
+      customerId,
+    });
   }
 
   private async nextTicketNumber(year: number): Promise<string> {
@@ -167,17 +256,14 @@ export class SupportService {
     priority: SupportTicketResponseDto['priority'];
     resolvedAt: Date | null;
     closedAt: Date | null;
+    lastMessage: string | null;
+    lastMessageAt: Date | null;
+    unreadCustomerCount: number;
+    unreadAdminCount: number;
     createdAt: Date;
     updatedAt: Date;
     order?: { orderNumber: string } | null;
     assignedExecutive?: { id: string; fullName: string } | null;
-    messages?: Array<{
-      id: string;
-      senderType: SupportTicketMessageSender;
-      body: string;
-      createdAt: Date;
-      admin?: { fullName: string } | null;
-    }>;
   }): SupportTicketResponseDto {
     return {
       id: ticket.id,
@@ -192,13 +278,9 @@ export class SupportService {
       resolvedAt: ticket.resolvedAt?.toISOString() ?? null,
       closedAt: ticket.closedAt?.toISOString() ?? null,
       assignedExecutiveName: ticket.assignedExecutive?.fullName ?? null,
-      messages: (ticket.messages ?? []).map((message) => ({
-        id: message.id,
-        senderType: message.senderType,
-        body: message.body,
-        adminName: message.admin?.fullName ?? null,
-        createdAt: message.createdAt.toISOString(),
-      })),
+      lastMessage: ticket.lastMessage,
+      lastMessageAt: ticket.lastMessageAt?.toISOString() ?? null,
+      unreadCount: ticket.unreadCustomerCount,
       createdAt: ticket.createdAt.toISOString(),
       updatedAt: ticket.updatedAt.toISOString(),
     };

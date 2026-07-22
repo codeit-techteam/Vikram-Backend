@@ -37,7 +37,6 @@ import {
   RejectRefundDto,
   RejectSettlementDto,
   VendorSettlementQueryDto,
-  WalletSettlementQueryDto,
 } from './dto/admin-finance.dto';
 
 @ApiTags('Admin Finance')
@@ -56,7 +55,7 @@ export class AdminFinanceController {
   @ApiOperation({
     summary: 'Finance dashboard cards',
     description:
-      'Returns today\'s collection, total wallet balance, pending refunds, and pending hub/vendor settlements.',
+      'Returns today\'s collection, membership revenue, pending refunds, and pending hub/vendor settlements.',
   })
   @ApiResponse({ status: 200, type: FinanceDashboardCardsDto })
   async dashboard() {
@@ -70,40 +69,12 @@ export class AdminFinanceController {
   @ApiOperation({
     summary: 'Daily closing report',
     description:
-      'Today\'s revenue, wallet usage, refunds, orders, and pending settlement summary. Optional date range via fromDate/toDate.',
+      'Today\'s revenue, refunds, orders, and pending settlement summary. Optional date range via fromDate/toDate.',
   })
   @ApiResponse({ status: 200, type: DailyClosingResponseDto })
   async dailyClosing(@Query() query: FinanceDateRangeDto) {
     const data = await this.financeService.getDailyClosing(query);
     return { success: true, message: 'Daily closing report fetched', data };
-  }
-
-  @Get('wallet')
-  @AdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
-  @ApiAdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
-  @ApiOperation({
-    summary: 'List wallet transactions',
-    description: 'Paginated wallet transaction ledger with optional type, status, customer, and date filters.',
-  })
-  @ApiResponse({ status: 200, type: ApiResponseDto })
-  async listWalletTransactions(@Query() query: WalletSettlementQueryDto) {
-    const data = await this.financeService.listWalletTransactions(query);
-    return { success: true, message: 'Wallet transactions fetched', data };
-  }
-
-  @Get('wallet/:customerId')
-  @AdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
-  @ApiAdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
-  @ApiOperation({
-    summary: 'Customer wallet ledger',
-    description: 'Full wallet details and transaction history for a customer.',
-  })
-  @ApiParam({ name: 'customerId', description: 'Customer UUID' })
-  @ApiResponse({ status: 200, type: ApiResponseDto })
-  @ApiResponse({ status: 404, description: 'Wallet not found' })
-  async getCustomerWalletLedger(@Param('customerId') customerId: string) {
-    const data = await this.financeService.getCustomerWalletLedger(customerId);
-    return { success: true, message: 'Customer wallet ledger fetched', data };
   }
 
   @Get('refunds')
@@ -124,10 +95,10 @@ export class AdminFinanceController {
   @ApiAdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
   @ApiOperation({
     summary: 'Create refund request',
-    description: 'Creates a pending refund entry linked to customer wallet (and optionally an order).',
+    description: 'Creates a pending refund entry for a customer (and optionally an order).',
   })
   @ApiResponse({ status: 201, type: ApiResponseDto })
-  @ApiResponse({ status: 404, description: 'Wallet or order not found' })
+  @ApiResponse({ status: 404, description: 'Customer or order not found' })
   @ApiResponse({ status: 400, description: 'Duplicate refund for order' })
   async createRefund(
     @Body() dto: CreateRefundDto,
@@ -150,9 +121,9 @@ export class AdminFinanceController {
   @ApiAdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
   @ApiOperation({
     summary: 'Approve refund',
-    description: 'Credits customer wallet and marks linked order payment as REFUNDED when applicable.',
+    description: 'Approves refund and marks linked order payment as REFUNDED when applicable.',
   })
-  @ApiParam({ name: 'id', description: 'Wallet transaction (refund) UUID' })
+  @ApiParam({ name: 'id', description: 'Refund UUID' })
   @ApiResponse({ status: 200, type: ApiResponseDto })
   @ApiResponse({ status: 404, description: 'Refund not found' })
   @ApiResponse({ status: 400, description: 'Refund not pending' })
@@ -175,7 +146,7 @@ export class AdminFinanceController {
   @AdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
   @ApiAdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
   @ApiOperation({ summary: 'Reject refund' })
-  @ApiParam({ name: 'id', description: 'Wallet transaction (refund) UUID' })
+  @ApiParam({ name: 'id', description: 'Refund UUID' })
   @ApiResponse({ status: 200, type: ApiResponseDto })
   async rejectRefund(
     @Param('id') id: string,

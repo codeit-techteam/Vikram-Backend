@@ -1,6 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsUUID, IsString, MaxLength } from 'class-validator';
+import { IsInt, IsOptional, IsUUID, IsString, MaxLength, Min } from 'class-validator';
+import { Type } from 'class-transformer';
 import { CartItemResponseDto } from '../../cart/dto/cart.dto';
+import { LOYALTY_MIN_REDEEM_POINTS } from '../../loyalty/loyalty.constants';
 
 export class CheckoutQueryDto {
   @ApiPropertyOptional({
@@ -10,6 +12,16 @@ export class CheckoutQueryDto {
   @IsOptional()
   @IsUUID()
   addressId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Loyalty points to redeem at checkout preview',
+    minimum: LOYALTY_MIN_REDEEM_POINTS,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  loyaltyPointsToRedeem?: number;
 }
 
 export class PrepareCheckoutDto {
@@ -29,6 +41,16 @@ export class PrepareCheckoutDto {
   @IsString()
   @MaxLength(500)
   notes?: string;
+
+  @ApiPropertyOptional({
+    description: 'Loyalty points to redeem at checkout preview',
+    minimum: LOYALTY_MIN_REDEEM_POINTS,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  loyaltyPointsToRedeem?: number;
 }
 
 export class CheckoutAddressDto {
@@ -138,17 +160,23 @@ export class CheckoutResponseDto {
   @ApiProperty({ example: 42.5, description: 'Membership discount applied (preview)' })
   membershipDiscount!: number;
 
-  @ApiProperty({ example: 1500, description: 'Available wallet balance' })
-  walletBalance!: number;
-
-  @ApiProperty({ example: 0, description: 'Wallet amount applied in preview (apply at order placement)' })
-  walletApplied!: number;
-
   @ApiProperty({ example: 250, description: 'Total loyalty points earned' })
   loyaltyPoints!: number;
 
   @ApiProperty({ example: 250, description: 'Points redeemable at checkout' })
   redeemablePoints!: number;
+
+  @ApiProperty({ example: 500, description: 'Maximum points redeemable for this order' })
+  maxRedeemablePoints!: number;
+
+  @ApiProperty({ example: 0, description: 'Loyalty points applied in preview' })
+  loyaltyUsed!: number;
+
+  @ApiProperty({ example: 0, description: 'Loyalty discount in INR (1 point = ₹1)' })
+  loyaltyDiscount!: number;
+
+  @ApiProperty({ example: 0, description: 'Total discount (membership + loyalty)' })
+  discount!: number;
 
   @ApiProperty({ example: 0, description: 'Loading/unloading charges' })
   loadingCharges!: number;

@@ -14,8 +14,6 @@ import {
   ProductListingType,
   TestimonialType,
   VideoPlacement,
-  WalletTransactionStatus,
-  WalletTransactionType,
 } from '../generated/prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import pg from 'pg';
@@ -806,7 +804,7 @@ async function main() {
 
   console.log(`Seeded hub users (login: ${hubManager.employeeId} / 123456), drivers and vehicles.`);
 
-  // ─── Membership, Wallet, Loyalty, Bulk, Testimonials (Marketplace Extensions) ─
+  // ─── Membership, Loyalty, Bulk, Testimonials (Marketplace Extensions) ─
 
   const membershipPlans = [
     {
@@ -873,48 +871,6 @@ async function main() {
     },
   });
 
-  const wallet = await prisma.wallet.upsert({
-    where: { customerId: demoCustomer.id },
-    update: {
-      balance: 2500,
-      totalCredits: 5000,
-      totalDebits: 2500,
-    },
-    create: {
-      customerId: demoCustomer.id,
-      balance: 2500,
-      totalCredits: 5000,
-      totalDebits: 2500,
-    },
-  });
-
-  const existingWalletTx = await prisma.walletTransaction.findFirst({
-    where: { walletId: wallet.id, reason: 'Welcome bonus credit' },
-  });
-  if (!existingWalletTx) {
-    await prisma.walletTransaction.createMany({
-      data: [
-        {
-          walletId: wallet.id,
-          type: WalletTransactionType.CREDIT,
-          amount: 5000,
-          reason: 'Welcome bonus credit',
-          referenceType: 'ADMIN_ADJUSTMENT',
-          status: WalletTransactionStatus.SUCCESS,
-        },
-        {
-          walletId: wallet.id,
-          type: WalletTransactionType.ORDER_PAYMENT,
-          amount: 2500,
-          reason: 'Order payment #BJW-901',
-          referenceId: 'BJW-901',
-          referenceType: 'ORDER',
-          status: WalletTransactionStatus.SUCCESS,
-        },
-      ],
-    });
-  }
-
   const loyaltyAccount = await prisma.loyaltyAccount.upsert({
     where: { customerId: demoCustomer.id },
     update: {
@@ -980,7 +936,6 @@ async function main() {
   await prisma.customer.update({
     where: { id: demoCustomer.id },
     data: {
-      walletId: wallet.id,
       loyaltyAccountId: loyaltyAccount.id,
       membershipId: membership.id,
     },
@@ -1104,7 +1059,7 @@ async function main() {
     });
   }
 
-  console.log('Seeded membership plans, wallet, loyalty, bulk enquiry, and testimonials.');
+  console.log('Seeded membership plans, loyalty, bulk enquiry, and testimonials.');
 
   // ── Admin Users (3 RBAC roles) ─────────────────────────────────────────────
   const adminPasswordHash = await bcrypt.hash('Admin@1234', 10);

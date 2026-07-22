@@ -4,6 +4,7 @@ import {
 } from '@nestjs/common';
 import type { OrderStatus, Prisma } from '../../../generated/prisma/client';
 import { PrismaService } from '../../common/database/prisma.service';
+import { LoyaltyTransactionService } from '../../modules/loyalty/loyalty-transaction.service';
 import { HUB_ORDER_FILTER_MAP } from '../constants/hub.constants';
 import { HubOrderRepository } from '../repositories/hub-order.repository';
 import type {
@@ -24,6 +25,7 @@ export class HubOrdersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly orderRepo: HubOrderRepository,
+    private readonly loyaltyTransactionService: LoyaltyTransactionService,
   ) {}
 
   async findAll(hubId: string, query: HubOrderQueryDto) {
@@ -94,7 +96,6 @@ export class HubOrdersService {
       ...order,
       loadingCharges: order.loadingCharges,
       unloadingCharges: order.unloadingCharges,
-      walletUsed: order.walletAmountUsed,
       membershipDiscount: order.membershipDiscount,
       loyaltyPoints: order.loyaltyPointsUsed,
       priorityOrder: order.priorityOrder,
@@ -267,7 +268,7 @@ export class HubOrdersService {
       data: { status: 'COMPLETED', completedAt: new Date() },
     });
 
-    return this.transitionOrder(
+    const delivered = await this.transitionOrder(
       hubId,
       orderId,
       'DELIVERED',
@@ -275,6 +276,10 @@ export class HubOrdersService {
       { deliveredAt: new Date() },
       dto.remarks ?? 'Order delivered',
     );
+
+    await this.loyaltyTransactionService.earnForDeliveredOrder(orderId);
+
+    return delivered;
   }
 
   async cancel(hubId: string, orderId: string, dto: HubCancelOrderDto, updatedBy: string) {

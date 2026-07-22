@@ -8,7 +8,6 @@ import {
   NotificationType,
   Prisma,
   SupportTicketHistoryAction,
-  SupportTicketMessageSender,
   SupportTicketPriority,
   SupportTicketStatus,
 } from '../../../generated/prisma/client';
@@ -16,7 +15,12 @@ import { PrismaService } from '../../common/database/prisma.service';
 import { CacheService } from '../../common/cache/cache.service';
 import { buildPaginationMeta } from '../../common/dto/pagination.dto';
 import { NotificationService } from '../../modules/notification/notification.service';
+import { SupportMessageService } from '../../modules/support/support-message.service';
 import type { AuthenticatedAdmin } from '../auth/admin-jwt.strategy';
+import type {
+  AddInternalNoteDto,
+  SendSupportMessageDto,
+} from '../../modules/support/dto/support-message.dto';
 import type {
   AdminSupportNoteDto,
   AdminSupportQueryDto,
@@ -41,18 +45,22 @@ export class AdminSupportService {
     private readonly prisma: PrismaService,
     private readonly cache: CacheService,
     private readonly notificationService: NotificationService,
+    private readonly messageService: SupportMessageService,
   ) {}
 
-  async findAll(query: AdminSupportQueryDto): Promise<SupportTicketListResponseDto> {
+  async findAll(
+    query: AdminSupportQueryDto,
+    admin: AuthenticatedAdmin,
+  ): Promise<SupportTicketListResponseDto> {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
-    const where = this.buildWhere(query);
+    const where = this.buildWhere(query, admin);
 
     const [total, tickets] = await this.prisma.$transaction([
       this.prisma.supportTicket.count({ where }),
       this.prisma.supportTicket.findMany({
         where,
-        orderBy: { createdAt: 'desc' },
+        orderBy: [{ lastMessageAt: 'desc' }, { createdAt: 'desc' }],
         skip: (page - 1) * limit,
         take: limit,
         include: ticketInclude,
@@ -65,29 +73,13 @@ export class AdminSupportService {
     };
   }
 
-  async findOne(id: string): Promise<SupportTicketDetailDto> {
-    const ticket = await this.prisma.supportTicket.findFirst({
-      where: { id, deletedAt: null },
-      include: {
-        ...ticketInclude,
-        messages: {
-          orderBy: { createdAt: 'asc' },
-          include: {
-            admin: { select: { fullName: true } },
-            customer: { select: { fullName: true } },
-          },
-        },
-        notes: {
-          orderBy: { createdAt: 'desc' },
-          include: { admin: { select: { fullName: true } } },
-        },
-        history: { orderBy: { createdAt: 'desc' } },
-      },
-    });
+  async findOne(
+    id: string,
+    admin: AuthenticatedAdmin,
+  ): Promise<SupportTicketDetailDto> {
+    const ticket = await this.getTicketWithAccessOrThrow(id, admin);
 
-    if (!ticket) {
-      throw new NotFoundException('Support ticket not found');
-    }
+    await this.messageService.markMessagesRead(id, 'admin', { admin });
 
     return this.mapDetail(ticket);
   }
@@ -138,7 +130,7 @@ export class AdminSupportService {
     ]);
 
     await this.invalidateCustomerCache(ticket.customerId);
-    return this.findOne(id);
+    return this.findOne(id, admin);
   }
 
   async reply(
@@ -146,87 +138,69 @@ export class AdminSupportService {
     dto: AdminSupportReplyDto,
     admin: AuthenticatedAdmin,
   ): Promise<SupportTicketDetailDto> {
-    const ticket = await this.getTicketOrThrow(id);
+    await this.sendAdminMessage(id, { message: dto.message }, admin);
+    return this.findOne(id, admin);
+  }
 
-    if (
-      ticket.status === SupportTicketStatus.CLOSED ||
-      ticket.status === SupportTicketStatus.RESOLVED
-    ) {
-      throw new BadRequestException('Cannot reply to a closed or resolved ticket');
-    }
+  async sendMessage(
+    id: string,
+    dto: SendSupportMessageDto,
+    admin: AuthenticatedAdmin,
+  ) {
+    await this.getTicketWithAccessOrThrow(id, admin);
+    return this.messageService.sendMessage(
+      {
+        ticketId: id,
+        senderType: this.messageService.resolveAdminSenderType(admin),
+        senderId: admin.id,
+      },
+      dto,
+    );
+  }
 
-    await this.prisma.$transaction([
-      this.prisma.supportTicketMessage.create({
-        data: {
-          ticketId: id,
-          senderType: SupportTicketMessageSender.ADMIN,
-          adminId: admin.id,
-          body: dto.message,
-        },
-      }),
-      this.prisma.supportTicket.update({
-        where: { id },
-        data: {
-          status:
-            ticket.status === SupportTicketStatus.OPEN ||
-            ticket.status === SupportTicketStatus.ASSIGNED
-              ? SupportTicketStatus.IN_PROGRESS
-              : ticket.status,
-        },
-      }),
-      this.prisma.supportTicketHistory.create({
-        data: {
-          ticketId: id,
-          action: SupportTicketHistoryAction.REPLIED,
-          newValue: dto.message.slice(0, 500),
-          adminId: admin.id,
-          adminEmail: admin.email,
-        },
-      }),
-    ]);
-
-    await this.notificationService.createForCustomer({
-      customerId: ticket.customerId,
-      type: NotificationType.ADMIN_ANNOUNCEMENT,
-      label: 'Support Ticket',
-      title: `Update on ticket ${ticket.ticketNumber}`,
-      body: dto.message.slice(0, 200),
-      actionLabel: 'View Ticket',
-      actionRoute: `/support/${ticket.id}`,
-      actionVariant: 'primary',
+  async getMessages(
+    id: string,
+    page: number,
+    limit: number,
+    admin: AuthenticatedAdmin,
+  ) {
+    await this.getTicketWithAccessOrThrow(id, admin);
+    await this.messageService.markMessagesRead(id, 'admin', { admin });
+    return this.messageService.getConversation(id, page, limit, {
+      includeInternal: true,
+      admin,
     });
+  }
 
-    await this.invalidateCustomerCache(ticket.customerId);
-    return this.findOne(id);
+  async markMessagesRead(id: string, admin: AuthenticatedAdmin) {
+    await this.getTicketWithAccessOrThrow(id, admin);
+    return this.messageService.markMessagesRead(id, 'admin', { admin });
+  }
+
+  async getUnreadCount(id: string, admin: AuthenticatedAdmin) {
+    await this.getTicketWithAccessOrThrow(id, admin);
+    return this.messageService.getUnreadCount(id, 'admin', { admin });
   }
 
   async addInternalNote(
     id: string,
-    dto: AdminSupportNoteDto,
+    dto: AdminSupportNoteDto | AddInternalNoteDto,
     admin: AuthenticatedAdmin,
   ): Promise<SupportTicketDetailDto> {
-    const ticket = await this.getTicketOrThrow(id);
+    const note = dto.note;
+    await this.getTicketWithAccessOrThrow(id, admin);
 
-    await this.prisma.$transaction([
-      this.prisma.supportTicketNote.create({
-        data: {
-          ticketId: id,
-          adminId: admin.id,
-          body: dto.note,
-        },
-      }),
-      this.prisma.supportTicketHistory.create({
-        data: {
-          ticketId: id,
-          action: SupportTicketHistoryAction.NOTE_ADDED,
-          newValue: dto.note.slice(0, 500),
-          adminId: admin.id,
-          adminEmail: admin.email,
-        },
-      }),
-    ]);
+    await this.messageService.sendMessage(
+      {
+        ticketId: id,
+        senderType: this.messageService.resolveAdminSenderType(admin),
+        senderId: admin.id,
+        isInternal: true,
+      },
+      { message: note },
+    );
 
-    return this.findOne(id);
+    return this.findOne(id, admin);
   }
 
   async updateStatus(
@@ -234,7 +208,7 @@ export class AdminSupportService {
     dto: UpdateSupportStatusDto,
     admin: AuthenticatedAdmin,
   ): Promise<SupportTicketDetailDto> {
-    const ticket = await this.getTicketOrThrow(id);
+    const ticket = await this.getTicketWithAccessOrThrow(id, admin);
     this.assertValidStatusTransition(ticket.status, dto.status);
 
     const now = new Date();
@@ -249,7 +223,10 @@ export class AdminSupportService {
     } else if (
       dto.status === SupportTicketStatus.OPEN ||
       dto.status === SupportTicketStatus.ASSIGNED ||
-      dto.status === SupportTicketStatus.IN_PROGRESS
+      dto.status === SupportTicketStatus.IN_PROGRESS ||
+      dto.status === SupportTicketStatus.WAITING_FOR_CUSTOMER ||
+      dto.status === SupportTicketStatus.WAITING_FOR_ADMIN ||
+      dto.status === SupportTicketStatus.REOPENED
     ) {
       data.resolvedAt = null;
       data.closedAt = null;
@@ -291,7 +268,7 @@ export class AdminSupportService {
     }
 
     await this.invalidateCustomerCache(ticket.customerId);
-    return this.findOne(id);
+    return this.findOne(id, admin);
   }
 
   async updatePriority(
@@ -299,7 +276,7 @@ export class AdminSupportService {
     dto: UpdateSupportPriorityDto,
     admin: AuthenticatedAdmin,
   ): Promise<SupportTicketDetailDto> {
-    const ticket = await this.getTicketOrThrow(id);
+    const ticket = await this.getTicketWithAccessOrThrow(id, admin);
 
     await this.prisma.$transaction([
       this.prisma.supportTicket.update({
@@ -319,7 +296,7 @@ export class AdminSupportService {
       }),
     ]);
 
-    return this.findOne(id);
+    return this.findOne(id, admin);
   }
 
   async close(id: string, admin: AuthenticatedAdmin): Promise<SupportTicketDetailDto> {
@@ -331,7 +308,7 @@ export class AdminSupportService {
   }
 
   async reopen(id: string, admin: AuthenticatedAdmin): Promise<SupportTicketDetailDto> {
-    const ticket = await this.getTicketOrThrow(id);
+    const ticket = await this.getTicketWithAccessOrThrow(id, admin);
 
     if (
       ticket.status !== SupportTicketStatus.CLOSED &&
@@ -344,7 +321,7 @@ export class AdminSupportService {
       this.prisma.supportTicket.update({
         where: { id },
         data: {
-          status: SupportTicketStatus.OPEN,
+          status: SupportTicketStatus.REOPENED,
           resolvedAt: null,
           closedAt: null,
         },
@@ -355,7 +332,7 @@ export class AdminSupportService {
           action: SupportTicketHistoryAction.REOPENED,
           field: 'status',
           oldValue: ticket.status,
-          newValue: SupportTicketStatus.OPEN,
+          newValue: SupportTicketStatus.REOPENED,
           adminId: admin.id,
           adminEmail: admin.email,
         },
@@ -363,11 +340,34 @@ export class AdminSupportService {
     ]);
 
     await this.invalidateCustomerCache(ticket.customerId);
-    return this.findOne(id);
+    return this.findOne(id, admin);
   }
 
-  private buildWhere(query: AdminSupportQueryDto): Prisma.SupportTicketWhereInput {
+  private async sendAdminMessage(
+    id: string,
+    dto: SendSupportMessageDto,
+    admin: AuthenticatedAdmin,
+  ) {
+    await this.getTicketWithAccessOrThrow(id, admin);
+    return this.messageService.sendMessage(
+      {
+        ticketId: id,
+        senderType: this.messageService.resolveAdminSenderType(admin),
+        senderId: admin.id,
+      },
+      dto,
+    );
+  }
+
+  private buildWhere(
+    query: AdminSupportQueryDto,
+    admin: AuthenticatedAdmin,
+  ): Prisma.SupportTicketWhereInput {
     const where: Prisma.SupportTicketWhereInput = { deletedAt: null };
+
+    if (admin.role === AdminRole.CUSTOMER_EXECUTIVE) {
+      where.assignedExecutiveId = admin.id;
+    }
 
     if (query.status) where.status = query.status;
     if (query.priority) where.priority = query.priority;
@@ -391,8 +391,17 @@ export class AdminSupportService {
       where.OR = [
         { ticketNumber: { contains: term, mode: 'insensitive' } },
         { subject: { contains: term, mode: 'insensitive' } },
+        { lastMessage: { contains: term, mode: 'insensitive' } },
         { customer: { phone: { contains: term } } },
         { customer: { fullName: { contains: term, mode: 'insensitive' } } },
+        {
+          messages: {
+            some: {
+              isInternal: false,
+              message: { contains: term, mode: 'insensitive' },
+            },
+          },
+        },
       ];
     }
 
@@ -409,6 +418,37 @@ export class AdminSupportService {
     return ticket;
   }
 
+  private async getTicketWithAccessOrThrow(
+    id: string,
+    admin: AuthenticatedAdmin,
+  ) {
+    const ticket = await this.prisma.supportTicket.findFirst({
+      where: { id, deletedAt: null },
+      include: {
+        ...ticketInclude,
+        messages: {
+          orderBy: { createdAt: 'asc' },
+          include: {
+            admin: { select: { fullName: true } },
+            customer: { select: { fullName: true } },
+          },
+        },
+        notes: {
+          orderBy: { createdAt: 'desc' },
+          include: { admin: { select: { fullName: true } } },
+        },
+        history: { orderBy: { createdAt: 'desc' } },
+      },
+    });
+
+    if (!ticket) {
+      throw new NotFoundException('Support ticket not found');
+    }
+
+    this.messageService.assertExecutiveAccess(ticket, admin);
+    return ticket;
+  }
+
   private assertValidStatusTransition(
     current: SupportTicketStatus,
     next: SupportTicketStatus,
@@ -417,7 +457,8 @@ export class AdminSupportService {
 
     if (
       current === SupportTicketStatus.CLOSED &&
-      next !== SupportTicketStatus.OPEN
+      next !== SupportTicketStatus.OPEN &&
+      next !== SupportTicketStatus.REOPENED
     ) {
       throw new BadRequestException(
         'Closed tickets must be reopened before other status changes',
@@ -465,6 +506,9 @@ export class AdminSupportService {
             email: ticket.assignedExecutive.email,
           }
         : null,
+      lastMessage: ticket.lastMessage,
+      lastMessageAt: ticket.lastMessageAt?.toISOString() ?? null,
+      unreadCount: ticket.unreadAdminCount,
       resolvedAt: ticket.resolvedAt?.toISOString() ?? null,
       closedAt: ticket.closedAt?.toISOString() ?? null,
       createdAt: ticket.createdAt.toISOString(),
@@ -486,23 +530,41 @@ export class AdminSupportService {
       };
     }>,
   ): SupportTicketDetailDto {
+    const internalMessages = ticket.messages.filter((m) => m.isInternal);
+
     return {
       ...this.mapListItem(ticket),
       description: ticket.description,
-      messages: ticket.messages.map((message) => ({
-        id: message.id,
-        senderType: message.senderType,
-        body: message.body,
-        adminName: message.admin?.fullName ?? null,
-        customerName: message.customer?.fullName ?? null,
-        createdAt: message.createdAt.toISOString(),
-      })),
-      notes: ticket.notes.map((note) => ({
-        id: note.id,
-        body: note.body,
-        adminName: note.admin.fullName,
-        createdAt: note.createdAt.toISOString(),
-      })),
+      messages: ticket.messages
+        .filter((m) => !m.isInternal)
+        .map((message) => ({
+          id: message.id,
+          senderType: message.senderType,
+          senderId: message.senderId,
+          message: message.message,
+          attachmentUrl: message.attachmentUrl,
+          attachmentType: message.attachmentType,
+          isInternal: message.isInternal,
+          readAt: message.readAt?.toISOString() ?? null,
+          adminName: message.admin?.fullName ?? null,
+          customerName: message.customer?.fullName ?? null,
+          createdAt: message.createdAt.toISOString(),
+          updatedAt: message.updatedAt.toISOString(),
+        })),
+      notes: [
+        ...ticket.notes.map((note) => ({
+          id: note.id,
+          body: note.body,
+          adminName: note.admin.fullName,
+          createdAt: note.createdAt.toISOString(),
+        })),
+        ...internalMessages.map((message) => ({
+          id: message.id,
+          body: message.message,
+          adminName: message.admin?.fullName ?? 'Admin',
+          createdAt: message.createdAt.toISOString(),
+        })),
+      ],
       history: ticket.history.map((entry) => ({
         id: entry.id,
         action: entry.action,

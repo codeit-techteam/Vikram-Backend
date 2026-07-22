@@ -13,8 +13,7 @@ import {
 import { Type } from 'class-transformer';
 import {
   SettlementStatus,
-  WalletTransactionStatus,
-  WalletTransactionType,
+  RefundStatus,
 } from '../../../../generated/prisma/client';
 
 export class FinancePaginationDto {
@@ -45,38 +44,11 @@ export class FinanceDateRangeDto {
   toDate?: string;
 }
 
-export class WalletSettlementQueryDto extends FinancePaginationDto {
-  @ApiPropertyOptional({ enum: WalletTransactionType, example: WalletTransactionType.ORDER_PAYMENT })
-  @IsOptional()
-  @IsEnum(WalletTransactionType)
-  type?: WalletTransactionType;
-
-  @ApiPropertyOptional({ enum: WalletTransactionStatus, example: WalletTransactionStatus.SUCCESS })
-  @IsOptional()
-  @IsEnum(WalletTransactionStatus)
-  status?: WalletTransactionStatus;
-
-  @ApiPropertyOptional({ example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890' })
-  @IsOptional()
-  @IsUUID()
-  customerId?: string;
-
-  @ApiPropertyOptional({ example: '2026-07-01' })
-  @IsOptional()
-  @IsDateString()
-  fromDate?: string;
-
-  @ApiPropertyOptional({ example: '2026-07-21' })
-  @IsOptional()
-  @IsDateString()
-  toDate?: string;
-}
-
 export class RefundLedgerQueryDto extends FinancePaginationDto {
-  @ApiPropertyOptional({ enum: WalletTransactionStatus, example: WalletTransactionStatus.PENDING })
+  @ApiPropertyOptional({ enum: RefundStatus, example: RefundStatus.PENDING })
   @IsOptional()
-  @IsEnum(WalletTransactionStatus)
-  status?: WalletTransactionStatus;
+  @IsEnum(RefundStatus)
+  status?: RefundStatus;
 
   @ApiPropertyOptional({ example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890' })
   @IsOptional()
@@ -234,7 +206,7 @@ export class FinanceDashboardCardsDto {
   todaysCollection!: number;
 
   @ApiProperty({ example: 458900.0 })
-  walletBalance!: number;
+  membershipRevenue!: number;
 
   @ApiProperty({ example: 8500.0 })
   refundPending!: number;
@@ -259,14 +231,6 @@ export class DailyClosingResponseDto {
     },
   })
   revenue!: Record<string, number>;
-
-  @ApiProperty({
-    example: {
-      totalUsed: 12500.0,
-      transactionCount: 7,
-    },
-  })
-  walletUsage!: Record<string, number>;
 
   @ApiProperty({
     example: {

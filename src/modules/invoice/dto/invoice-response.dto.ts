@@ -4,6 +4,7 @@ import {
   PaymentMethod,
   PaymentStatus,
 } from '../../../../generated/prisma/client';
+import { InvoiceFinancialDto, InvoiceTaxBreakdownDto } from './invoice-list.dto';
 
 export class InvoiceItemDto {
   @ApiProperty()
@@ -23,6 +24,21 @@ export class InvoiceItemDto {
 
   @ApiProperty()
   subtotal!: number;
+
+  @ApiPropertyOptional()
+  discount?: number;
+
+  @ApiPropertyOptional()
+  cgst?: number;
+
+  @ApiPropertyOptional()
+  sgst?: number;
+
+  @ApiPropertyOptional()
+  igst?: number;
+
+  @ApiPropertyOptional()
+  gstAmount?: number;
 }
 
 export class InvoiceCustomerDto {
@@ -93,4 +109,16 @@ export class InvoiceResponseDto {
 
   @ApiPropertyOptional()
   address?: Record<string, unknown> | null;
+
+  @ApiPropertyOptional({ type: InvoiceFinancialDto })
+  financial?: InvoiceFinancialDto;
+
+  @ApiPropertyOptional({ type: InvoiceTaxBreakdownDto })
+  taxBreakdown?: InvoiceTaxBreakdownDto;
+
+  @ApiPropertyOptional()
+  pdfPath?: string | null;
+
+  @ApiPropertyOptional()
+  pdfGeneratedAt?: string | null;
 }

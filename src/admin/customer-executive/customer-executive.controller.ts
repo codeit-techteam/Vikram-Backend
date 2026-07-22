@@ -90,23 +90,6 @@ export class CustomerExecutiveController {
     return { success: true, message: 'Customer note updated', data };
   }
 
-  @Get('customers/:id/wallet')
-  @ApiOperation({ summary: 'Get customer wallet (read-only)' })
-  async getWallet(@Param('id') id: string) {
-    const data = await this.ceService.getCustomerWallet(id);
-    return { success: true, message: 'Wallet fetched', data };
-  }
-
-  @Get('customers/:id/wallet/history')
-  @ApiOperation({ summary: 'Get customer wallet history (read-only)' })
-  async getWalletHistory(
-    @Param('id') id: string,
-    @Query() query: CePaginationQueryDto,
-  ) {
-    const data = await this.ceService.getCustomerWalletHistory(id, query);
-    return { success: true, message: 'Wallet history fetched', data };
-  }
-
   @Get('customers/:id/membership')
   @ApiOperation({ summary: 'Get customer membership status' })
   async getMembership(@Param('id') id: string) {

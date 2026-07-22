@@ -32,15 +32,6 @@ export class AdminReportsController {
     return { success: true, message: 'Membership report', data };
   }
 
-  @Get('wallet')
-  @AdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
-  @ApiOperation({ summary: 'Wallet report' })
-  @ApiQuery({ name: 'fromDate', required: false }) @ApiQuery({ name: 'toDate', required: false })
-  async wallet(@Query('fromDate') fromDate?: string, @Query('toDate') toDate?: string) {
-    const data = await this.reportsService.walletReport({ fromDate, toDate });
-    return { success: true, message: 'Wallet report', data };
-  }
-
   @Get('bulk')
   @AdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
   @ApiOperation({ summary: 'Bulk procurement report' })

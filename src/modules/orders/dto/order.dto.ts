@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+import { IsEnum, IsInt, IsOptional, IsString, IsUUID, MaxLength, Min } from 'class-validator';
+import { Type } from 'class-transformer';
 import {
   OrderStatus,
   PaymentMethod,
@@ -34,6 +35,16 @@ export class PlaceOrderDto {
   @IsOptional()
   @IsEnum(PaymentMethod)
   paymentMethod?: PaymentMethod;
+
+  @ApiPropertyOptional({
+    example: 500,
+    description: 'Loyalty points to redeem (min 500, max 30% of order value)',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  loyaltyPointsToRedeem?: number;
 }
 
 export class OrderItemResponseDto {
