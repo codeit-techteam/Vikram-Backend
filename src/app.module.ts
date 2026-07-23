@@ -13,6 +13,7 @@ import { HealthModule } from './common/health/health.module';
 import { QueueModule } from './common/queue/queue.module';
 import { BannerModule } from './modules/banner/banner.module';
 import { CategoryModule } from './modules/category/category.module';
+import { CmsModule } from './modules/cms/cms.module';
 import { HomeModule } from './modules/home/home.module';
 import { NotificationModule } from './modules/notification/notification.module';
 import { OfferModule } from './modules/offer/offer.module';
@@ -77,6 +78,7 @@ import { SchedulerModule } from './modules/scheduler/scheduler.module';
     BannerModule,
     OfferModule,
     VideoModule,
+    CmsModule,
     HomeModule,
     SearchModule,
     NotificationModule,

@@ -17,6 +17,9 @@ export class TestimonialResponseDto {
   @ApiPropertyOptional()
   imageUrl?: string | null;
 
+  @ApiPropertyOptional()
+  profileImage?: string | null;
+
   @ApiProperty()
   customerName!: string;
 
@@ -26,6 +29,9 @@ export class TestimonialResponseDto {
   @ApiPropertyOptional()
   location?: string | null;
 
+  @ApiPropertyOptional()
+  city?: string | null;
+
   @ApiProperty()
   rating!: number;
 
@@ -34,4 +40,7 @@ export class TestimonialResponseDto {
 
   @ApiProperty()
   sortOrder!: number;
+
+  @ApiPropertyOptional()
+  featured?: boolean;
 }

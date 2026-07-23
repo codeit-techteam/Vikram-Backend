@@ -79,7 +79,18 @@ export class CustomerService {
 
     const customer = await this.prisma.customer.findFirst({
       where: { id: customerId, deletedAt: null },
-      include: { profile: true, role: true },
+      include: {
+        profile: true,
+        role: true,
+        addresses: {
+          where: { deletedAt: null },
+          orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }],
+        },
+        activeMembership: {
+          include: { plan: true },
+        },
+        loyaltyAccount: true,
+      },
     });
 
     if (!customer) {
@@ -129,6 +140,7 @@ export class CustomerService {
       },
     });
 
+    await this.cache.invalidateProfile(customerId);
     return this.mapAddress(address);
   }
 
@@ -168,6 +180,7 @@ export class CustomerService {
       },
     });
 
+    await this.cache.invalidateProfile(customerId);
     return this.mapAddress(address);
   }
 
@@ -178,6 +191,7 @@ export class CustomerService {
       where: { id: addressId },
       data: { deletedAt: new Date() },
     });
+    await this.cache.invalidateProfile(customerId);
   }
 
   async setDefaultAddress(
@@ -192,6 +206,7 @@ export class CustomerService {
       data: { isDefault: true },
     });
 
+    await this.cache.invalidateProfile(customerId);
     return this.mapAddress(address);
   }
 
@@ -220,28 +235,62 @@ export class CustomerService {
         (dto.email ?? customer.email),
     );
 
+    const profileCreate = {
+      companyName: dto.companyName,
+      legalEntityName: dto.legalEntityName,
+      establishmentDate: dto.establishmentDate
+        ? new Date(dto.establishmentDate)
+        : undefined,
+      registeredAddress: dto.registeredAddress,
+      gstNumber: dto.gstNumber,
+      gstVerified: dto.gstVerified,
+      gstVerifiedAt:
+        dto.gstVerified === true
+          ? new Date()
+          : dto.gstVerified === false
+            ? null
+            : undefined,
+      jurisdiction: dto.jurisdiction,
+      panNumber: dto.panNumber,
+      businessType: dto.businessType,
+      profileImage: dto.profileImage,
+    };
+
+    const profileUpdate = {
+      ...(dto.companyName !== undefined && { companyName: dto.companyName }),
+      ...(dto.legalEntityName !== undefined && {
+        legalEntityName: dto.legalEntityName,
+      }),
+      ...(dto.establishmentDate !== undefined && {
+        establishmentDate: dto.establishmentDate
+          ? new Date(dto.establishmentDate)
+          : null,
+      }),
+      ...(dto.registeredAddress !== undefined && {
+        registeredAddress: dto.registeredAddress,
+      }),
+      ...(dto.gstNumber !== undefined && { gstNumber: dto.gstNumber }),
+      ...(dto.gstVerified !== undefined && {
+        gstVerified: dto.gstVerified,
+        gstVerifiedAt: dto.gstVerified ? new Date() : null,
+      }),
+      ...(dto.jurisdiction !== undefined && { jurisdiction: dto.jurisdiction }),
+      ...(dto.panNumber !== undefined && { panNumber: dto.panNumber }),
+      ...(dto.businessType !== undefined && { businessType: dto.businessType }),
+      ...(dto.profileImage !== undefined && { profileImage: dto.profileImage }),
+    };
+
     await this.prisma.customer.update({
       where: { id: customerId },
       data: {
-        fullName: dto.fullName,
-        email: dto.email,
+        ...(dto.fullName !== undefined && { fullName: dto.fullName }),
+        ...(dto.email !== undefined && { email: dto.email }),
+        ...(dto.language !== undefined && { language: dto.language }),
         profileCompleted,
         profile: {
           upsert: {
-            create: {
-              companyName: dto.companyName,
-              gstNumber: dto.gstNumber,
-              panNumber: dto.panNumber,
-              businessType: dto.businessType,
-              profileImage: dto.profileImage,
-            },
-            update: {
-              companyName: dto.companyName,
-              gstNumber: dto.gstNumber,
-              panNumber: dto.panNumber,
-              businessType: dto.businessType,
-              profileImage: dto.profileImage,
-            },
+            create: profileCreate,
+            update: profileUpdate,
           },
         },
       },
@@ -276,30 +325,133 @@ export class CustomerService {
     email: string | null;
     fullName: string | null;
     profileCompleted: boolean;
+    roleSelected: boolean;
+    status: string;
+    language: string;
+    createdAt: Date;
     role: { id: string; name: string; slug: string } | null;
     profile: {
       companyName: string | null;
+      legalEntityName: string | null;
+      establishmentDate: Date | null;
+      registeredAddress: string | null;
       gstNumber: string | null;
+      gstVerified: boolean;
+      gstVerifiedAt: Date | null;
+      jurisdiction: string | null;
       panNumber: string | null;
       businessType: string | null;
       profileImage: string | null;
     } | null;
+    addresses?: Array<{
+      id: string;
+      label: string | null;
+      type: string;
+      line1: string;
+      line2: string | null;
+      city: string;
+      state: string;
+      country: string;
+      pincode: string;
+      latitude: unknown;
+      longitude: unknown;
+      isDefault: boolean;
+    }>;
+    activeMembership?: {
+      id: string;
+      status: string;
+      expiryDate: Date;
+      plan: { name: string; benefits: unknown };
+    } | null;
+    loyaltyAccount?: {
+      availablePoints: number;
+      currentPoints: number;
+      redeemedPoints: number;
+      tier: string;
+    } | null;
   }): ProfileResponseDto {
+    const planName = customer.activeMembership?.plan.name ?? null;
+    const membershipTier = this.resolveMembershipTier(
+      planName,
+      customer.loyaltyAccount?.tier,
+    );
+    const benefits = Array.isArray(customer.activeMembership?.plan.benefits)
+      ? (customer.activeMembership!.plan.benefits as string[])
+      : [];
+
     return {
       id: customer.id,
       phone: customer.phone,
       email: customer.email,
+      name: customer.fullName,
       fullName: customer.fullName,
       profileCompleted: customer.profileCompleted,
+      roleSelected: customer.roleSelected,
+      status: customer.status,
+      language: customer.language,
       companyName: customer.profile?.companyName,
+      legalEntityName: customer.profile?.legalEntityName,
+      establishmentDate: customer.profile?.establishmentDate
+        ? customer.profile.establishmentDate.toISOString().slice(0, 10)
+        : null,
+      registeredAddress: customer.profile?.registeredAddress,
       gstNumber: customer.profile?.gstNumber,
       panNumber: customer.profile?.panNumber,
       businessType: customer.profile?.businessType,
       profileImage: customer.profile?.profileImage,
+      membership: membershipTier,
       role: customer.role
-        ? { id: customer.role.id, name: customer.role.name, slug: customer.role.slug }
+        ? {
+            id: customer.role.id,
+            name: customer.role.name,
+            slug: customer.role.slug,
+          }
         : null,
+      gst: {
+        gstin: customer.profile?.gstNumber ?? null,
+        companyName:
+          customer.profile?.legalEntityName ??
+          customer.profile?.companyName ??
+          null,
+        verified: customer.profile?.gstVerified ?? false,
+        verifiedAt: customer.profile?.gstVerifiedAt?.toISOString() ?? null,
+        jurisdiction: customer.profile?.jurisdiction ?? null,
+        pan: customer.profile?.panNumber ?? null,
+      },
+      membershipDetails: customer.activeMembership
+        ? {
+            id: customer.activeMembership.id,
+            tier: membershipTier,
+            planName,
+            status: customer.activeMembership.status,
+            expiryDate: customer.activeMembership.expiryDate.toISOString(),
+            benefits,
+          }
+        : null,
+      wallet: {
+        balance: customer.loyaltyAccount?.availablePoints ?? 0,
+        availablePoints: customer.loyaltyAccount?.availablePoints ?? 0,
+        redeemedPoints: customer.loyaltyAccount?.redeemedPoints ?? 0,
+        tier: customer.loyaltyAccount?.tier ?? null,
+      },
+      addresses: (customer.addresses ?? []).map((a) => this.mapAddress(a)),
+      createdAt: customer.createdAt.toISOString(),
     };
+  }
+
+  private resolveMembershipTier(
+    planName: string | null,
+    loyaltyTier?: string | null,
+  ): string | null {
+    const source = (planName ?? loyaltyTier ?? '').toUpperCase();
+    if (!source) return null;
+    if (source.includes('PLATINUM') || source.includes('ENTERPRISE')) {
+      return 'PLATINUM';
+    }
+    if (source.includes('GOLD')) return 'GOLD';
+    if (source.includes('SILVER')) return 'SILVER';
+    if (source.includes('BRONZE')) return 'BRONZE';
+    return source;
   }
 
   private mapAddress(address: {

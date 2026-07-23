@@ -80,6 +80,8 @@ export class CustomerAuthService {
       include: {
         role: true,
         profile: true,
+        activeMembership: { include: { plan: true } },
+        loyaltyAccount: true,
       },
     });
 
@@ -94,6 +96,8 @@ export class CustomerAuthService {
         include: {
           role: true,
           profile: true,
+          activeMembership: { include: { plan: true } },
+          loyaltyAccount: true,
         },
       });
     } else {
@@ -105,7 +109,12 @@ export class CustomerAuthService {
         customer = await this.prisma.customer.update({
           where: { id: customer.id },
           data: { isVerified: true },
-          include: { role: true, profile: true },
+          include: {
+            role: true,
+            profile: true,
+            activeMembership: { include: { plan: true } },
+            loyaltyAccount: true,
+          },
         });
       }
     }
@@ -121,6 +130,7 @@ export class CustomerAuthService {
 
     return {
       ...tokens,
+      token: tokens.accessToken,
       customer: this.mapCustomerMe(customer),
       isNewCustomer,
     };
@@ -144,7 +154,12 @@ export class CustomerAuthService {
   async getMe(customerId: string): Promise<CustomerMeDto> {
     const customer = await this.prisma.customer.findFirst({
       where: { id: customerId, deletedAt: null },
-      include: { role: true, profile: true },
+      include: {
+        role: true,
+        profile: true,
+        activeMembership: { include: { plan: true } },
+        loyaltyAccount: true,
+      },
     });
 
     if (!customer) {
@@ -221,13 +236,35 @@ export class CustomerAuthService {
         businessType: string | null;
         profileImage: string | null;
       } | null;
+      activeMembership?: {
+        plan: { name: string };
+      } | null;
+      loyaltyAccount?: { tier: string } | null;
     },
   ): CustomerMeDto {
+    const planName = customer.activeMembership?.plan.name ?? null;
+    const loyaltyTier = customer.loyaltyAccount?.tier ?? null;
+    const source = (planName ?? loyaltyTier ?? '').toUpperCase();
+    let membership: string | null = null;
+    if (source.includes('PLATINUM') || source.includes('ENTERPRISE')) {
+      membership = 'PLATINUM';
+    } else if (source.includes('GOLD')) {
+      membership = 'GOLD';
+    } else if (source.includes('SILVER')) {
+      membership = 'SILVER';
+    } else if (source) {
+      membership = source;
+    }
+
     return {
       id: customer.id,
       phone: customer.phone,
       email: customer.email,
+      name: customer.fullName,
       fullName: customer.fullName,
+      membership,
+      profileImage: customer.profile?.profileImage ?? null,
+      companyName: customer.profile?.companyName ?? null,
       isVerified: customer.isVerified,
       roleSelected: customer.roleSelected,
       profileCompleted: customer.profileCompleted,

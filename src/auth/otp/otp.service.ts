@@ -38,7 +38,7 @@ export class OtpService {
     const phone = normalizePhone(mobile);
     await this.enforceRateLimit(phone);
 
-    const otp = this.generateOtp();
+    const otp = this.generateOtp(phone);
     const otpHash = await bcrypt.hash(otp, 10);
     const client = this.redisService.getClient();
 
@@ -147,10 +147,21 @@ export class OtpService {
     }
   }
 
-  private generateOtp(): string {
+  /**
+   * Development: only the configured demo phone receives the fixed bypass OTP.
+   * All other numbers get a random OTP (still not SMS-sent until a gateway is wired).
+   * Production: always random — SMS provider plug-in point is sendOtp(), not this method.
+   */
+  private generateOtp(phone: string): string {
     const isDev = this.configService.get<string>('app.env') !== 'production';
-    if (isDev) {
-      return this.configService.get<string>('otp.devBypassCode') ?? '123456';
+    const demoPhone = normalizePhone(
+      this.configService.get<string>('otp.devPhone') ?? '8240890242',
+    );
+    const bypassCode =
+      this.configService.get<string>('otp.devBypassCode') ?? '123456';
+
+    if (isDev && phone === demoPhone) {
+      return bypassCode;
     }
 
     return Array.from({ length: OTP_LENGTH }, () =>

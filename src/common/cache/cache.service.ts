@@ -66,6 +66,11 @@ export class CacheService {
   /** Call from Admin CMS write paths after Banner/Offer/Category/Product/Video changes. */
   async invalidateHome(): Promise<void> {
     await this.del(CACHE_KEYS.HOME);
+    await this.invalidateCms();
+  }
+
+  async invalidateCms(): Promise<void> {
+    await this.invalidatePattern(CACHE_PATTERNS.CMS);
   }
 
   async invalidateCategories(): Promise<void> {

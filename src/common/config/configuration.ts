@@ -45,7 +45,10 @@ export default () => ({
     refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN ?? '30d',
   },
   otp: {
+    /** Fixed OTP in non-production for `devPhone` only (SMS bypass). */
     devBypassCode: process.env.OTP_DEV_BYPASS_CODE ?? '123456',
+    /** Demo login phone that receives the fixed bypass OTP in development. */
+    devPhone: process.env.OTP_DEV_PHONE ?? '8240890242',
   },
   shopping: {
     deliveryCharge: parseInt(process.env.DELIVERY_CHARGE ?? '150', 10),

@@ -1,5 +1,6 @@
 export const CACHE_TTL = {
   HOME: 300,
+  CMS_HOME: 600,
   CATEGORIES: 600,
   CATEGORY_DETAIL: 600,
   PRODUCTS: 300,
@@ -24,10 +25,19 @@ export const CACHE_TTL = {
   BULK: 180,
   TESTIMONIALS: 600,
   EMERGENCY: 180,
+  ADS: 600,
+  PROMOTIONS: 600,
+  HOME_SECTIONS: 600,
 } as const;
 
 export const CACHE_KEYS = {
   HOME: 'home:default',
+  CMS_HOME: 'cms:home',
+  CMS_BANNERS: 'cms:banners',
+  CMS_ADS: 'cms:ads',
+  CMS_TESTIMONIALS: 'cms:testimonials',
+  CMS_PROMOTIONS: 'cms:promotions',
+  CMS_HOME_SECTIONS: 'cms:home-sections',
   CATEGORIES: 'categories',
   CATEGORIES_FEATURED: 'categories:featured',
   CATEGORIES_TOP: 'categories:top',
@@ -68,6 +78,7 @@ export const CACHE_KEYS = {
 
 export const CACHE_PATTERNS = {
   HOME: 'home:*',
+  CMS: 'cms:*',
   CATEGORIES: 'categor*',
   PRODUCTS: 'product*',
   OFFERS: 'offer*',

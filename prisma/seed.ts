@@ -17,6 +17,7 @@ import {
 } from '../generated/prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import pg from 'pg';
+import { seedCmsHome } from './seedCmsHome';
 
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
 const adapter = new PrismaPg(pool);
@@ -318,11 +319,21 @@ async function main() {
 
   for (const p of products) {
     const { images, variants, ...productData } = p;
-    const product = await prisma.product.upsert({
-      where: { slug: p.slug },
-      update: {},
-      create: productData,
+
+    // Prefer slug match; fall back to sku so catalog-seed rows with the same SKU
+    // but a different slug do not trip the unique constraint on create.
+    const existingProduct = await prisma.product.findFirst({
+      where: {
+        OR: [
+          { slug: p.slug },
+          ...(p.sku ? [{ sku: p.sku }] : []),
+        ],
+      },
     });
+
+    const product = existingProduct
+      ? existingProduct
+      : await prisma.product.create({ data: productData });
 
     for (const [idx, url] of (images ?? []).entries()) {
       const existing = await prisma.productImage.findFirst({
@@ -1059,7 +1070,162 @@ async function main() {
     });
   }
 
+  // ─── Dev login customer: Karan Singh (+918240890242 / OTP 123456) ─────────
+  const enterprisePlan =
+    seededPlans.find((p) => p.name === 'Enterprise') ?? seededPlans[seededPlans.length - 1]!;
+
+  const karanPhone = '+918240890242';
+  const karan = await prisma.customer.upsert({
+    where: { phone: karanPhone },
+    update: {
+      fullName: 'Karan Singh',
+      email: 'karan@premierbuild.in',
+      isVerified: true,
+      profileCompleted: true,
+      roleSelected: true,
+      status: 'ACTIVE',
+      language: 'en',
+    },
+    create: {
+      phone: karanPhone,
+      fullName: 'Karan Singh',
+      email: 'karan@premierbuild.in',
+      isVerified: true,
+      profileCompleted: true,
+      roleSelected: true,
+      status: 'ACTIVE',
+      language: 'en',
+    },
+  });
+
+  await prisma.customerProfile.upsert({
+    where: { customerId: karan.id },
+    update: {
+      companyName: 'Premier Construction Ltd.',
+      legalEntityName: 'Premier Construction Private Limited',
+      establishmentDate: new Date('2012-05-12'),
+      registeredAddress: 'Level 5, Sky Tower, BKC G-Block, Mumbai 400051',
+      gstNumber: '27AAACR1234F1Z5',
+      gstVerified: true,
+      gstVerifiedAt: new Date('2023-10-12T11:45:00.000Z'),
+      jurisdiction: 'Maharashtra – Ward 12A',
+      panNumber: 'ABCDE1234F',
+      businessType: 'Construction Co.',
+    },
+    create: {
+      customerId: karan.id,
+      companyName: 'Premier Construction Ltd.',
+      legalEntityName: 'Premier Construction Private Limited',
+      establishmentDate: new Date('2012-05-12'),
+      registeredAddress: 'Level 5, Sky Tower, BKC G-Block, Mumbai 400051',
+      gstNumber: '27AAACR1234F1Z5',
+      gstVerified: true,
+      gstVerifiedAt: new Date('2023-10-12T11:45:00.000Z'),
+      jurisdiction: 'Maharashtra – Ward 12A',
+      panNumber: 'ABCDE1234F',
+      businessType: 'Construction Co.',
+    },
+  });
+
+  const karanLoyalty = await prisma.loyaltyAccount.upsert({
+    where: { customerId: karan.id },
+    update: {
+      tier: LoyaltyTier.PLATINUM,
+      currentPoints: 42000,
+      availablePoints: 38500,
+      redeemedPoints: 3500,
+    },
+    create: {
+      customerId: karan.id,
+      tier: LoyaltyTier.PLATINUM,
+      currentPoints: 42000,
+      availablePoints: 38500,
+      redeemedPoints: 3500,
+    },
+  });
+
+  const karanMembershipExpiry = new Date();
+  karanMembershipExpiry.setFullYear(karanMembershipExpiry.getFullYear() + 1);
+
+  let karanMembership = await prisma.customerMembership.findFirst({
+    where: {
+      customerId: karan.id,
+      planId: enterprisePlan.id,
+      status: MembershipStatus.ACTIVE,
+    },
+  });
+  if (!karanMembership) {
+    karanMembership = await prisma.customerMembership.create({
+      data: {
+        customerId: karan.id,
+        planId: enterprisePlan.id,
+        purchaseDate: new Date(),
+        expiryDate: karanMembershipExpiry,
+        renewalDate: karanMembershipExpiry,
+        status: MembershipStatus.ACTIVE,
+        paymentStatus: PaymentStatus.PAID,
+      },
+    });
+  }
+
+  await prisma.customer.update({
+    where: { id: karan.id },
+    data: {
+      loyaltyAccountId: karanLoyalty.id,
+      membershipId: karanMembership.id,
+      isMember: true,
+    },
+  });
+
+  const karanSites = [
+    {
+      label: 'Andheri East Site',
+      line1: 'Plot 42, MIDC Industrial Estate, Near Metro Station',
+      city: 'Mumbai',
+      state: 'Maharashtra',
+      pincode: '400093',
+      isDefault: true,
+    },
+    {
+      label: 'Worli Project',
+      line1: 'Senapati Bapat Marg, Opp. Phoenix Mall, Worli',
+      city: 'Mumbai',
+      state: 'Maharashtra',
+      pincode: '400018',
+      isDefault: false,
+    },
+  ];
+
+  for (const site of karanSites) {
+    const existingSite = await prisma.address.findFirst({
+      where: {
+        customerId: karan.id,
+        label: site.label,
+        deletedAt: null,
+      },
+    });
+    if (!existingSite) {
+      await prisma.address.create({
+        data: {
+          customerId: karan.id,
+          label: site.label,
+          type: 'PROJECT_SITE',
+          line1: site.line1,
+          city: site.city,
+          state: site.state,
+          country: 'India',
+          pincode: site.pincode,
+          isDefault: site.isDefault,
+        },
+      });
+    }
+  }
+
+  console.log(`Seeded dev customer Karan Singh (${karanPhone}) with PLATINUM membership.`);
+
   console.log('Seeded membership plans, loyalty, bulk enquiry, and testimonials.');
+
+  await seedCmsHome(prisma);
 
   // ── Admin Users (3 RBAC roles) ─────────────────────────────────────────────
   const adminPasswordHash = await bcrypt.hash('Admin@1234', 10);
@@ -1084,6 +1250,45 @@ async function main() {
   }
 
   console.log('Seeded admin users (superadmin@, warehouse@, executive@bajriwala.in / Admin@1234).');
+
+  // Bust Redis catalog/home caches so APIs do not keep serving pre-seed empties
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const IORedis = require('ioredis') as typeof import('ioredis').default;
+    const redis = new IORedis({
+      host: process.env.REDIS_HOST || '127.0.0.1',
+      port: Number(process.env.REDIS_PORT || 6379),
+      password: process.env.REDIS_PASSWORD || undefined,
+      db: Number(process.env.REDIS_DB || 0),
+      lazyConnect: true,
+      maxRetriesPerRequest: 1,
+    });
+    await redis.connect();
+    const patterns = [
+      'categories*',
+      'category:*',
+      'products*',
+      'product:*',
+      'home:*',
+      'cms:*',
+    ];
+    let deleted = 0;
+    for (const pattern of patterns) {
+      let cursor = '0';
+      do {
+        const [next, keys] = await redis.scan(cursor, 'MATCH', pattern, 'COUNT', 100);
+        cursor = next;
+        if (keys.length > 0) {
+          deleted += await redis.del(...keys);
+        }
+      } while (cursor !== '0');
+    }
+    await redis.quit();
+    console.log(`Invalidated ${deleted} Redis catalog/home cache key(s).`);
+  } catch (err) {
+    console.warn('Redis cache invalidation skipped:', String(err));
+  }
+
   console.log('Seed completed successfully.');
 }
 

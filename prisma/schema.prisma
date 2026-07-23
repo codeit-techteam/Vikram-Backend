@@ -46,6 +46,37 @@ enum BannerPlacement {
   EMERGENCY_DELIVERY
 }
 
+enum BannerType {
+  IMAGE
+  VIDEO
+  CAROUSEL
+  CLICKABLE
+  ADVERTISEMENT
+}
+
+enum HomeSectionType {
+  HERO_BANNER
+  LOYALTY
+  MATERIAL_CATEGORIES
+  EMERGENCY_DELIVERY
+  VIDEO_BANNER
+  TESTIMONIALS
+  MEMBERSHIP
+  BULK_PROCUREMENT
+  ADVERTISEMENTS
+  RECOMMENDED
+  PRIORITY_EXPRESS
+  POPULAR_PRODUCTS
+}
+
+enum RedirectType {
+  ROUTE
+  PRODUCT
+  CATEGORY
+  EXTERNAL
+  NONE
+}
+
 enum OfferType {
   PERCENTAGE
   FLAT
@@ -226,6 +257,7 @@ enum BulkEnquiryStatus {
 enum TestimonialType {
   VIDEO
   IMAGE
+  TEXT
 }
 
 enum EmergencyOrderStatus {
@@ -496,32 +528,106 @@ model ProductVariant {
 // ─── CMS: Banner, Offer, Video, Announcement ─────────────────────────────────
 
 model Banner {
-  id           String          @id @default(uuid()) @db.Uuid
-  slug         String          @unique @db.VarChar(120)
-  title        String          @db.VarChar(200)
-  subtitle     String?         @db.VarChar(300)
-  imageUrl     String          @map("image_url") @db.VarChar(500)
-  mobileUrl    String?         @map("mobile_url") @db.VarChar(500)
-  ctaLabel     String?         @map("cta_label") @db.VarChar(100)
-  linkUrl      String?         @map("link_url") @db.VarChar(500)
-  linkType     String?         @map("link_type") @db.VarChar(50)
-  linkTarget   String?         @map("link_target") @db.VarChar(200)
-  placement    BannerPlacement @default(HOME_HERO)
-  displayOrder Int             @default(0) @map("display_order")
-  priority     Int             @default(0)
-  startsAt     DateTime?       @map("starts_at")
-  endsAt       DateTime?       @map("ends_at")
-  isVisible    Boolean         @default(true) @map("is_visible")
-  visibility   Visibility      @default(PUBLIC)
-  status       EntityStatus    @default(ACTIVE)
-  deletedAt    DateTime?       @map("deleted_at")
-  createdAt    DateTime        @default(now()) @map("created_at")
-  updatedAt    DateTime        @updatedAt @map("updated_at")
+  id                   String          @id @default(uuid()) @db.Uuid
+  slug                 String          @unique @db.VarChar(120)
+  title                String          @db.VarChar(200)
+  subtitle             String?         @db.VarChar(300)
+  imageUrl             String          @map("image_url") @db.VarChar(500)
+  mobileUrl            String?         @map("mobile_url") @db.VarChar(500)
+  videoUrl             String?         @map("video_url") @db.VarChar(500)
+  thumbnailUrl         String?         @map("thumbnail_url") @db.VarChar(500)
+  badge                String?         @db.VarChar(100)
+  bannerType           BannerType      @default(IMAGE) @map("banner_type")
+  ctaLabel             String?         @map("cta_label") @db.VarChar(100)
+  buttonAction         String?         @map("button_action") @db.VarChar(100)
+  linkUrl              String?         @map("link_url") @db.VarChar(500)
+  linkType             String?         @map("link_type") @db.VarChar(50)
+  linkTarget           String?         @map("link_target") @db.VarChar(200)
+  secondaryCtaLabel    String?         @map("secondary_cta_label") @db.VarChar(100)
+  secondaryLinkUrl     String?         @map("secondary_link_url") @db.VarChar(500)
+  secondaryLinkType    String?         @map("secondary_link_type") @db.VarChar(50)
+  secondaryLinkTarget  String?         @map("secondary_link_target") @db.VarChar(200)
+  placement            BannerPlacement @default(HOME_HERO)
+  displayOrder         Int             @default(0) @map("display_order")
+  priority             Int             @default(0)
+  startsAt             DateTime?       @map("starts_at")
+  endsAt               DateTime?       @map("ends_at")
+  isVisible            Boolean         @default(true) @map("is_visible")
+  visibility           Visibility      @default(PUBLIC)
+  status               EntityStatus    @default(ACTIVE)
+  deletedAt            DateTime?       @map("deleted_at")
+  createdAt            DateTime        @default(now()) @map("created_at")
+  updatedAt            DateTime        @updatedAt @map("updated_at")
 
   @@index([placement, status, isVisible, displayOrder])
   @@index([startsAt, endsAt])
   @@index([deletedAt])
   @@map("banners")
+}
+
+model Advertisement {
+  id           String       @id @default(uuid()) @db.Uuid
+  slug         String       @unique @db.VarChar(120)
+  title        String       @db.VarChar(200)
+  brandName    String       @map("brand_name") @db.VarChar(120)
+  description  String?      @db.Text
+  imageUrl     String       @map("image_url") @db.VarChar(500)
+  buttonText   String?      @map("button_text") @db.VarChar(100)
+  redirectType RedirectType @default(NONE) @map("redirect_type")
+  redirectId   String?      @map("redirect_id") @db.VarChar(200)
+  displayOrder Int          @default(0) @map("display_order")
+  priority     Int          @default(0)
+  isActive     Boolean      @default(true) @map("is_active")
+  deletedAt    DateTime?    @map("deleted_at")
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+
+  @@index([isActive, displayOrder])
+  @@index([deletedAt])
+  @@map("advertisements")
+}
+
+model PromotionalCard {
+  id           String       @id @default(uuid()) @db.Uuid
+  slug         String       @unique @db.VarChar(120)
+  title        String       @db.VarChar(200)
+  subtitle     String?      @db.VarChar(300)
+  description  String?      @db.Text
+  imageUrl     String?      @map("image_url") @db.VarChar(500)
+  buttonText   String?      @map("button_text") @db.VarChar(100)
+  badge        String?      @db.VarChar(100)
+  benefits     Json?
+  redirectType RedirectType @default(NONE) @map("redirect_type")
+  redirectId   String?      @map("redirect_id") @db.VarChar(200)
+  cardType     String       @map("card_type") @db.VarChar(50)
+  priority     Int          @default(0)
+  displayOrder Int          @default(0) @map("display_order")
+  isActive     Boolean      @default(true) @map("is_active")
+  deletedAt    DateTime?    @map("deleted_at")
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+
+  @@index([isActive, displayOrder])
+  @@index([cardType, isActive])
+  @@index([deletedAt])
+  @@map("promotional_cards")
+}
+
+model HomeSection {
+  id           String          @id @default(uuid()) @db.Uuid
+  sectionType  HomeSectionType @map("section_type")
+  title        String?         @db.VarChar(200)
+  subtitle     String?         @db.VarChar(300)
+  displayOrder Int             @default(0) @map("display_order")
+  enabled      Boolean         @default(true)
+  apiSource    String?         @map("api_source") @db.VarChar(120)
+  layoutType   String?         @map("layout_type") @db.VarChar(50)
+  createdAt    DateTime        @default(now()) @map("created_at")
+  updatedAt    DateTime        @updatedAt @map("updated_at")
+
+  @@unique([sectionType])
+  @@index([enabled, displayOrder])
+  @@map("home_sections")
 }
 
 model Offer {
@@ -697,16 +803,22 @@ model Customer {
 }
 
 model CustomerProfile {
-  id           String   @id @default(uuid()) @db.Uuid
-  customerId   String   @unique @map("customer_id") @db.Uuid
-  companyName  String?  @map("company_name") @db.VarChar(200)
-  gstNumber    String?  @map("gst_number") @db.VarChar(20)
-  panNumber    String?  @map("pan_number") @db.VarChar(15)
-  businessType String?  @map("business_type") @db.VarChar(100)
-  profileImage String?  @map("profile_image") @db.VarChar(500)
-  adminNotes   String?  @map("admin_notes") @db.Text
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  id                 String    @id @default(uuid()) @db.Uuid
+  customerId         String    @unique @map("customer_id") @db.Uuid
+  companyName        String?   @map("company_name") @db.VarChar(200)
+  legalEntityName    String?   @map("legal_entity_name") @db.VarChar(300)
+  establishmentDate  DateTime? @map("establishment_date") @db.Date
+  registeredAddress  String?   @map("registered_address") @db.VarChar(500)
+  gstNumber          String?   @map("gst_number") @db.VarChar(20)
+  gstVerified        Boolean   @default(false) @map("gst_verified")
+  gstVerifiedAt      DateTime? @map("gst_verified_at")
+  jurisdiction       String?   @db.VarChar(200)
+  panNumber          String?   @map("pan_number") @db.VarChar(15)
+  businessType       String?   @map("business_type") @db.VarChar(100)
+  profileImage       String?   @map("profile_image") @db.VarChar(500)
+  adminNotes         String?   @map("admin_notes") @db.Text
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
 
   customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
@@ -1404,13 +1516,16 @@ model Testimonial {
   videoUrl     String?         @map("video_url") @db.VarChar(500)
   thumbnail    String?         @db.VarChar(500)
   imageUrl     String?         @map("image_url") @db.VarChar(500)
+  profileImage String?         @map("profile_image") @db.VarChar(500)
   customerName String          @map("customer_name") @db.VarChar(200)
   designation  String?         @db.VarChar(200)
   company      String?         @db.VarChar(200)
   location     String?         @db.VarChar(200)
+  city         String?         @db.VarChar(120)
   rating       Int             @default(5)
   review       String?         @db.Text
   sortOrder    Int             @default(0) @map("sort_order")
+  featured     Boolean         @default(false)
   isPublished  Boolean         @default(false) @map("is_published")
   createdAt    DateTime        @default(now()) @map("created_at")
   updatedAt    DateTime        @updatedAt @map("updated_at")
@@ -1418,6 +1533,7 @@ model Testimonial {
   @@index([isPublished])
   @@index([sortOrder])
   @@index([isPublished, sortOrder])
+  @@index([featured, isPublished])
   @@map("testimonials")
 }
 

@@ -26,6 +26,24 @@ export class BannerResponseDto {
   mobileUrl?: string | null;
 
   @ApiPropertyOptional()
+  videoUrl?: string | null;
+
+  @ApiPropertyOptional()
+  thumbnailUrl?: string | null;
+
+  @ApiPropertyOptional()
+  badge?: string | null;
+
+  @ApiPropertyOptional()
+  bannerType?: string;
+
+  @ApiPropertyOptional()
+  buttonText?: string | null;
+
+  @ApiPropertyOptional()
+  buttonAction?: string | null;
+
+  @ApiPropertyOptional()
   ctaLabel?: string | null;
 
   @ApiPropertyOptional({ description: 'CTA destination (linkUrl)' })
@@ -40,11 +58,26 @@ export class BannerResponseDto {
   @ApiPropertyOptional()
   linkTarget?: string | null;
 
+  @ApiPropertyOptional()
+  secondaryButtonText?: string | null;
+
+  @ApiPropertyOptional()
+  secondaryLinkUrl?: string | null;
+
+  @ApiPropertyOptional()
+  secondaryLinkType?: string | null;
+
+  @ApiPropertyOptional()
+  secondaryLinkTarget?: string | null;
+
   @ApiProperty()
   placement!: string;
 
   @ApiProperty()
   displayOrder!: number;
+
+  @ApiPropertyOptional()
+  priority?: number;
 
   @ApiPropertyOptional()
   visibility?: string;

@@ -33,12 +33,15 @@ export class TestimonialsService {
     videoUrl: string | null;
     thumbnail: string | null;
     imageUrl: string | null;
+    profileImage: string | null;
     customerName: string;
     designation: string | null;
     location: string | null;
+    city: string | null;
     rating: number;
     review: string | null;
     sortOrder: number;
+    featured: boolean;
   }): TestimonialResponseDto {
     return {
       id: item.id,
@@ -46,12 +49,15 @@ export class TestimonialsService {
       videoUrl: item.videoUrl,
       thumbnail: item.thumbnail,
       imageUrl: item.imageUrl,
+      profileImage: item.profileImage,
       customerName: item.customerName,
       designation: item.designation,
       location: item.location,
+      city: item.city ?? item.location,
       rating: item.rating,
       review: item.review,
       sortOrder: item.sortOrder,
+      featured: item.featured,
     };
   }
 }
