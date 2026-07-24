@@ -18,6 +18,7 @@ export const CACHE_TTL = {
   WISHLIST: 600,
   ORDERS: 300,
   PROFILE: 600,
+  SITES: 600,
   REVIEWS: 300,
   SUPPORT: 180,
   MEMBERSHIP: 300,
@@ -66,6 +67,8 @@ export const CACHE_KEYS = {
   ORDER_DETAIL: (customerId: string, orderId: string) =>
     `orders:${customerId}:${orderId}`,
   PROFILE: (customerId: string) => `profile:${customerId}`,
+  SITES: (customerId: string) => `sites:${customerId}`,
+  CURRENT_SITE: (customerId: string) => `sites:${customerId}:primary`,
   PRODUCT_REVIEWS: (productId: string) => `reviews:product:${productId}`,
   SUPPORT: (customerId: string) => `support:${customerId}`,
   MEMBERSHIP: (customerId: string) => `membership:${customerId}`,
@@ -92,6 +95,8 @@ export const CACHE_PATTERNS = {
     customerId ? `orders:${customerId}*` : 'orders:*',
   PROFILE: (customerId?: string) =>
     customerId ? `profile:${customerId}*` : 'profile:*',
+  SITES: (customerId?: string) =>
+    customerId ? `sites:${customerId}*` : 'sites:*',
   REVIEWS: 'reviews:*',
   SUPPORT: (customerId?: string) =>
     customerId ? `support:${customerId}*` : 'support:*',

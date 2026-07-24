@@ -614,11 +614,81 @@ async function main() {
   }
 
   // ─── Hubs & Inventory (Phase 4) ─────────────────────────────────────────────
+  // Current phase: only ONE active Kalyani Hub (15 km, pincode 741235).
+  // Prefer any existing Admin-provisioned Kalyani hub to avoid duplicates.
+
+  const existingKalyani =
+    (await prisma.hub.findFirst({
+      where: { code: 'HUB-KAL-001', deletedAt: null },
+    })) ??
+    (await prisma.hub.findFirst({
+      where: { code: 'HUB-KAL-01', deletedAt: null },
+    })) ??
+    (await prisma.hub.findFirst({
+      where: {
+        deletedAt: null,
+        OR: [
+          { pincode: '741235' },
+          { city: { equals: 'Kalyani', mode: 'insensitive' } },
+          { code: { startsWith: 'HUB-KAL' } },
+        ],
+      },
+      orderBy: { createdAt: 'asc' },
+    }));
+
+  const kalyaniHub = existingKalyani
+    ? await prisma.hub.update({
+        where: { id: existingKalyani.id },
+        data: {
+          name: 'Kalyani Hub',
+          addressLine1: 'Industrial Estate, Kalyani',
+          city: 'Kalyani',
+          state: 'West Bengal',
+          pincode: '741235',
+          latitude: 22.9751,
+          longitude: 88.4345,
+          phone: '9876543220',
+          serviceRadiusKm: 15,
+          coveragePincodes: ['741235', '741245', '741246', '741247', '741248'],
+          isActive: true,
+        },
+      })
+    : await prisma.hub.create({
+        data: {
+          code: 'HUB-KAL-01',
+          name: 'Kalyani Hub',
+          addressLine1: 'Industrial Estate, Kalyani',
+          city: 'Kalyani',
+          state: 'West Bengal',
+          pincode: '741235',
+          latitude: 22.9751,
+          longitude: 88.4345,
+          phone: '9876543220',
+          serviceRadiusKm: 15,
+          coveragePincodes: ['741235', '741245', '741246', '741247', '741248'],
+          isActive: true,
+        },
+      });
+
+  // Deactivate any other Kalyani duplicates so orders always route to one hub
+  await prisma.hub.updateMany({
+    where: {
+      deletedAt: null,
+      id: { not: kalyaniHub.id },
+      OR: [
+        { code: { startsWith: 'HUB-KAL' } },
+        { pincode: '741235' },
+        { city: { equals: 'Kalyani', mode: 'insensitive' } },
+      ],
+    },
+    data: { isActive: false },
+  });
 
   const hubs = await Promise.all([
+    Promise.resolve(kalyaniHub),
     prisma.hub.upsert({
       where: { code: 'HUB-MUM-01' },
-      update: {},
+      update: { isActive: false },
       create: {
         code: 'HUB-MUM-01',
         name: 'Bajriwala Mumbai Central Hub',
@@ -629,12 +699,12 @@ async function main() {
         latitude: 19.1136,
         longitude: 72.8697,
         phone: '9876543210',
-        isActive: true,
+        isActive: false,
       },
     }),
     prisma.hub.upsert({
       where: { code: 'HUB-PUN-01' },
-      update: {},
+      update: { isActive: false },
       create: {
         code: 'HUB-PUN-01',
         name: 'Bajriwala Pune Hub',
@@ -645,12 +715,12 @@ async function main() {
         latitude: 18.5089,
         longitude: 73.926,
         phone: '9876543211',
-        isActive: true,
+        isActive: false,
       },
     }),
     prisma.hub.upsert({
       where: { code: 'HUB-DEL-01' },
-      update: { name: 'Noida North' },
+      update: { name: 'Noida North', isActive: false },
       create: {
         code: 'HUB-DEL-01',
         name: 'Noida North',
@@ -661,7 +731,7 @@ async function main() {
         latitude: 28.6276,
         longitude: 77.3649,
         phone: '9876543212',
-        isActive: true,
+        isActive: false,
       },
     }),
   ]);
@@ -694,34 +764,49 @@ async function main() {
   // ─── Hub Panel Users, Drivers & Vehicles ────────────────────────────────────
 
   const hubPasswordHash = await bcrypt.hash('123456', 10);
-  const noidaHub = hubs.find((h) => h.code === 'HUB-DEL-01') ?? hubs[2];
-  const mumbaiHub = hubs[0];
+  const kalyaniHubRef = hubs.find((h) => h.id === kalyaniHub.id) ?? hubs[0];
+  const mumbaiHub = hubs.find((h) => h.code === 'HUB-MUM-01') ?? hubs[1];
 
   const hubManager = await prisma.hubUser.upsert({
     where: { employeeId: 'hubmanager01' },
     update: {
       passwordHash: hubPasswordHash,
-      fullName: 'Amit Sharma',
-      email: 'amit.sharma@hubops.com',
+      fullName: 'Rahul Sharma',
+      email: 'rahul.sharma@hubops.com',
       phone: '9876500001',
       role: 'HUB_MANAGER',
-      hubId: noidaHub.id,
+      hubId: kalyaniHubRef.id,
       isActive: true,
+      deletedAt: null,
     },
     create: {
       employeeId: 'hubmanager01',
-      email: 'amit.sharma@hubops.com',
+      email: 'rahul.sharma@hubops.com',
       passwordHash: hubPasswordHash,
-      fullName: 'Amit Sharma',
+      fullName: 'Rahul Sharma',
       phone: '9876500001',
       role: 'HUB_MANAGER',
-      hubId: noidaHub.id,
+      hubId: kalyaniHubRef.id,
     },
   });
 
+  // Keep admin-provisioned rahul.sharma on the same primary hub if present
+  const rahul = await prisma.hubUser.findUnique({ where: { employeeId: 'rahul.sharma' } });
+  if (rahul) {
+    await prisma.hubUser.update({
+      where: { id: rahul.id },
+      data: {
+        hubId: kalyaniHubRef.id,
+        isActive: true,
+        deletedAt: null,
+        passwordHash: hubPasswordHash,
+      },
+    });
+  }
+
   await prisma.hubUser.upsert({
     where: { employeeId: 'huboperator01' },
-    update: {},
+    update: { hubId: kalyaniHub.id },
     create: {
       employeeId: 'huboperator01',
       email: 'operator@hubops.com',
@@ -729,19 +814,43 @@ async function main() {
       fullName: 'Hub Operator',
       phone: '9876500002',
       role: 'HUB_OPERATOR',
-      hubId: mumbaiHub.id,
+      hubId: kalyaniHub.id,
     },
   });
 
   await prisma.hubUser.upsert({
     where: { employeeId: 'dispatch01' },
-    update: {},
+    update: { hubId: kalyaniHub.id },
     create: {
       employeeId: 'dispatch01',
       passwordHash: hubPasswordHash,
       fullName: 'Dispatch Staff',
       role: 'DISPATCH_STAFF',
-      hubId: mumbaiHub.id,
+      hubId: kalyaniHub.id,
+    },
+  });
+
+  const vehicleBike = await prisma.vehicle.upsert({
+    where: { registration: 'WB12AB1234' },
+    update: { hubId: kalyaniHub.id, status: 'AVAILABLE', isActive: true },
+    create: {
+      hubId: kalyaniHub.id,
+      registration: 'WB12AB1234',
+      capacity: 500,
+      vehicleType: 'BIKE',
+      status: 'AVAILABLE',
+    },
+  });
+
+  const vehicleTempo = await prisma.vehicle.upsert({
+    where: { registration: 'WB12CD5678' },
+    update: { hubId: kalyaniHub.id, status: 'AVAILABLE', isActive: true },
+    create: {
+      hubId: kalyaniHub.id,
+      registration: 'WB12CD5678',
+      capacity: 2000,
+      vehicleType: 'TEMPO',
+      status: 'AVAILABLE',
     },
   });
 
@@ -766,6 +875,56 @@ async function main() {
       capacity: 2000,
       vehicleType: 'TEMPO',
       status: 'AVAILABLE',
+    },
+  });
+
+  await prisma.driver.updateMany({
+    where: {
+      OR: [
+        { vehicleId: { in: [vehicleBike.id, vehicleTempo.id, vehicle1.id, vehicle2.id] } },
+        { phone: { in: ['9876500201', '9876500202', '9876500101', '9876500102'] } },
+      ],
+    },
+    data: { vehicleId: null },
+  });
+
+  await prisma.driver.upsert({
+    where: { id: '00000000-0000-4000-8000-000000000010' },
+    update: {
+      hubId: kalyaniHub.id,
+      name: 'Rajesh Kumar',
+      phone: '9876500201',
+      vehicleId: vehicleBike.id,
+      availability: 'AVAILABLE',
+      isActive: true,
+    },
+    create: {
+      id: '00000000-0000-4000-8000-000000000010',
+      hubId: kalyaniHub.id,
+      name: 'Rajesh Kumar',
+      phone: '9876500201',
+      vehicleId: vehicleBike.id,
+      availability: 'AVAILABLE',
+    },
+  });
+
+  await prisma.driver.upsert({
+    where: { id: '00000000-0000-4000-8000-000000000011' },
+    update: {
+      hubId: kalyaniHub.id,
+      name: 'Amit Das',
+      phone: '9876500202',
+      vehicleId: vehicleTempo.id,
+      availability: 'AVAILABLE',
+      isActive: true,
+    },
+    create: {
+      id: '00000000-0000-4000-8000-000000000011',
+      hubId: kalyaniHub.id,
+      name: 'Amit Das',
+      phone: '9876500202',
+      vehicleId: vehicleTempo.id,
+      availability: 'AVAILABLE',
     },
   });
 
@@ -798,22 +957,24 @@ async function main() {
   await prisma.hubNotification.createMany({
     data: [
       {
-        hubId: mumbaiHub.id,
+        hubId: kalyaniHub.id,
         type: 'INVENTORY',
-        title: 'Low Stock Alert',
-        body: 'Some products are below minimum threshold at Mumbai hub.',
+        title: 'Inventory Reserved',
+        body: 'Stock levels are ready for COD order fulfillment at Kalyani Hub.',
       },
       {
-        hubId: mumbaiHub.id,
+        hubId: kalyaniHub.id,
         type: 'ORDER',
         title: 'New Orders Assigned',
-        body: 'New orders have been assigned to your hub.',
+        body: 'New COD orders within 15 km will appear here for Rahul Sharma.',
       },
     ],
     skipDuplicates: true,
   });
 
-  console.log(`Seeded hub users (login: ${hubManager.employeeId} / 123456), drivers and vehicles.`);
+  console.log(
+    `Seeded Kalyani Hub + manager (login: ${hubManager.employeeId} / 123456 — ${hubManager.fullName}), drivers and vehicles.`,
+  )
 
   // ─── Membership, Loyalty, Bulk, Testimonials (Marketplace Extensions) ─
 

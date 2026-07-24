@@ -47,6 +47,27 @@ export class OrderTrackingController {
     };
   }
 
+  @Get(':orderId/tracking')
+  @ApiOperation({
+    summary: 'Get live order tracking payload',
+    description:
+      'Returns status timeline, assigned hub, and driver details for the customer tracking screen.',
+  })
+  @ApiParam({ name: 'orderId', description: 'Order UUID' })
+  @ApiResponse({ status: 200, description: 'Tracking payload' })
+  @ApiResponse({ status: 404, description: 'Order not found', type: ApiErrorResponseDto })
+  async getTracking(
+    @CurrentCustomer() customer: AuthenticatedCustomer,
+    @Param('orderId', ParseUUIDPipe) orderId: string,
+  ) {
+    const data = await this.orderTrackingService.getTracking(customer.id, orderId);
+    return {
+      success: true,
+      message: 'Order tracking fetched successfully',
+      data,
+    };
+  }
+
   @Get(':orderId/status')
   @ApiOperation({
     summary: 'Get current order status',

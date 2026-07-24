@@ -37,8 +37,28 @@ async function bootstrap() {
   app.use(compression());
   app.use(morgan('combined'));
 
+  // Native apps ignore CORS; Expo web / local tools need flexible origins in development.
+  const corsOriginOption = isProduction
+    ? corsOrigins
+    : (
+        origin: string | undefined,
+        callback: (err: Error | null, allow?: boolean) => void,
+      ) => {
+        if (
+          !origin ||
+          corsOrigins.includes(origin) ||
+          origin.startsWith('http://localhost') ||
+          origin.startsWith('http://127.0.0.1') ||
+          origin.startsWith('exp://')
+        ) {
+          callback(null, true);
+          return;
+        }
+        callback(null, corsOrigins.length === 0 || corsOrigins.includes(origin));
+      };
+
   app.enableCors({
-    origin: corsOrigins,
+    origin: corsOriginOption,
     credentials: true,
   });
 

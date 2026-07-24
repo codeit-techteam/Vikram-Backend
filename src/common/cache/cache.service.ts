@@ -141,6 +141,11 @@ export class CacheService {
 
   async invalidateProfile(customerId: string): Promise<void> {
     await this.del(CACHE_KEYS.PROFILE(customerId));
+    await this.invalidateSites(customerId);
+  }
+
+  async invalidateSites(customerId: string): Promise<void> {
+    await this.invalidatePattern(CACHE_PATTERNS.SITES(customerId));
   }
 
   async invalidateReviews(productId?: string): Promise<void> {

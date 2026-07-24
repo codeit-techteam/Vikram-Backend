@@ -31,6 +31,19 @@ export class AdminProductsService {
         include: {
           category: { select: { id: true, name: true } },
           images: { where: { isPrimary: true }, take: 1 },
+          variants: {
+            where: { deletedAt: null },
+            orderBy: { displayOrder: 'asc' },
+            select: {
+              id: true,
+              label: true,
+              displayUnit: true,
+              size: true,
+              sizeUnit: true,
+              price: true,
+              inStock: true,
+            },
+          },
         },
       }),
       this.prisma.product.count({ where }),

@@ -22,7 +22,7 @@ export class AdminCategoriesController {
   ) {}
 
   @Get()
-  @AdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
+  @AdminRoles(...ROLE_GROUPS.WAREHOUSE)
   @ApiOperation({ summary: 'List all categories' })
   async findAll() {
     const data = await this.categoriesService.findAll();
@@ -30,7 +30,7 @@ export class AdminCategoriesController {
   }
 
   @Get(':id')
-  @AdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
+  @AdminRoles(...ROLE_GROUPS.WAREHOUSE)
   @ApiOperation({ summary: 'Get category by ID' })
   async findOne(@Param('id') id: string) {
     const data = await this.categoriesService.findOne(id);

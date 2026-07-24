@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -26,6 +27,11 @@ import {
 import { CurrentAdmin } from '../decorators/current-admin.decorator';
 import type { AuthenticatedAdmin } from '../auth/admin-jwt.strategy';
 import { AuditService } from '../audit/audit.service';
+import { CustomerSitesService } from '../../modules/customer-sites/customer-sites.service';
+import {
+  CreateSiteDto,
+  UpdateSiteDto,
+} from '../../modules/customer-sites/dto/site.dto';
 
 @ApiTags('Admin Customers')
 @Controller({ version: '1', path: 'admin/customers' })
@@ -34,6 +40,7 @@ import { AuditService } from '../audit/audit.service';
 export class AdminCustomersController {
   constructor(
     private readonly customersService: AdminCustomersService,
+    private readonly sitesService: CustomerSitesService,
     private readonly auditService: AuditService,
   ) {}
 
@@ -51,6 +58,56 @@ export class AdminCustomersController {
   async findOne(@Param('id') id: string) {
     const data = await this.customersService.findOne(id);
     return { success: true, message: 'Customer fetched', data };
+  }
+
+  @Get(':id/sites')
+  @AdminRoles(...ROLE_GROUPS.CUSTOMER_EXECUTIVE)
+  @ApiOperation({ summary: 'List customer delivery sites' })
+  async listSites(@Param('id') id: string) {
+    const data = await this.sitesService.listForAdmin(id);
+    return { success: true, message: 'Delivery sites fetched', data };
+  }
+
+  @Post(':id/sites')
+  @AdminRoles(...ROLE_GROUPS.CUSTOMER_EXECUTIVE)
+  @ApiOperation({ summary: 'Create customer delivery site' })
+  async createSite(@Param('id') id: string, @Body() dto: CreateSiteDto) {
+    const data = await this.sitesService.createForAdmin(id, dto);
+    return { success: true, message: 'Delivery site created', data };
+  }
+
+  @Put(':id/sites/:siteId')
+  @AdminRoles(...ROLE_GROUPS.CUSTOMER_EXECUTIVE)
+  @ApiOperation({ summary: 'Update customer delivery site' })
+  async updateSite(
+    @Param('id') id: string,
+    @Param('siteId') siteId: string,
+    @Body() dto: UpdateSiteDto,
+  ) {
+    const data = await this.sitesService.updateForAdmin(id, siteId, dto);
+    return { success: true, message: 'Delivery site updated', data };
+  }
+
+  @Delete(':id/sites/:siteId')
+  @AdminRoles(...ROLE_GROUPS.CUSTOMER_EXECUTIVE)
+  @ApiOperation({ summary: 'Delete customer delivery site' })
+  async deleteSite(
+    @Param('id') id: string,
+    @Param('siteId') siteId: string,
+  ) {
+    await this.sitesService.removeForAdmin(id, siteId);
+    return { success: true, message: 'Delivery site deleted', data: null };
+  }
+
+  @Patch(':id/sites/:siteId/primary')
+  @AdminRoles(...ROLE_GROUPS.CUSTOMER_EXECUTIVE)
+  @ApiOperation({ summary: 'Set customer primary delivery site' })
+  async setPrimarySite(
+    @Param('id') id: string,
+    @Param('siteId') siteId: string,
+  ) {
+    const data = await this.sitesService.setPrimaryForAdmin(id, siteId);
+    return { success: true, message: 'Primary site updated', data };
   }
 
   @Patch(':id')

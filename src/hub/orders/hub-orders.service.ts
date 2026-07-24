@@ -131,6 +131,49 @@ export class HubOrdersService {
     return updated;
   }
 
+  /** Clear reserved stock after successful delivery (available already decremented at place). */
+  private async consumeReservedStock(hubId: string, orderId: string) {
+    const items = await this.prisma.orderItem.findMany({
+      where: { orderId },
+      select: { productId: true, quantity: true },
+    });
+
+    for (const item of items) {
+      await this.prisma.hubInventory.updateMany({
+        where: {
+          hubId,
+          productId: item.productId,
+          reservedQty: { gte: item.quantity },
+        },
+        data: {
+          reservedQty: { decrement: item.quantity },
+        },
+      });
+    }
+  }
+
+  /** Return reserved stock to available on cancel/reject. */
+  private async releaseReservedStock(hubId: string, orderId: string) {
+    const items = await this.prisma.orderItem.findMany({
+      where: { orderId },
+      select: { productId: true, quantity: true },
+    });
+
+    for (const item of items) {
+      await this.prisma.hubInventory.updateMany({
+        where: {
+          hubId,
+          productId: item.productId,
+          reservedQty: { gte: item.quantity },
+        },
+        data: {
+          availableQty: { increment: item.quantity },
+          reservedQty: { decrement: item.quantity },
+        },
+      });
+    }
+  }
+
   async accept(hubId: string, orderId: string, dto: HubOrderActionDto, updatedBy: string) {
     const order = await this.orderRepo.findHubOrder(orderId, hubId);
     const allowed: OrderStatus[] = ['HUB_ASSIGNED', 'CONFIRMED', 'PENDING'];
@@ -149,6 +192,7 @@ export class HubOrdersService {
   }
 
   async reject(hubId: string, orderId: string, dto: HubRejectOrderDto, updatedBy: string) {
+    await this.releaseReservedStock(hubId, orderId);
     return this.transitionOrder(
       hubId,
       orderId,
@@ -277,12 +321,14 @@ export class HubOrdersService {
       dto.remarks ?? 'Order delivered',
     );
 
+    await this.consumeReservedStock(hubId, orderId);
     await this.loyaltyTransactionService.earnForDeliveredOrder(orderId);
 
     return delivered;
   }
 
   async cancel(hubId: string, orderId: string, dto: HubCancelOrderDto, updatedBy: string) {
+    await this.releaseReservedStock(hubId, orderId);
     return this.transitionOrder(
       hubId,
       orderId,

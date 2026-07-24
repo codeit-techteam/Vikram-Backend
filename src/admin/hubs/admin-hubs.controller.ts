@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -27,9 +28,14 @@ import { AdminHubsService } from './admin-hubs.service';
 import {
   AdminHubOrdersQueryDto,
   AdminHubQueryDto,
+  AddHubDriversDto,
+  AddHubInventoryDto,
   AssignHubManagerDto,
   CreateAdminHubDto,
+  CreateHubManagerDto,
+  ProvisionHubDto,
   UpdateAdminHubDto,
+  UpdateHubCoverageDto,
   UpdateHubStatusDto,
 } from './dto/admin-hubs.dto';
 
@@ -69,6 +75,23 @@ export class AdminHubsController {
   ) {
     const data = await this.hubsService.create(dto, admin.id, admin.email);
     return { success: true, message: 'Hub created', data };
+  }
+
+  @Post('provision')
+  @AdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
+  @ApiOperation({
+    summary: 'Provision hub with manager, inventory, and coverage',
+    description:
+      'Atomic create: hub + hub manager credentials + inventory + optional drivers/vehicles. Returns one-time plaintext password.',
+  })
+  @ApiResponse({ status: 201, description: 'Hub provisioned successfully' })
+  @ApiResponse({ status: 409, description: 'Hub code or manager already exists' })
+  async provision(
+    @Body() dto: ProvisionHubDto,
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+  ) {
+    const data = await this.hubsService.provision(dto, admin.id, admin.email);
+    return { success: true, message: 'Hub provisioned', data };
   }
 
   @Get(':id/inventory')
@@ -140,6 +163,98 @@ export class AdminHubsController {
   ) {
     const data = await this.hubsService.assignManager(id, dto, admin.id, admin.email);
     return { success: true, message: 'Hub manager assigned', data };
+  }
+
+  @Post(':id/manager')
+  @AdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
+  @ApiOperation({
+    summary: 'Create hub manager with login credentials',
+    description:
+      'Creates a Hub Manager user, hashes password, and assigns them exclusively to this hub.',
+  })
+  @ApiParam({ name: 'id', description: 'Hub UUID' })
+  async createManager(
+    @Param('id') id: string,
+    @Body() dto: CreateHubManagerDto,
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+  ) {
+    const data = await this.hubsService.createManagerForHub(
+      id,
+      dto,
+      admin.id,
+      admin.email,
+    );
+    return { success: true, message: 'Hub manager created', data };
+  }
+
+  @Post(':id/inventory')
+  @AdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
+  @ApiOperation({ summary: 'Add or upsert hub inventory from catalog products' })
+  @ApiParam({ name: 'id', description: 'Hub UUID' })
+  async addInventory(
+    @Param('id') id: string,
+    @Body() dto: AddHubInventoryDto,
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+  ) {
+    const data = await this.hubsService.addInventory(
+      id,
+      dto.items,
+      admin.id,
+      admin.email,
+    );
+    return { success: true, message: 'Hub inventory saved', data };
+  }
+
+  @Post(':id/drivers')
+  @AdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
+  @ApiOperation({ summary: 'Add drivers (and optional vehicles) to a hub' })
+  @ApiParam({ name: 'id', description: 'Hub UUID' })
+  async addDrivers(
+    @Param('id') id: string,
+    @Body() dto: AddHubDriversDto,
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+  ) {
+    const data = await this.hubsService.addDrivers(
+      id,
+      dto.drivers,
+      admin.id,
+      admin.email,
+    );
+    return { success: true, message: 'Drivers added', data };
+  }
+
+  @Patch(':id/coverage')
+  @AdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
+  @ApiOperation({ summary: 'Update hub coverage radius, coords, and polygon' })
+  @ApiParam({ name: 'id', description: 'Hub UUID' })
+  async updateCoverage(
+    @Param('id') id: string,
+    @Body() dto: UpdateHubCoverageDto,
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+  ) {
+    const data = await this.hubsService.updateCoverage(
+      id,
+      dto,
+      admin.id,
+      admin.email,
+    );
+    return { success: true, message: 'Hub coverage updated', data };
+  }
+
+  @Put(':id')
+  @AdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
+  @ApiOperation({
+    summary: 'Update hub (PUT alias)',
+    description: 'Same as PATCH /admin/hubs/:id',
+  })
+  @ApiParam({ name: 'id', description: 'Hub UUID' })
+  async replace(
+    @Param('id') id: string,
+    @Body() dto: UpdateAdminHubDto,
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+  ) {
+    const data = await this.hubsService.update(id, dto, admin.id, admin.email);
+    return { success: true, message: 'Hub updated', data };
   }
 
   @Get(':id')

@@ -24,6 +24,7 @@ import { AdminDashboardService } from './dashboard/admin-dashboard.service';
 // Customers
 import { AdminCustomersController } from './customers/admin-customers.controller';
 import { AdminCustomersService } from './customers/admin-customers.service';
+import { CustomerSitesModule } from '../modules/customer-sites/customer-sites.module';
 
 // Customer Executive
 import { CustomerExecutiveController } from './customer-executive/customer-executive.controller';
@@ -127,6 +128,7 @@ import { LoyaltyModule } from '../modules/loyalty/loyalty.module';
     InvoiceModule,
     HubModule,
     LoyaltyModule,
+    CustomerSitesModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],

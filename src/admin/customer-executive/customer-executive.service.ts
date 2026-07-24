@@ -53,9 +53,20 @@ export class CustomerExecutiveService {
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
 
+    const pendingStatuses: OrderStatus[] = [
+      OrderStatus.PENDING,
+      OrderStatus.CONFIRMED,
+      OrderStatus.HUB_ASSIGNED,
+      OrderStatus.AWAITING_HUB_ALLOCATION,
+    ];
+
     const [
       todayOrders,
       pendingOrders,
+      processingOrders,
+      readyToDispatch,
+      completedOrders,
+      cancelledOrders,
       pendingPayments,
       emergencyOrders,
       bulkEnquiries,
@@ -66,9 +77,29 @@ export class CustomerExecutiveService {
       }),
       this.prisma.order.count({
         where: {
-          orderStatus: { in: [OrderStatus.PENDING, OrderStatus.CONFIRMED] },
+          orderStatus: { in: pendingStatuses },
           deletedAt: null,
         },
+      }),
+      this.prisma.order.count({
+        where: {
+          orderStatus: {
+            in: [OrderStatus.PROCESSING, OrderStatus.PACKED],
+          },
+          deletedAt: null,
+        },
+      }),
+      this.prisma.order.count({
+        where: {
+          orderStatus: OrderStatus.READY_FOR_DISPATCH,
+          deletedAt: null,
+        },
+      }),
+      this.prisma.order.count({
+        where: { orderStatus: OrderStatus.DELIVERED, deletedAt: null },
+      }),
+      this.prisma.order.count({
+        where: { orderStatus: OrderStatus.CANCELLED, deletedAt: null },
       }),
       this.prisma.order.count({
         where: { paymentStatus: PaymentStatus.PENDING, deletedAt: null },
@@ -96,6 +127,10 @@ export class CustomerExecutiveService {
     return {
       todayOrders,
       pendingOrders,
+      processingOrders,
+      readyToDispatch,
+      completedOrders,
+      cancelledOrders,
       pendingPayments,
       emergencyOrders,
       bulkEnquiries,

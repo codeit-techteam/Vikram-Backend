@@ -42,4 +42,40 @@ export class OrderTrackingService {
       updatedAt: order.updatedAt.toISOString(),
     };
   }
+
+  async getTracking(customerId: string, orderId: string) {
+    const order = await this.ordersService.findOne(customerId, orderId);
+    const steps = order.timeline.map((event, index) => ({
+      key: event.status.toLowerCase(),
+      label: event.statusLabel,
+      time: new Date(event.createdAt).toLocaleString('en-IN', {
+        day: 'numeric',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
+      done: index < order.timeline.length - 1 || order.status === 'DELIVERED',
+      active:
+        index === order.timeline.length - 1 && order.status !== 'DELIVERED',
+    }));
+
+    return {
+      currentStep: order.status,
+      statusLabel: order.statusLabel,
+      steps,
+      estimatedArrival: undefined,
+      driver: order.driver
+        ? {
+            name: order.driver.name,
+            phone: order.driver.phone,
+            vehicleNumber: order.driver.vehicleNumber ?? '',
+          }
+        : undefined,
+      warehouse: order.hub?.name,
+      hub: order.hub,
+      orderNumber: order.orderNumber,
+      paymentMethod: order.payment.method,
+      paymentStatus: order.payment.status,
+    };
+  }
 }

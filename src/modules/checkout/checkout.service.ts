@@ -3,7 +3,6 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { EntityStatus } from '../../../generated/prisma/client';
 import { PrismaService } from '../../common/database/prisma.service';
 import { CartService } from '../cart/cart.service';
 import { MembershipService } from '../membership/membership.service';
@@ -12,10 +11,8 @@ import { LoyaltyTransactionService } from '../loyalty/loyalty-transaction.servic
 import {
   calculateMaxRedeemablePoints,
 } from '../loyalty/loyalty.constants';
-import {
-  decimalToNumber,
-  haversineKm,
-} from '../../common/shopping/pricing.util';
+import { decimalToNumber } from '../../common/shopping/pricing.util';
+import { CoverageService } from '../coverage/coverage.service';
 import {
   CheckoutAddressDto,
   CheckoutHubDto,
@@ -35,6 +32,7 @@ export class CheckoutService {
     private readonly membershipService: MembershipService,
     private readonly loyaltyService: LoyaltyService,
     private readonly loyaltyTransactionService: LoyaltyTransactionService,
+    private readonly coverageService: CoverageService,
   ) {}
 
   async getCheckout(
@@ -189,56 +187,25 @@ export class CheckoutService {
     address: CheckoutAddressDto,
     items: Array<{ productId: string; quantity: number }>,
   ): Promise<CheckoutHubDto | null> {
-    const hubs = await this.prisma.hub.findMany({
-      where: {
-        deletedAt: null,
-        isActive: true,
-        status: EntityStatus.ACTIVE,
+    const match = await this.coverageService.findNearestHub(
+      {
+        latitude: address.latitude,
+        longitude: address.longitude,
+        pincode: address.pincode,
       },
-      include: {
-        inventory: {
-          where: {
-            productId: { in: items.map((i) => i.productId) },
-          },
-        },
-      },
-    });
+      items,
+    );
 
-    if (hubs.length === 0) return null;
+    if (!match || !match.inCoverage) return null;
 
-    const lat = address.latitude;
-    const lng = address.longitude;
-
-    const ranked = hubs
-      .map((hub) => {
-        const hubLat = decimalToNumber(hub.latitude);
-        const hubLng = decimalToNumber(hub.longitude);
-
-        let distanceKm = Number.POSITIVE_INFINITY;
-        if (lat != null && lng != null) {
-          distanceKm = haversineKm(lat, lng, hubLat, hubLng);
-        } else if (address.pincode && hub.pincode === address.pincode) {
-          distanceKm = 0;
-        }
-
-        const canFulfill = items.every((item) => {
-          const inv = hub.inventory.find((i) => i.productId === item.productId);
-          return (inv?.availableQty ?? 0) >= item.quantity;
-        });
-
-        return {
-          id: hub.id,
-          code: hub.code,
-          name: hub.name,
-          city: hub.city,
-          pincode: hub.pincode,
-          distanceKm: Math.round(distanceKm * 100) / 100,
-          canFulfill,
-        } satisfies CheckoutHubDto;
-      })
-      .sort((a, b) => a.distanceKm - b.distanceKm);
-
-    const fulfilling = ranked.find((h) => h.canFulfill);
-    return fulfilling ?? ranked[0] ?? null;
+    return {
+      id: match.id,
+      code: match.code,
+      name: match.name,
+      city: match.city,
+      pincode: match.pincode,
+      distanceKm: match.distanceKm,
+      canFulfill: match.canFulfill,
+    };
   }
 }

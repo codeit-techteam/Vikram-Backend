@@ -56,6 +56,21 @@ const ORDER_DETAIL_INCLUDE = {
       phone: true,
     },
   },
+  assignedDriver: {
+    select: {
+      id: true,
+      name: true,
+      phone: true,
+      vehicle: { select: { id: true, registration: true, vehicleType: true } },
+    },
+  },
+  assignedVehicle: {
+    select: {
+      id: true,
+      registration: true,
+      vehicleType: true,
+    },
+  },
   items: {
     orderBy: { createdAt: 'asc' as const },
   },
@@ -160,13 +175,20 @@ export class OrdersService {
             deliveryAddress: {
               id: checkout.address.id,
               label: checkout.address.label,
+              siteName: checkout.address.label,
               line1: checkout.address.line1,
               line2: checkout.address.line2,
+              landmark: (checkout.address as { landmark?: string | null }).landmark ?? null,
+              gateNumber: (checkout.address as { gateNumber?: string | null }).gateNumber ?? null,
+              floor: (checkout.address as { floor?: string | null }).floor ?? null,
               city: checkout.address.city,
               state: checkout.address.state,
               pincode: checkout.address.pincode,
+              contactPerson: (checkout.address as { contactPerson?: string | null }).contactPerson ?? null,
+              phone: (checkout.address as { phone?: string | null }).phone ?? null,
               latitude: checkout.address.latitude,
               longitude: checkout.address.longitude,
+              deliveryNotes: (checkout.address as { deliveryNotes?: string | null }).deliveryNotes ?? null,
             },
             items: {
               create: checkout.items.map((item) => ({
@@ -251,6 +273,17 @@ export class OrdersService {
       actionVariant: 'outline',
       priority: 10,
     });
+
+    if (checkout.hubAvailable && checkout.nearestHub) {
+      await this.prisma.hubNotification.create({
+        data: {
+          hubId: checkout.nearestHub.id,
+          type: 'ORDER',
+          title: `New Order ${order.orderNumber}`,
+          body: `COD order ₹${checkout.grandTotal} assigned. Accept and assign a driver.`,
+        },
+      });
+    }
 
     await this.cache.invalidateAfterOrder(customerId);
 
@@ -628,6 +661,28 @@ export class OrdersService {
       membershipDiscount: decimalToNumber(order.membershipDiscount),
       bulkProcurement: order.bulkOrder,
       priorityOrder: order.priorityOrder,
+      driver: order.assignedDriver
+        ? {
+            id: order.assignedDriver.id,
+            name: order.assignedDriver.name,
+            phone: order.assignedDriver.phone,
+            vehicleNumber:
+              order.assignedVehicle?.registration ??
+              order.assignedDriver.vehicle?.registration ??
+              null,
+            vehicleType:
+              order.assignedVehicle?.vehicleType ??
+              order.assignedDriver.vehicle?.vehicleType ??
+              null,
+          }
+        : null,
+      vehicle: order.assignedVehicle
+        ? {
+            id: order.assignedVehicle.id,
+            registration: order.assignedVehicle.registration,
+            vehicleType: order.assignedVehicle.vehicleType,
+          }
+        : null,
     };
   }
 }

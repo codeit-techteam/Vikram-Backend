@@ -33,14 +33,57 @@ export class AdminOrdersService {
         orderBy: { createdAt: 'desc' },
         include: {
           customer: { select: { id: true, phone: true, fullName: true } },
-          hub: { select: { id: true, name: true } },
+          hub: {
+            select: {
+              id: true,
+              code: true,
+              name: true,
+              users: {
+                where: { role: 'HUB_MANAGER', isActive: true, deletedAt: null },
+                select: { id: true, fullName: true, employeeId: true, phone: true },
+                take: 1,
+              },
+            },
+          },
+          assignedDriver: {
+            select: {
+              id: true,
+              name: true,
+              phone: true,
+              vehicle: { select: { registration: true, vehicleType: true } },
+            },
+          },
+          assignedVehicle: {
+            select: { id: true, registration: true, vehicleType: true },
+          },
+          items: {
+            select: {
+              productId: true,
+              name: true,
+              unit: true,
+              unitPrice: true,
+              quantity: true,
+            },
+          },
           _count: { select: { items: true } },
         },
       }),
       this.prisma.order.count({ where }),
     ]);
 
-    return { data, meta: { page, limit, total, totalPages: Math.ceil(total / limit) } };
+    const mapped = data.map((order) => ({
+      ...order,
+      manager: order.hub?.users?.[0] ?? null,
+      hub: order.hub
+        ? {
+            id: order.hub.id,
+            code: order.hub.code,
+            name: order.hub.name,
+          }
+        : null,
+    }));
+
+    return { data: mapped, meta: { page, limit, total, totalPages: Math.ceil(total / limit) } };
   }
 
   async findOne(id: string) {
@@ -49,14 +92,29 @@ export class AdminOrdersService {
       include: {
         customer: { include: { profile: true } },
         address: true,
-        hub: true,
+        hub: {
+          include: {
+            users: {
+              where: { role: 'HUB_MANAGER', isActive: true, deletedAt: null },
+              select: { id: true, fullName: true, employeeId: true, phone: true },
+              take: 1,
+            },
+          },
+        },
+        assignedDriver: {
+          include: { vehicle: { select: { registration: true, vehicleType: true } } },
+        },
+        assignedVehicle: true,
         items: { include: { product: { select: { id: true, name: true, unit: true } } } },
         timeline: { orderBy: { createdAt: 'asc' } },
         invoice: true,
       },
     });
     if (!order) throw new NotFoundException('Order not found');
-    return order;
+    return {
+      ...order,
+      manager: order.hub?.users?.[0] ?? null,
+    };
   }
 
   async updateStatus(id: string, dto: UpdateOrderStatusDto, updatedBy: string) {

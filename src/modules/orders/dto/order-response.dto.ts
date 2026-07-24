@@ -260,6 +260,22 @@ export class OrderDetailResponseDto {
 
   @ApiProperty()
   priorityOrder!: boolean;
+
+  @ApiPropertyOptional()
+  driver?: {
+    id: string;
+    name: string;
+    phone: string;
+    vehicleNumber?: string | null;
+    vehicleType?: string | null;
+  } | null;
+
+  @ApiPropertyOptional()
+  vehicle?: {
+    id: string;
+    registration: string;
+    vehicleType: string;
+  } | null;
 }
 
 export class OrderStatusResponseDto {

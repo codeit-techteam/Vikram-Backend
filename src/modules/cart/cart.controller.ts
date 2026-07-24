@@ -93,6 +93,22 @@ export class CartController {
     return { success: true, message: 'Item added to cart', data };
   }
 
+  @Post('items')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Add product to cart (alias)',
+    description: 'Alias for POST /cart — same behavior for mobile clients that call /cart/items.',
+  })
+  @ApiBody({ type: AddCartItemDto })
+  @ApiResponse({ status: 200, description: 'Item added', type: CartResponseDto })
+  async addItemAlias(
+    @CurrentUser() user: AuthenticatedCustomer,
+    @Body() dto: AddCartItemDto,
+  ): Promise<{ success: boolean; message: string; data: CartResponseDto }> {
+    const data = await this.cartService.addItem(user.id, dto);
+    return { success: true, message: 'Item added to cart', data };
+  }
+
   @Patch('item/:itemId')
   @ApiOperation({
     summary: 'Update cart item quantity',
