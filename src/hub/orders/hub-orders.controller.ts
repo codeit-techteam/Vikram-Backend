@@ -2,20 +2,24 @@ import {
   Body,
   Controller,
   Get,
+  Header,
   Param,
   Patch,
   Post,
   Query,
+  StreamableFile,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiProduces, ApiTags } from '@nestjs/swagger';
 import { SWAGGER_BEARER_AUTH, SWAGGER_TAGS } from '../../common/constants/swagger.constants';
+import { SkipResponseWrap } from '../../common/decorators/skip-response-wrap.decorator';
 import { HubJwtAuthGuard } from '../guards/hub-jwt-auth.guard';
 import { HubRolesGuard } from '../guards/hub-roles.guard';
 import { HubPermission } from '../decorators/hub-roles.decorator';
 import { CurrentHubUser } from '../decorators/current-hub-user.decorator';
 import type { AuthenticatedHubUser } from '../auth/hub-jwt.strategy';
 import { HubOrdersService } from './hub-orders.service';
+import { InvoiceService } from '../../modules/invoice/invoice.service';
 import {
   HubAssignDriverDto,
   HubAssignLoaderDto,
@@ -27,6 +31,8 @@ import {
   HubPodDto,
   HubRejectOrderDto,
   HubTimelineEntryDto,
+  HubUpdateStatusDto,
+  HubVerifyDeliveryOtpDto,
 } from '../dto/hub.dto';
 
 @ApiTags(SWAGGER_TAGS.HUB_ORDERS)
@@ -34,7 +40,10 @@ import {
 @UseGuards(HubJwtAuthGuard, HubRolesGuard)
 @ApiBearerAuth(SWAGGER_BEARER_AUTH)
 export class HubOrdersController {
-  constructor(private readonly ordersService: HubOrdersService) {}
+  constructor(
+    private readonly ordersService: HubOrdersService,
+    private readonly invoiceService: InvoiceService,
+  ) {}
 
   @Get()
   @HubPermission('orders')
@@ -56,6 +65,36 @@ export class HubOrdersController {
   ) {
     const data = await this.ordersService.getTimeline(user.hubId, id);
     return { success: true, message: 'Order timeline fetched', data };
+  }
+
+  @Get(':id/invoice')
+  @HubPermission('orders')
+  @ApiOperation({ summary: 'Get order invoice JSON (same as customer/admin)' })
+  async getInvoice(
+    @CurrentHubUser() user: AuthenticatedHubUser,
+    @Param('id') id: string,
+  ) {
+    await this.ordersService.findOne(user.hubId, id);
+    const data = await this.invoiceService.getInvoiceByOrderId(id);
+    return { success: true, message: 'Invoice fetched', data };
+  }
+
+  @Get(':id/invoice/pdf')
+  @SkipResponseWrap()
+  @Header('Content-Type', 'application/pdf')
+  @ApiProduces('application/pdf')
+  @HubPermission('orders')
+  @ApiOperation({ summary: 'Download order invoice PDF (single source)' })
+  async getInvoicePdf(
+    @CurrentHubUser() user: AuthenticatedHubUser,
+    @Param('id') id: string,
+  ): Promise<StreamableFile> {
+    await this.ordersService.findOne(user.hubId, id);
+    const { buffer, filename } = await this.invoiceService.getInvoicePdfByOrderId(id);
+    return new StreamableFile(buffer, {
+      type: 'application/pdf',
+      disposition: `attachment; filename="${filename}"`,
+    });
   }
 
   @Get(':id')
@@ -86,6 +125,58 @@ export class HubOrdersController {
     return { success: true, message: 'Timeline entry added', data };
   }
 
+  @Post(':id/generate-delivery-otp')
+  @HubPermission('orders')
+  @ApiOperation({ summary: 'Generate delivery OTP (sent to customer, not returned)' })
+  async generateDeliveryOtp(
+    @CurrentHubUser() user: AuthenticatedHubUser,
+    @Param('id') id: string,
+    @Body() dto: HubOrderActionDto,
+  ) {
+    const data = await this.ordersService.generateDeliveryOtp(
+      user.hubId,
+      id,
+      dto,
+      user.fullName,
+    );
+    return { success: true, message: 'Delivery OTP generated', data };
+  }
+
+  @Post(':id/verify-delivery-otp')
+  @HubPermission('orders')
+  @ApiOperation({ summary: 'Verify delivery OTP and complete delivery' })
+  async verifyDeliveryOtp(
+    @CurrentHubUser() user: AuthenticatedHubUser,
+    @Param('id') id: string,
+    @Body() dto: HubVerifyDeliveryOtpDto,
+  ) {
+    const data = await this.ordersService.verifyDeliveryOtp(
+      user.hubId,
+      id,
+      dto,
+      user.fullName,
+    );
+    return { success: true, message: data.message, data };
+  }
+
+  @Patch(':id/status')
+  @HubPermission('orders')
+  @ApiOperation({ summary: 'Update order status (single source of truth)' })
+  async updateStatus(
+    @CurrentHubUser() user: AuthenticatedHubUser,
+    @Param('id') id: string,
+    @Body() dto: HubUpdateStatusDto,
+  ) {
+    const data = await this.ordersService.updateStatus(
+      user.hubId,
+      id,
+      dto,
+      user.fullName,
+      user.role,
+    );
+    return { success: true, message: 'Order status updated', data };
+  }
+
   @Patch(':id/accept')
   @HubPermission('orders')
   @ApiOperation({ summary: 'Accept order at hub' })
@@ -112,7 +203,7 @@ export class HubOrdersController {
 
   @Patch(':id/ready')
   @HubPermission('orders')
-  @ApiOperation({ summary: 'Mark order ready for dispatch' })
+  @ApiOperation({ summary: 'Mark order packed / ready' })
   async ready(
     @CurrentHubUser() user: AuthenticatedHubUser,
     @Param('id') id: string,
@@ -124,7 +215,7 @@ export class HubOrdersController {
 
   @Patch(':id/loading')
   @HubPermission('orders')
-  @ApiOperation({ summary: 'Mark order as loading' })
+  @ApiOperation({ summary: 'Mark order picking / loading' })
   async loading(
     @CurrentHubUser() user: AuthenticatedHubUser,
     @Param('id') id: string,
@@ -136,7 +227,7 @@ export class HubOrdersController {
 
   @Patch(':id/dispatch')
   @HubPermission('orders')
-  @ApiOperation({ summary: 'Dispatch order' })
+  @ApiOperation({ summary: 'Mark out for delivery' })
   async dispatch(
     @CurrentHubUser() user: AuthenticatedHubUser,
     @Param('id') id: string,
@@ -146,9 +237,45 @@ export class HubOrdersController {
     return { success: true, message: 'Order dispatched', data };
   }
 
+  @Patch(':id/driver-reached')
+  @HubPermission('orders')
+  @ApiOperation({ summary: 'Mark driver reached customer location' })
+  async driverReached(
+    @CurrentHubUser() user: AuthenticatedHubUser,
+    @Param('id') id: string,
+    @Body() dto: HubOrderActionDto,
+  ) {
+    const data = await this.ordersService.markDriverReached(
+      user.hubId,
+      id,
+      dto,
+      user.fullName,
+    );
+    return { success: true, message: 'Driver marked as reached', data };
+  }
+
+  @Patch(':id/complete-delivery')
+  @HubPermission('orders')
+  @ApiOperation({ summary: 'Complete delivery after OTP verification' })
+  async completeDelivery(
+    @CurrentHubUser() user: AuthenticatedHubUser,
+    @Param('id') id: string,
+    @Body() dto: HubOrderActionDto,
+  ) {
+    const data = await this.ordersService.completeDelivery(
+      user.hubId,
+      id,
+      dto,
+      user.fullName,
+    );
+    return { success: true, message: 'Delivery completed', data };
+  }
+
   @Patch(':id/deliver')
   @HubPermission('orders')
-  @ApiOperation({ summary: 'Mark order delivered' })
+  @ApiOperation({
+    summary: 'Mark order delivered (requires prior OTP verification)',
+  })
   async deliver(
     @CurrentHubUser() user: AuthenticatedHubUser,
     @Param('id') id: string,
@@ -220,7 +347,7 @@ export class HubOrdersController {
 
   @Post(':id/pod')
   @HubPermission('pod')
-  @ApiOperation({ summary: 'Submit proof of delivery' })
+  @ApiOperation({ summary: 'Submit proof of delivery (requires OTP verification)' })
   async pod(
     @CurrentHubUser() user: AuthenticatedHubUser,
     @Param('id') id: string,

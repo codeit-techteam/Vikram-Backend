@@ -95,9 +95,13 @@ enum OrderStatus {
   CONFIRMED
   HUB_ASSIGNED
   AWAITING_HUB_ALLOCATION
+  ACCEPTED_BY_HUB
+  PICKING
   PROCESSING
   PACKED
   READY_FOR_DISPATCH
+  DRIVER_ASSIGNED
+  OUT_FOR_DELIVERY
   DISPATCHED
   DELIVERED
   CANCELLED
@@ -106,6 +110,7 @@ enum OrderStatus {
 enum PaymentStatus {
   PENDING
   PAID
+  COLLECTED
   FAILED
   REFUNDED
 }
@@ -369,6 +374,7 @@ enum HubNotificationType {
   DISPATCH
   EMERGENCY
   BULK
+  REQUISITION
   SYSTEM
 }
 
@@ -377,6 +383,54 @@ enum InventoryTransferStatus {
   IN_TRANSIT
   RECEIVED
   CANCELLED
+}
+
+enum RequisitionStatus {
+  DRAFT
+  SUBMITTED
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+  ALLOCATED
+  DISPATCHED
+  IN_TRANSIT
+  RECEIVED
+  COMPLETED
+}
+
+enum RequisitionPriority {
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum RequisitionReason {
+  LOW_STOCK
+  UPCOMING_DEMAND
+  EMERGENCY_ORDER
+  FESTIVAL_STOCK
+  PROJECT_REQUIREMENT
+  OTHER
+}
+
+enum RequisitionItemStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  ALLOCATED
+  DISPATCHED
+  RECEIVED
+  COMPLETED
+}
+
+enum InventoryLedgerType {
+  REQUISITION_ALLOCATE
+  REQUISITION_DISPATCH
+  REQUISITION_RECEIVE
+  ADJUSTMENT
+  TRANSFER
+  ORDER_RESERVE
+  ORDER_CONSUME
 }
 
 // ─── Category ────────────────────────────────────────────────────────────────
@@ -480,6 +534,8 @@ model Product {
   cartItems     CartItem[]
   hubInventory       HubInventory[]
   inventoryTransfers InventoryTransfer[]
+  requisitionItems   RequisitionItem[]
+  ledgerEntries      InventoryLedgerEntry[]
 
   @@index([slug])
   @@index([categoryId, entityStatus, isVisible])
@@ -1033,6 +1089,9 @@ model Hub {
   transfersFrom     InventoryTransfer[] @relation("TransferFromHub")
   transfersTo       InventoryTransfer[] @relation("TransferToHub")
   settlementBatches SettlementBatch[]
+  requisitions      Requisition[]       @relation("RequisitionHub")
+  warehouseRequisitions Requisition[]   @relation("RequisitionWarehouseHub")
+  ledgerEntries     InventoryLedgerEntry[]
 
   @@index([isActive, status])
   @@index([pincode])
@@ -1124,9 +1183,18 @@ model Order {
   assignedDriverId    String?       @map("assigned_driver_id") @db.Uuid
   assignedVehicleId   String?       @map("assigned_vehicle_id") @db.Uuid
   assignedLoaderId    String?       @map("assigned_loader_id") @db.Uuid
+  managerId           String?       @map("manager_id") @db.Uuid
+  expectedDeliveryAt  DateTime?     @map("expected_delivery_at")
   loadingStartedAt    DateTime?     @map("loading_started_at")
   loadingCompletedAt  DateTime?     @map("loading_completed_at")
   dispatchedAt        DateTime?     @map("dispatched_at")
+  driverReachedAt     DateTime?     @map("driver_reached_at")
+  deliveryOtp         String?       @map("delivery_otp") @db.VarChar(6)
+  deliveryOtpGeneratedAt DateTime?  @map("delivery_otp_generated_at")
+  deliveryOtpVerified Boolean       @default(false) @map("delivery_otp_verified")
+  deliveryVerifiedBy  String?       @map("delivery_verified_by") @db.VarChar(100)
+  deliveryCompletedAt DateTime?     @map("delivery_completed_at")
+  paymentCollectedAt  DateTime?     @map("payment_collected_at")
   hubRejectReason     String?       @map("hub_reject_reason") @db.VarChar(500)
   hubRejectedAt       DateTime?     @map("hub_rejected_at")
   deliveryAddress Json?         @map("delivery_address") @db.JsonB
@@ -1141,6 +1209,7 @@ model Order {
   customer       Customer        @relation(fields: [customerId], references: [id])
   address        Address         @relation(fields: [addressId], references: [id])
   hub            Hub?            @relation(fields: [hubId], references: [id], onDelete: SetNull)
+  manager        HubUser?        @relation("OrderManager", fields: [managerId], references: [id], onDelete: SetNull)
   assignedDriver Driver?         @relation("OrderAssignedDriver", fields: [assignedDriverId], references: [id], onDelete: SetNull)
   assignedVehicle Vehicle?       @relation("OrderAssignedVehicle", fields: [assignedVehicleId], references: [id], onDelete: SetNull)
   assignedLoader HubUser?        @relation("OrderAssignedLoader", fields: [assignedLoaderId], references: [id], onDelete: SetNull)
@@ -1190,13 +1259,15 @@ model OrderItem {
 }
 
 model OrderTimeline {
-  id        String      @id @default(uuid()) @db.Uuid
-  orderId   String      @map("order_id") @db.Uuid
-  status    OrderStatus
-  remarks   String?     @db.VarChar(500)
-  updatedBy String      @default("SYSTEM") @map("updated_by") @db.VarChar(100)
-  createdAt DateTime    @default(now()) @map("created_at")
-  updatedAt DateTime    @updatedAt @map("updated_at")
+  id             String      @id @default(uuid()) @db.Uuid
+  orderId        String      @map("order_id") @db.Uuid
+  status         OrderStatus
+  message        String?     @db.VarChar(500)
+  remarks        String?     @db.VarChar(500)
+  updatedBy      String      @default("SYSTEM") @map("updated_by") @db.VarChar(100)
+  updatedByRole  String?     @map("updated_by_role") @db.VarChar(50)
+  createdAt      DateTime    @default(now()) @map("created_at")
+  updatedAt      DateTime    @updatedAt @map("updated_at")
 
   order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
@@ -1650,6 +1721,7 @@ model HubUser {
   hub            Hub                 @relation(fields: [hubId], references: [id], onDelete: Cascade)
   refreshTokens  HubRefreshToken[]
   assignedOrders Order[]             @relation("OrderAssignedLoader")
+  managedOrders  Order[]             @relation("OrderManager")
 
   @@index([hubId, role, isActive])
   @@index([employeeId])
@@ -1689,6 +1761,7 @@ model Driver {
   vehicle  Vehicle?  @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
   orders   Order[]   @relation("OrderAssignedDriver")
   dispatches HubDispatch[]
+  requisitions Requisition[]
 
   @@index([hubId, availability, isActive])
   @@index([phone])
@@ -1712,6 +1785,7 @@ model Vehicle {
   driver   Driver?
   orders   Order[]  @relation("OrderAssignedVehicle")
   dispatches HubDispatch[]
+  requisitions Requisition[]
 
   @@index([hubId, status, isActive])
   @@index([deletedAt])
@@ -1976,4 +2050,177 @@ model SchedulerJobLog {
   @@index([status])
   @@index([startedAt(sort: Desc)])
   @@map("scheduler_job_logs")
+}
+
+// ─── Requisitions ────────────────────────────────────────────────────────────
+
+model Requisition {
+  id                   String              @id @default(uuid()) @db.Uuid
+  requestNo            String              @unique @map("request_no") @db.VarChar(40)
+  hubId                String              @map("hub_id") @db.Uuid
+  warehouseId          String?             @map("warehouse_id") @db.VarChar(100)
+  warehouseHubId       String?             @map("warehouse_hub_id") @db.Uuid
+  priority             RequisitionPriority @default(NORMAL)
+  status               RequisitionStatus   @default(DRAFT)
+  reason               RequisitionReason
+  expectedDate         DateTime            @map("expected_date")
+  remarks              String?             @db.Text
+  requestedBy          String              @map("requested_by") @db.VarChar(100)
+  requestedByName      String?             @map("requested_by_name") @db.VarChar(200)
+  approvedBy           String?             @map("approved_by") @db.VarChar(100)
+  approvedByName       String?             @map("approved_by_name") @db.VarChar(200)
+  allocatedBy          String?             @map("allocated_by") @db.VarChar(100)
+  allocatedByName      String?             @map("allocated_by_name") @db.VarChar(200)
+  receivedBy           String?             @map("received_by") @db.VarChar(100)
+  receivedByName       String?             @map("received_by_name") @db.VarChar(200)
+  rejectedBy           String?             @map("rejected_by") @db.VarChar(100)
+  rejectedByName       String?             @map("rejected_by_name") @db.VarChar(200)
+  rejectionReason      String?             @map("rejection_reason") @db.Text
+  submittedAt          DateTime?           @map("submitted_at")
+  approvedAt           DateTime?           @map("approved_at")
+  allocatedAt          DateTime?           @map("allocated_at")
+  dispatchedAt         DateTime?           @map("dispatched_at")
+  receivedAt           DateTime?           @map("received_at")
+  completedAt          DateTime?           @map("completed_at")
+  totalItems           Int                 @default(0) @map("total_items")
+  totalQty             Int                 @default(0) @map("total_qty")
+  totalValue           Decimal             @default(0) @map("total_value") @db.Decimal(14, 2)
+  vehicleId            String?             @map("vehicle_id") @db.Uuid
+  driverId             String?             @map("driver_id") @db.Uuid
+  vehicleRegistration  String?             @map("vehicle_registration") @db.VarChar(40)
+  driverName           String?             @map("driver_name") @db.VarChar(200)
+  lrNumber             String?             @map("lr_number") @db.VarChar(80)
+  warehouseBin         String?             @map("warehouse_bin") @db.VarChar(80)
+  expectedDispatchDate DateTime?           @map("expected_dispatch_date")
+  estimatedArrival     DateTime?           @map("estimated_arrival")
+  createdAt            DateTime            @default(now()) @map("created_at")
+  updatedAt            DateTime            @updatedAt @map("updated_at")
+
+  hub          Hub                    @relation("RequisitionHub", fields: [hubId], references: [id])
+  warehouseHub Hub?                   @relation("RequisitionWarehouseHub", fields: [warehouseHubId], references: [id], onDelete: SetNull)
+  vehicle      Vehicle?               @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  driver       Driver?                @relation(fields: [driverId], references: [id], onDelete: SetNull)
+  items        RequisitionItem[]
+  timeline     RequisitionTimeline[]
+  comments     RequisitionComment[]
+  auditLogs    RequisitionAuditLog[]
+  ledgerEntries InventoryLedgerEntry[]
+
+  @@index([hubId, status, createdAt(sort: Desc)])
+  @@index([warehouseHubId, status])
+  @@index([status, priority, createdAt(sort: Desc)])
+  @@index([requestNo])
+  @@map("requisitions")
+}
+
+model RequisitionItem {
+  id             String                @id @default(uuid()) @db.Uuid
+  requisitionId  String                @map("requisition_id") @db.Uuid
+  productId      String                @map("product_id") @db.Uuid
+  sku            String?               @db.VarChar(80)
+  productName    String                @map("product_name") @db.VarChar(300)
+  requestedQty   Int                   @map("requested_qty")
+  approvedQty    Int?                  @map("approved_qty")
+  allocatedQty   Int?                  @map("allocated_qty")
+  receivedQty    Int?                  @map("received_qty")
+  availableStock Int                   @default(0) @map("available_stock")
+  minimumStock   Int                   @default(0) @map("minimum_stock")
+  warehouseStock Int                   @default(0) @map("warehouse_stock")
+  unit           String                @db.VarChar(30)
+  unitPrice      Decimal               @default(0) @map("unit_price") @db.Decimal(12, 2)
+  remarks        String?               @db.Text
+  status         RequisitionItemStatus @default(PENDING)
+  shortageQty    Int?                  @map("shortage_qty")
+  damageQty      Int?                  @map("damage_qty")
+  missingQty     Int?                  @map("missing_qty")
+  createdAt      DateTime              @default(now()) @map("created_at")
+  updatedAt      DateTime              @updatedAt @map("updated_at")
+
+  requisition Requisition @relation(fields: [requisitionId], references: [id], onDelete: Cascade)
+  product     Product     @relation(fields: [productId], references: [id])
+
+  @@index([requisitionId])
+  @@index([productId])
+  @@map("requisition_items")
+}
+
+model RequisitionTimeline {
+  id            String   @id @default(uuid()) @db.Uuid
+  requisitionId String   @map("requisition_id") @db.Uuid
+  title         String   @db.VarChar(200)
+  subtitle      String?  @db.VarChar(500)
+  stepStatus    String   @default("pending") @map("step_status") @db.VarChar(20)
+  occurredAt    DateTime? @map("occurred_at")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  requisition Requisition @relation(fields: [requisitionId], references: [id], onDelete: Cascade)
+
+  @@index([requisitionId, createdAt])
+  @@map("requisition_timeline")
+}
+
+model RequisitionComment {
+  id            String   @id @default(uuid()) @db.Uuid
+  requisitionId String   @map("requisition_id") @db.Uuid
+  authorId      String   @map("author_id") @db.VarChar(100)
+  authorName    String   @map("author_name") @db.VarChar(200)
+  authorRole    String   @map("author_role") @db.VarChar(80)
+  message       String   @db.Text
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  requisition Requisition @relation(fields: [requisitionId], references: [id], onDelete: Cascade)
+
+  @@index([requisitionId, createdAt(sort: Desc)])
+  @@map("requisition_comments")
+}
+
+model RequisitionAuditLog {
+  id            String   @id @default(uuid()) @db.Uuid
+  requisitionId String   @map("requisition_id") @db.Uuid
+  actorId       String   @map("actor_id") @db.VarChar(100)
+  actorName     String   @map("actor_name") @db.VarChar(200)
+  actorRole     String   @map("actor_role") @db.VarChar(80)
+  action        String   @db.VarChar(80)
+  previousValue Json?    @map("previous_value") @db.JsonB
+  newValue      Json?    @map("new_value") @db.JsonB
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  requisition Requisition @relation(fields: [requisitionId], references: [id], onDelete: Cascade)
+
+  @@index([requisitionId, createdAt(sort: Desc)])
+  @@map("requisition_audit_logs")
+}
+
+model InventoryLedgerEntry {
+  id            String              @id @default(uuid()) @db.Uuid
+  hubId         String              @map("hub_id") @db.Uuid
+  productId     String              @map("product_id") @db.Uuid
+  requisitionId String?             @map("requisition_id") @db.Uuid
+  type          InventoryLedgerType
+  quantity      Int
+  openingQty    Int                 @map("opening_qty")
+  closingQty    Int                 @map("closing_qty")
+  referenceNo   String?             @map("reference_no") @db.VarChar(80)
+  remarks       String?             @db.Text
+  createdBy     String?             @map("created_by") @db.VarChar(200)
+  createdAt     DateTime            @default(now()) @map("created_at")
+
+  hub         Hub          @relation(fields: [hubId], references: [id])
+  product     Product      @relation(fields: [productId], references: [id])
+  requisition Requisition? @relation(fields: [requisitionId], references: [id], onDelete: SetNull)
+
+  @@index([hubId, productId, createdAt(sort: Desc)])
+  @@index([requisitionId])
+  @@map("inventory_ledger_entries")
+}
+
+model RequisitionNumberCounter {
+  id        String   @id @default(uuid()) @db.Uuid
+  hubCode   String   @map("hub_code") @db.VarChar(40)
+  year      Int
+  lastSeq   Int      @default(0) @map("last_seq")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([hubCode, year])
+  @@map("requisition_number_counters")
 }

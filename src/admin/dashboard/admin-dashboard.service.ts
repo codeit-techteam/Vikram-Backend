@@ -1,18 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { OrderStatus } from '../../../generated/prisma/client';
 import { PrismaService } from '../../common/database/prisma.service';
-
-const PENDING_ORDER_STATUSES: OrderStatus[] = [
-  OrderStatus.PENDING,
-  OrderStatus.CONFIRMED,
-  OrderStatus.HUB_ASSIGNED,
-  OrderStatus.AWAITING_HUB_ALLOCATION,
-];
-
-const PROCESSING_ORDER_STATUSES: OrderStatus[] = [
-  OrderStatus.PROCESSING,
-  OrderStatus.PACKED,
-];
+import {
+  getOrderStatusLabel,
+  ORDER_STATUS_BUCKETS,
+} from '../../modules/orders/order-lifecycle.constants';
 
 @Injectable()
 export class AdminDashboardService {
@@ -35,10 +27,10 @@ export class AdminDashboardService {
       emergencyOrders,
       testimonialsCount,
       pendingOrders,
-      processingOrders,
-      readyToDispatch,
-      completedOrders,
+      acceptedOrders,
       cancelledOrders,
+      deliveredOrders,
+      dispatchOrders,
       activeProducts,
       categories,
       activeVideos,
@@ -64,25 +56,19 @@ export class AdminDashboardService {
       this.prisma.emergencyOrder.count(),
       this.prisma.testimonial.count(),
       this.prisma.order.count({
-        where: { orderStatus: { in: PENDING_ORDER_STATUSES }, deletedAt: null },
+        where: { orderStatus: { in: ORDER_STATUS_BUCKETS.pending }, deletedAt: null },
       }),
       this.prisma.order.count({
-        where: {
-          orderStatus: { in: PROCESSING_ORDER_STATUSES },
-          deletedAt: null,
-        },
+        where: { orderStatus: { in: ORDER_STATUS_BUCKETS.accepted }, deletedAt: null },
       }),
       this.prisma.order.count({
-        where: {
-          orderStatus: OrderStatus.READY_FOR_DISPATCH,
-          deletedAt: null,
-        },
+        where: { orderStatus: { in: ORDER_STATUS_BUCKETS.cancelled }, deletedAt: null },
       }),
       this.prisma.order.count({
         where: { orderStatus: OrderStatus.DELIVERED, deletedAt: null },
       }),
       this.prisma.order.count({
-        where: { orderStatus: OrderStatus.CANCELLED, deletedAt: null },
+        where: { orderStatus: { in: ORDER_STATUS_BUCKETS.dispatch }, deletedAt: null },
       }),
       this.prisma.product.count({
         where: { entityStatus: 'ACTIVE', deletedAt: null },
@@ -103,33 +89,23 @@ export class AdminDashboardService {
     ]);
 
     return {
-      customers: {
-        total: totalCustomers,
-      },
+      customers: { total: totalCustomers },
       orders: {
         total: totalOrders,
         today: todayOrders,
         pending: pendingOrders,
-        processing: processingOrders,
-        readyToDispatch,
-        completed: completedOrders,
+        processing: acceptedOrders,
+        accepted: acceptedOrders,
+        readyToDispatch: dispatchOrders,
+        completed: deliveredOrders,
         cancelled: cancelledOrders,
+        delivered: deliveredOrders,
       },
-      revenue: {
-        total: revenue._sum.grandTotal ?? 0,
-      },
-      memberships: {
-        active: membershipCount,
-      },
-      loyalty: {
-        totalPointsIssued: loyaltyPointsIssued._sum.points ?? 0,
-      },
-      bulkProcurement: {
-        total: bulkProcurementRequests,
-      },
-      emergencyOrders: {
-        total: emergencyOrders,
-      },
+      revenue: { total: revenue._sum.grandTotal ?? 0 },
+      memberships: { active: membershipCount },
+      loyalty: { totalPointsIssued: loyaltyPointsIssued._sum.points ?? 0 },
+      bulkProcurement: { total: bulkProcurementRequests },
+      emergencyOrders: { total: emergencyOrders },
       cms: {
         testimonials: testimonialsCount,
         activeProducts,
@@ -138,7 +114,10 @@ export class AdminDashboardService {
         banners,
         notifications,
       },
-      recentOrders,
+      recentOrders: recentOrders.map((o) => ({
+        ...o,
+        statusLabel: getOrderStatusLabel(o.orderStatus),
+      })),
     };
   }
 }

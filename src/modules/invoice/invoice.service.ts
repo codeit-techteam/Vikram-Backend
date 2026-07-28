@@ -223,6 +223,40 @@ export class InvoiceService {
     return this.getOrGeneratePdf(invoice, invoice.order);
   }
 
+  /** Single invoice for an order — used by Customer, Hub, and Admin. */
+  async getInvoiceByOrderId(orderId: string): Promise<InvoiceResponseDto> {
+    const order = await this.findOrderForInvoice(orderId);
+    const invoice = await this.ensureInvoice(order);
+    return this.toResponseDto(invoice, order);
+  }
+
+  async getInvoicePdfByOrderId(
+    orderId: string,
+  ): Promise<{ buffer: Buffer; filename: string; invoiceId: string }> {
+    const order = await this.findOrderForInvoice(orderId);
+    const invoice = await this.ensureInvoice(order);
+    const pdf = await this.getOrGeneratePdf(invoice, order);
+    return { ...pdf, invoiceId: invoice.id };
+  }
+
+  private async findOrderForInvoice(orderId: string): Promise<OrderWithRelations> {
+    const order = await this.prisma.order.findFirst({
+      where: { id: orderId, deletedAt: null },
+      include: {
+        customer: { include: { profile: true } },
+        address: true,
+        items: { orderBy: { createdAt: 'asc' } },
+        invoice: true,
+      },
+    });
+
+    if (!order) {
+      throw new NotFoundException('Order not found');
+    }
+
+    return order;
+  }
+
   async regenerateInvoice(dto: RegenerateInvoiceDto, sendEmail = false) {
     if (!dto.invoiceId && !dto.orderId) {
       throw new BadRequestException('Either invoiceId or orderId is required');

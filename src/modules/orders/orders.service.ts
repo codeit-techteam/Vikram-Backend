@@ -35,6 +35,8 @@ import {
   ORDER_STATUS_LABELS,
   decimalToNumber,
 } from './orders.constants';
+import { getOrderStatusLabel } from './order-lifecycle.constants';
+import { OrderEventsService } from './order-events.service';
 
 const ORDER_DETAIL_INCLUDE = {
   customer: {
@@ -79,6 +81,7 @@ const ORDER_DETAIL_INCLUDE = {
   },
   invoice: {
     select: {
+      id: true,
       status: true,
       invoiceNumber: true,
     },
@@ -95,6 +98,7 @@ export class OrdersService {
     private readonly notificationService: NotificationService,
     private readonly checkoutService: CheckoutService,
     private readonly loyaltyTransactionService: LoyaltyTransactionService,
+    private readonly orderEvents: OrderEventsService,
   ) {}
 
   async placeOrder(
@@ -206,24 +210,32 @@ export class OrdersService {
                 {
                   status: OrderStatus.PENDING,
                   remarks: 'Order Placed',
+                  message: 'Order Placed',
                   updatedBy: 'SYSTEM',
+                  updatedByRole: 'SYSTEM',
                 },
                 {
                   status: OrderStatus.CONFIRMED,
-                  remarks: 'Order Confirmed',
+                  remarks: 'Confirmed',
+                  message: 'Confirmed',
                   updatedBy: 'SYSTEM',
+                  updatedByRole: 'SYSTEM',
                 },
                 hubCanFulfill
                   ? {
                       status: OrderStatus.HUB_ASSIGNED,
                       remarks: `Hub Assigned — ${checkout.nearestHub!.code} (${checkout.nearestHub!.name})`,
+                      message: `Hub Assigned — ${checkout.nearestHub!.name}`,
                       updatedBy: 'SYSTEM',
+                      updatedByRole: 'SYSTEM',
                     }
                   : {
                       status: OrderStatus.AWAITING_HUB_ALLOCATION,
                       remarks:
                         'Awaiting Hub Allocation — no nearby hub has full stock',
+                      message: 'Awaiting Hub Allocation',
                       updatedBy: 'SYSTEM',
+                      updatedByRole: 'SYSTEM',
                     },
               ],
             },
@@ -286,6 +298,16 @@ export class OrdersService {
     }
 
     await this.cache.invalidateAfterOrder(customerId);
+
+    this.orderEvents.emitOrderUpdated({
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      status: order.orderStatus,
+      statusLabel: getOrderStatusLabel(order.orderStatus),
+      updatedAt: order.updatedAt.toISOString(),
+      hubId: order.hubId,
+      customerId: order.customerId,
+    });
 
     this.logger.log(
       `Order ${order.orderNumber} placed for customer ${customerId} status=${order.orderStatus}`,
@@ -544,16 +566,21 @@ export class OrdersService {
     id: string;
     status: OrderStatus;
     remarks: string | null;
+    message?: string | null;
     updatedBy: string | null;
+    updatedByRole?: string | null;
     createdAt: Date;
     updatedAt?: Date;
   }): OrderTimelineEventDto {
+    const statusLabel = getOrderStatusLabel(event.status);
     return {
       id: event.id,
       status: event.status,
-      statusLabel: ORDER_STATUS_LABELS[event.status],
+      statusLabel,
       remarks: event.remarks,
+      message: event.message ?? event.remarks ?? statusLabel,
       updatedBy: event.updatedBy ?? 'SYSTEM',
+      updatedByRole: event.updatedByRole ?? null,
       createdAt: event.createdAt.toISOString(),
       updatedAt: (event.updatedAt ?? event.createdAt).toISOString(),
     };
@@ -575,7 +602,7 @@ export class OrdersService {
       id: order.id,
       orderNumber: order.orderNumber,
       status: order.orderStatus,
-      statusLabel: ORDER_STATUS_LABELS[order.orderStatus],
+      statusLabel: getOrderStatusLabel(order.orderStatus),
       itemCount: order.items.length,
       grandTotal: decimalToNumber(order.grandTotal),
       paymentStatus: order.paymentStatus,
@@ -597,7 +624,7 @@ export class OrdersService {
       id: order.id,
       orderNumber: order.orderNumber,
       status: order.orderStatus,
-      statusLabel: ORDER_STATUS_LABELS[order.orderStatus],
+      statusLabel: getOrderStatusLabel(order.orderStatus),
       subtotal: decimalToNumber(order.subtotal),
       gstAmount: decimalToNumber(order.gstAmount),
       deliveryCharge: decimalToNumber(order.deliveryCharge),
@@ -656,6 +683,8 @@ export class OrdersService {
       timeline: order.timeline.map((event) => this.mapTimelineEvent(event)),
       invoiceStatus: order.invoice?.status ?? null,
       invoiceNumber: order.invoice?.invoiceNumber ?? null,
+      invoiceId: order.invoice?.id ?? null,
+      expectedDeliveryAt: order.expectedDeliveryAt?.toISOString() ?? null,
       isEmergency: order.isEmergency,
       loyaltyPointsUsed: order.loyaltyPointsUsed,
       membershipDiscount: decimalToNumber(order.membershipDiscount),
@@ -683,6 +712,11 @@ export class OrdersService {
             vehicleType: order.assignedVehicle.vehicleType,
           }
         : null,
+      driverReachedAt: order.driverReachedAt?.toISOString() ?? null,
+      deliveryOtpGenerated: Boolean(order.deliveryOtpGeneratedAt),
+      deliveryOtpGeneratedAt: order.deliveryOtpGeneratedAt?.toISOString() ?? null,
+      deliveryOtpVerified: order.deliveryOtpVerified,
+      deliveryCompletedAt: order.deliveryCompletedAt?.toISOString() ?? null,
     };
   }
 }

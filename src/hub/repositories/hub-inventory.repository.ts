@@ -20,6 +20,11 @@ export class HubInventoryRepository {
       unit: string;
       deliveryETA: string | null;
       images?: { url: string }[];
+      category?: {
+        id: string;
+        slug: string;
+        name: string;
+      } | null;
     };
   }) {
     const currentStock = row.availableQty + row.reservedQty;
@@ -51,6 +56,9 @@ export class HubInventoryRepository {
           deliveryETA: true,
           retailPrice: true,
           entityStatus: true,
+          category: {
+            select: { id: true, slug: true, name: true },
+          },
           images: { where: { isPrimary: true }, take: 1 },
         },
       },

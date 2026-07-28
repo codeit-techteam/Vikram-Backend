@@ -1,4 +1,5 @@
 import type { OrderStatus } from '../../../generated/prisma/client';
+import { ORDER_STATUS_BUCKETS, ORDER_STATUS_LABELS } from '../../modules/orders/order-lifecycle.constants';
 
 export const HUB_ACCESS_ROLES = [
   'HUB_MANAGER',
@@ -17,26 +18,19 @@ export const HUB_ACCESS_ROLES = [
 export type HubAccessRole = (typeof HUB_ACCESS_ROLES)[number];
 
 export const HUB_ORDER_FILTER_MAP: Record<string, OrderStatus[]> = {
-  pending: ['PENDING', 'CONFIRMED', 'HUB_ASSIGNED', 'AWAITING_HUB_ALLOCATION'],
-  accepted: ['PROCESSING'],
-  loading: ['PACKED'],
-  ready: ['READY_FOR_DISPATCH'],
-  out_for_delivery: ['DISPATCHED'],
+  pending: ORDER_STATUS_BUCKETS.pending,
+  accepted: ['ACCEPTED_BY_HUB', 'PROCESSING'],
+  picking: ['PICKING'],
+  loading: ['PICKING', 'PACKED', 'READY_FOR_DISPATCH'],
+  packed: ['PACKED', 'READY_FOR_DISPATCH'],
+  ready: ['PACKED', 'READY_FOR_DISPATCH', 'DRIVER_ASSIGNED'],
+  out_for_delivery: ['OUT_FOR_DELIVERY', 'DISPATCHED', 'DRIVER_ASSIGNED'],
   delivered: ['DELIVERED'],
+  cancelled: ['CANCELLED'],
 };
 
-export const HUB_TIMELINE_LABELS: Record<OrderStatus, string> = {
-  PENDING: 'Order Placed',
-  CONFIRMED: 'Order Confirmed',
-  HUB_ASSIGNED: 'Hub Assigned',
-  AWAITING_HUB_ALLOCATION: 'Awaiting Hub Allocation',
-  PROCESSING: 'Order Accepted',
-  PACKED: 'Loading Completed',
-  READY_FOR_DISPATCH: 'Ready for Dispatch',
-  DISPATCHED: 'Dispatched',
-  DELIVERED: 'Delivered',
-  CANCELLED: 'Cancelled',
-};
+/** Same labels as customer + admin (single source of truth). */
+export const HUB_TIMELINE_LABELS: Record<OrderStatus, string> = ORDER_STATUS_LABELS;
 
 export const HUB_ROLE_PERMISSIONS: Record<string, string[]> = {
   HUB_MANAGER: ['*'],

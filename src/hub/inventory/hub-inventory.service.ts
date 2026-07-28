@@ -26,13 +26,21 @@ export class HubInventoryService {
     const skip = (page - 1) * limit;
 
     const where: Record<string, unknown> = { hubId };
+    const productWhere: Record<string, unknown> = {};
+
     if (query.search) {
-      where['product'] = {
-        OR: [
-          { name: { contains: query.search, mode: 'insensitive' } },
-          { sku: { contains: query.search, mode: 'insensitive' } },
-        ],
-      };
+      productWhere.OR = [
+        { name: { contains: query.search, mode: 'insensitive' } },
+        { sku: { contains: query.search, mode: 'insensitive' } },
+      ];
+    }
+
+    if (query.categorySlug && query.categorySlug !== 'all') {
+      productWhere.category = { slug: query.categorySlug };
+    }
+
+    if (Object.keys(productWhere).length > 0) {
+      where['product'] = productWhere;
     }
 
     const rows = await this.prisma.hubInventory.findMany({

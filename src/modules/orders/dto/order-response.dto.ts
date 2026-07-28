@@ -109,8 +109,14 @@ export class OrderTimelineEventDto {
   @ApiPropertyOptional()
   remarks?: string | null;
 
+  @ApiPropertyOptional()
+  message?: string | null;
+
   @ApiProperty()
   updatedBy!: string;
+
+  @ApiPropertyOptional()
+  updatedByRole?: string | null;
 
   @ApiProperty()
   createdAt!: string;
@@ -247,6 +253,12 @@ export class OrderDetailResponseDto {
   invoiceNumber?: string | null;
 
   @ApiPropertyOptional()
+  invoiceId?: string | null;
+
+  @ApiPropertyOptional()
+  expectedDeliveryAt?: string | null;
+
+  @ApiPropertyOptional()
   isEmergency?: boolean;
 
   @ApiProperty()
@@ -276,6 +288,21 @@ export class OrderDetailResponseDto {
     registration: string;
     vehicleType: string;
   } | null;
+
+  @ApiPropertyOptional()
+  driverReachedAt?: string | null;
+
+  @ApiPropertyOptional()
+  deliveryOtpGenerated?: boolean;
+
+  @ApiPropertyOptional()
+  deliveryOtpGeneratedAt?: string | null;
+
+  @ApiPropertyOptional()
+  deliveryOtpVerified?: boolean;
+
+  @ApiPropertyOptional()
+  deliveryCompletedAt?: string | null;
 }
 
 export class OrderStatusResponseDto {

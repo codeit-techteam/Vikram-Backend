@@ -3,6 +3,7 @@ import { PassportModule } from '@nestjs/passport';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { LoyaltyModule } from '../modules/loyalty/loyalty.module';
+import { InvoiceModule } from '../modules/invoice/invoice.module';
 
 // Auth
 import { HubAuthController } from './auth/hub-auth.controller';
@@ -73,13 +74,19 @@ import { HubNotificationsService } from './notifications/hub-notifications.servi
 import { HubReportsController } from './reports/hub-reports.controller';
 import { HubReportsService } from './reports/hub-reports.service';
 
+// Requisitions
+import { HubRequisitionsController } from './requisitions/hub-requisitions.controller';
+
 // Search
 import { HubSearchController } from './search/hub-search.controller';
 import { HubSearchService } from './search/hub-search.service';
+import { RequisitionsModule } from '../modules/requisitions/requisitions.module';
 
 @Module({
   imports: [
     LoyaltyModule,
+    InvoiceModule,
+    RequisitionsModule,
     PassportModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
@@ -106,6 +113,7 @@ import { HubSearchService } from './search/hub-search.service';
     HubNotificationsController,
     HubReportsController,
     HubSearchController,
+    HubRequisitionsController,
   ],
   providers: [
     HubJwtStrategy,

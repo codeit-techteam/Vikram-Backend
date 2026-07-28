@@ -5,6 +5,12 @@ import { Type } from 'class-transformer';
 export class AdminOrderQueryDto {
   @ApiPropertyOptional() @IsOptional() @IsString() search?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() status?: string;
+  @ApiPropertyOptional({
+    description: 'Status bucket: pending | accepted | dispatch | completed | delivered | cancelled',
+  })
+  @IsOptional()
+  @IsString()
+  bucket?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() customerId?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() hubId?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() fromDate?: string;
@@ -20,6 +26,12 @@ export class UpdateOrderStatusDto {
 
 export class AssignHubDto {
   @IsString() hubId: string;
+}
+
+export class AssignDriverDto {
+  @IsString() driverId: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() vehicleId?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() expectedDeliveryAt?: string;
 }
 
 export class CancelOrderDto {

@@ -111,6 +111,10 @@ import { AdminInvoicesController } from './invoices/admin-invoices.controller';
 import { AdminSupportController } from './support/admin-support.controller';
 import { AdminSupportService } from './support/admin-support.service';
 
+// Requisitions
+import { AdminRequisitionsController } from './requisitions/admin-requisitions.controller';
+import { RequisitionsModule } from '../modules/requisitions/requisitions.module';
+
 // Shared modules
 import { OrdersModule } from '../modules/orders/orders.module';
 import { NotificationModule } from '../modules/notification/notification.module';
@@ -128,6 +132,7 @@ import { LoyaltyModule } from '../modules/loyalty/loyalty.module';
     InvoiceModule,
     HubModule,
     LoyaltyModule,
+    RequisitionsModule,
     CustomerSitesModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
@@ -164,6 +169,7 @@ import { LoyaltyModule } from '../modules/loyalty/loyalty.module';
     AdminFinanceController,
     AdminInvoicesController,
     AdminSupportController,
+    AdminRequisitionsController,
   ],
   providers: [
     AdminJwtStrategy,

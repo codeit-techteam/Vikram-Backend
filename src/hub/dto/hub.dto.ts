@@ -84,6 +84,46 @@ export class HubAssignDriverDto {
   @ApiProperty()
   @IsUUID()
   driverId!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  vehicleId?: string;
+
+  @ApiPropertyOptional({ description: 'ISO datetime for expected delivery' })
+  @IsOptional()
+  @IsString()
+  expectedDeliveryAt?: string;
+}
+
+export class HubUpdateStatusDto {
+  @ApiProperty({
+    description:
+      'Target status (canonical or alias): AcceptedByHub, Picking, Packed, DriverAssigned, OutForDelivery, Delivered, Cancelled',
+  })
+  @IsString()
+  @IsNotEmpty()
+  status!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  remarks?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  driverId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  vehicleId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  expectedDeliveryAt?: string;
 }
 
 export class HubAssignVehicleDto {
@@ -147,6 +187,13 @@ export class HubPodDto {
   @IsOptional()
   @IsString()
   remarks?: string;
+}
+
+export class HubVerifyDeliveryOtpDto {
+  @ApiProperty({ description: '6-digit customer delivery OTP' })
+  @IsString()
+  @IsNotEmpty()
+  otp!: string;
 }
 
 export class HubProfileUpdateDto {
@@ -489,6 +536,13 @@ export class HubInventoryQueryDto extends HubPaginationQueryDto {
   @IsOptional()
   @IsString()
   search?: string;
+
+  @ApiPropertyOptional({
+    description: 'Catalog category slug (same as Customer App /categories)',
+  })
+  @IsOptional()
+  @IsString()
+  categorySlug?: string;
 }
 
 export class HubProductsQueryDto extends HubPaginationQueryDto {
