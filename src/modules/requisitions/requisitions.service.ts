@@ -569,7 +569,14 @@ export class RequisitionsService {
       );
     }
 
-    const totals = itemRows ? this.computeTotals(itemRows) : null;
+    const totals = itemRows
+      ? this.computeTotals(
+          itemRows.map((row) => ({
+            requestedQty: row.requestedQty,
+            unitPrice: Number(row.unitPrice ?? 0),
+          })),
+        )
+      : null;
 
     const updated = await this.prisma.$transaction(async (tx) => {
       if (itemRows) {

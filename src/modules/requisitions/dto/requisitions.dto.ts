@@ -15,7 +15,7 @@ import {
   RequisitionPriority,
   RequisitionReason,
   RequisitionStatus,
-} from '../../../generated/prisma/client';
+} from '../../../../generated/prisma/client';
 
 export class RequisitionPaginationQueryDto {
   @ApiPropertyOptional({ default: 1 })

@@ -52,7 +52,7 @@ export class HubProductsService {
         product: {
           include: {
             images: { orderBy: { displayOrder: 'asc' } },
-            category: { select: { id: true, name: true } },
+            category: { select: { id: true, name: true, slug: true } },
           },
         },
       },
