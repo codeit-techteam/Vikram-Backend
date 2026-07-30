@@ -126,6 +126,28 @@ Does **not** charge online payment, apply coupons, EMI, or credit. Supports loya
     };
   }
 
+  @Post(':orderId/reorder')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Reorder items from a past order',
+    description:
+      'Returns productId + quantity snapshots from the order so the client can add them to cart.',
+  })
+  @ApiParam({ name: 'orderId', description: 'Order UUID' })
+  @ApiResponse({ status: 200, description: 'Reorder products returned' })
+  @ApiResponse({ status: 404, description: 'Order not found', type: ApiErrorResponseDto })
+  async reorder(
+    @CurrentCustomer() customer: AuthenticatedCustomer,
+    @Param('orderId', ParseUUIDPipe) orderId: string,
+  ) {
+    const data = await this.ordersService.reorder(customer.id, orderId);
+    return {
+      success: true,
+      message: data.message,
+      data,
+    };
+  }
+
   @Patch(':orderId/cancel')
   @ApiOperation({
     summary: 'Cancel an order',

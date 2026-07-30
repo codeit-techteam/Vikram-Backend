@@ -31,6 +31,7 @@ export class ProductController {
   @ApiQuery({ name: 'search', required: false, example: 'ultratech' })
   @ApiQuery({ name: 'featured', required: false, example: true })
   @ApiQuery({ name: 'bestSelling', required: false, example: true })
+  @ApiQuery({ name: 'offers', required: false, example: true })
   @ApiQuery({ name: 'page', required: false, example: 1 })
   @ApiQuery({ name: 'limit', required: false, example: 20 })
   @ApiQuery({ name: 'sortBy', required: false, example: 'price' })
@@ -75,6 +76,70 @@ export class ProductController {
     return {
       success: true,
       message: 'Products fetched successfully',
+      data,
+    };
+  }
+
+  @Get('home')
+  @ApiOperation({
+    summary: 'Home product discovery rails',
+    description:
+      'Returns featured, popular, offers, and recentlyAdded product rails in one response for the Customer APP home screen. Optional section=featured|popular|offers|new returns a single rail. Optional hubId scopes popular/offers stock to the nearest hub.',
+  })
+  @ApiQuery({
+    name: 'section',
+    required: false,
+    enum: ['featured', 'popular', 'offers', 'new'],
+  })
+  @ApiQuery({ name: 'latitude', required: false })
+  @ApiQuery({ name: 'longitude', required: false })
+  @ApiQuery({ name: 'pincode', required: false })
+  @ApiQuery({ name: 'limit', required: false, example: 10 })
+  @ApiResponse({
+    status: 200,
+    description: 'Home products fetched successfully',
+    schema: {
+      example: {
+        success: true,
+        message: 'Home products fetched successfully',
+        data: {
+          featured: [],
+          popular: [],
+          offers: [],
+          recentlyAdded: [],
+        },
+      },
+    },
+  })
+  async getHomeProducts(
+    @Query('section') section?: 'featured' | 'popular' | 'offers' | 'new',
+    @Query('latitude') latitude?: string,
+    @Query('longitude') longitude?: string,
+    @Query('pincode') pincode?: string,
+    @Query('limit') limit?: string,
+  ): Promise<{
+    success: boolean;
+    message: string;
+    data: {
+      featured: ProductResponseDto[];
+      popular: ProductResponseDto[];
+      offers: ProductResponseDto[];
+      recentlyAdded: ProductResponseDto[];
+    };
+  }> {
+    const parsedLimit = limit ? Number(limit) : undefined;
+    const parsedLat = latitude ? Number(latitude) : undefined;
+    const parsedLng = longitude ? Number(longitude) : undefined;
+    const data = await this.productService.findHomeProducts({
+      latitude: Number.isFinite(parsedLat) ? parsedLat : undefined,
+      longitude: Number.isFinite(parsedLng) ? parsedLng : undefined,
+      pincode,
+      limit: Number.isFinite(parsedLimit) ? parsedLimit : undefined,
+      section,
+    });
+    return {
+      success: true,
+      message: 'Home products fetched successfully',
       data,
     };
   }

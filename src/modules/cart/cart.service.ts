@@ -11,6 +11,7 @@ import {
   calculateCartTotals,
   calculateLinePricing,
   decimalToNumber,
+  toMoney,
 } from '../../common/shopping/pricing.util';
 import {
   AddCartItemDto,
@@ -18,6 +19,8 @@ import {
   CartResponseDto,
   UpdateCartItemDto,
 } from './dto/cart.dto';
+
+type BulkTier = { minQty: number; price: number; label?: string | null };
 
 @Injectable()
 export class CartService {
@@ -43,45 +46,49 @@ export class CartService {
   ): Promise<CartResponseDto> {
     const quantityToAdd = dto.quantity ?? 1;
     const product = await this.assertProductPurchasable(dto.productId);
-    const availableStock = await this.getAvailableStock(dto.productId);
+    const variant = await this.resolveVariant(product.id, dto.variantId, product.hasVariants);
+    const availableStock = await this.getAvailableStock(dto.productId, dto.variantId);
 
     const cart = await this.ensureCart(customerId);
-    const existing = await this.prisma.cartItem.findUnique({
-      where: {
-        cartId_productId: { cartId: cart.id, productId: dto.productId },
-      },
-    });
+    const existing = await this.findCartLine(cart.id, dto.productId, variant?.id ?? null);
 
     const newQty = (existing?.quantity ?? 0) + quantityToAdd;
     this.assertQuantityAllowed(newQty, product.minOrder, product.maxOrder, availableStock);
 
-    const unitPrice = decimalToNumber(product.retailPrice);
+    const unitRetail = variant
+      ? decimalToNumber(variant.price)
+      : decimalToNumber(product.retailPrice);
+    const { unitPrice, bulkDiscount } = this.resolveUnitPrice(product, variant, newQty);
     const gstPercent = decimalToNumber(product.gst);
     const line = calculateLinePricing({
       unitPrice,
       quantity: newQty,
       gstPercent,
     });
+    const lineBulkDiscount = toMoney((unitRetail - unitPrice) * newQty);
+
+    const lineData = {
+      quantity: newQty,
+      price: line.price,
+      gst: line.gst,
+      subtotal: line.lineSubtotal,
+      variantId: variant?.id ?? null,
+      hubId: dto.hubId ?? existing?.hubId ?? null,
+      bulkDiscount: bulkDiscount > 0 ? lineBulkDiscount : 0,
+      etaMinutes: dto.etaMinutes ?? existing?.etaMinutes ?? null,
+    };
 
     if (existing) {
       await this.prisma.cartItem.update({
         where: { id: existing.id },
-        data: {
-          quantity: newQty,
-          price: line.price,
-          gst: line.gst,
-          subtotal: line.lineSubtotal,
-        },
+        data: lineData,
       });
     } else {
       await this.prisma.cartItem.create({
         data: {
           cartId: cart.id,
           productId: dto.productId,
-          quantity: newQty,
-          price: line.price,
-          gst: line.gst,
-          subtotal: line.lineSubtotal,
+          ...lineData,
         },
       });
     }
@@ -98,15 +105,26 @@ export class CartService {
     const cart = await this.ensureCart(customerId);
     const item = await this.prisma.cartItem.findFirst({
       where: { id: itemId, cartId: cart.id },
-      include: { product: true },
+      include: {
+        product: true,
+      },
     });
 
     if (!item) {
       throw new NotFoundException('Cart item not found');
     }
 
-    await this.assertProductPurchasable(item.productId);
-    const availableStock = await this.getAvailableStock(item.productId);
+    const product = await this.assertProductPurchasable(item.productId);
+    const variant = await this.resolveVariant(
+      product.id,
+      item.variantId ?? undefined,
+      product.hasVariants,
+      false,
+    );
+    const availableStock = await this.getAvailableStock(
+      item.productId,
+      item.variantId ?? undefined,
+    );
     this.assertQuantityAllowed(
       dto.quantity,
       item.product.minOrder,
@@ -114,13 +132,21 @@ export class CartService {
       availableStock,
     );
 
-    const unitPrice = decimalToNumber(item.product.retailPrice);
-    const gstPercent = decimalToNumber(item.product.gst);
+    const unitRetail = variant
+      ? decimalToNumber(variant.price)
+      : decimalToNumber(product.retailPrice);
+    const { unitPrice, bulkDiscount } = this.resolveUnitPrice(
+      product,
+      variant,
+      dto.quantity,
+    );
+    const gstPercent = decimalToNumber(product.gst);
     const line = calculateLinePricing({
       unitPrice,
       quantity: dto.quantity,
       gstPercent,
     });
+    const lineBulkDiscount = toMoney((unitRetail - unitPrice) * dto.quantity);
 
     await this.prisma.cartItem.update({
       where: { id: item.id },
@@ -129,6 +155,7 @@ export class CartService {
         price: line.price,
         gst: line.gst,
         subtotal: line.lineSubtotal,
+        bulkDiscount: bulkDiscount > 0 ? lineBulkDiscount : 0,
       },
     });
 
@@ -172,6 +199,20 @@ export class CartService {
     });
   }
 
+  private async findCartLine(
+    cartId: string,
+    productId: string,
+    variantId: string | null,
+  ) {
+    return this.prisma.cartItem.findFirst({
+      where: {
+        cartId,
+        productId,
+        variantId: variantId ?? null,
+      },
+    });
+  }
+
   private async assertProductPurchasable(productId: string) {
     const product = await this.prisma.product.findFirst({
       where: {
@@ -192,8 +233,103 @@ export class CartService {
     return product;
   }
 
-  /** Aggregate available stock across all active hubs. */
-  async getAvailableStock(productId: string): Promise<number> {
+  private async resolveVariant(
+    productId: string,
+    variantId: string | undefined,
+    hasVariants: boolean,
+    requireWhenMulti = true,
+  ) {
+    const variants = await this.prisma.productVariant.findMany({
+      where: { productId, deletedAt: null },
+      orderBy: { displayOrder: 'asc' },
+    });
+
+    if (variants.length === 0) {
+      if (variantId) {
+        throw new BadRequestException('Product has no variants');
+      }
+      return null;
+    }
+
+    if (variantId) {
+      const match = variants.find((v) => v.id === variantId);
+      if (!match) {
+        throw new BadRequestException('Invalid variant for this product');
+      }
+      if (!match.inStock) {
+        throw new BadRequestException('Selected variant is out of stock');
+      }
+      return match;
+    }
+
+    if (variants.length === 1) {
+      return variants[0];
+    }
+
+    if (requireWhenMulti && (hasVariants || variants.length > 1)) {
+      throw new BadRequestException(
+        'Please select a variant before adding this product to cart',
+      );
+    }
+
+    return variants[0] ?? null;
+  }
+
+  private resolveUnitPrice(
+    product: {
+      retailPrice: unknown;
+      bulkPrice: unknown;
+      bulkThreshold: number;
+      bulkPricing: unknown;
+    },
+    variant: { price: unknown; bulkPrice: unknown } | null,
+    quantity: number,
+  ): { unitPrice: number; bulkDiscount: number } {
+    const retail = variant
+      ? decimalToNumber(variant.price as number)
+      : decimalToNumber(product.retailPrice as number);
+
+    const tiers = this.resolveBulkTiers(product, variant);
+    let unitPrice = retail;
+    for (const tier of tiers) {
+      if (quantity >= tier.minQty && tier.price < unitPrice) {
+        unitPrice = tier.price;
+      }
+    }
+
+    return {
+      unitPrice,
+      bulkDiscount: retail > unitPrice ? toMoney(retail - unitPrice) : 0,
+    };
+  }
+
+  private resolveBulkTiers(
+    product: {
+      bulkPrice: unknown;
+      bulkThreshold: number;
+      bulkPricing: unknown;
+    },
+    variant: { bulkPrice: unknown } | null,
+  ): BulkTier[] {
+    if (Array.isArray(product.bulkPricing) && product.bulkPricing.length > 0) {
+      return (product.bulkPricing as BulkTier[])
+        .filter((t) => t && typeof t.minQty === 'number' && typeof t.price === 'number')
+        .map((t) => ({ minQty: t.minQty, price: Number(t.price), label: t.label }))
+        .sort((a, b) => a.minQty - b.minQty);
+    }
+
+    const variantBulk =
+      variant?.bulkPrice != null ? decimalToNumber(variant.bulkPrice) : null;
+    const productBulk =
+      product.bulkPrice != null ? decimalToNumber(product.bulkPrice) : null;
+    const bulk = variantBulk ?? productBulk;
+    if (bulk != null && product.bulkThreshold > 0) {
+      return [{ minQty: product.bulkThreshold, price: bulk }];
+    }
+    return [];
+  }
+
+  async getAvailableStock(productId: string, _variantId?: string): Promise<number> {
     const aggregates = await this.prisma.hubInventory.aggregate({
       where: {
         productId,
@@ -240,10 +376,16 @@ export class CartService {
           include: {
             product: {
               include: {
+                category: { select: { name: true } },
                 images: {
                   where: { deletedAt: null },
                   orderBy: [{ isPrimary: 'desc' }, { displayOrder: 'asc' }],
                   take: 1,
+                },
+                variants: {
+                  where: { deletedAt: null },
+                  orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
+                  select: { id: true, label: true, displayUnit: true },
                 },
               },
             },
@@ -258,21 +400,40 @@ export class CartService {
       const subtotal = decimalToNumber(item.subtotal);
       const gstAmount = Math.round(((subtotal * gst) / 100) * 100) / 100;
       const lineTotal = Math.round((subtotal + gstAmount) * 100) / 100;
+      const matchedVariant = item.variantId
+        ? item.product.variants.find((v) => v.id === item.variantId)
+        : item.product.variants[0];
+      const variantLabel =
+        matchedVariant?.label ??
+        matchedVariant?.displayUnit ??
+        item.product.spec ??
+        null;
+      const mrp =
+        item.product.mrp != null
+          ? decimalToNumber(item.product.mrp)
+          : decimalToNumber(item.product.retailPrice);
 
       return {
         id: item.id,
         productId: item.productId,
+        variantId: item.variantId,
         quantity: item.quantity,
         price,
         gst,
         subtotal,
         gstAmount,
         lineTotal,
+        bulkDiscount: decimalToNumber(item.bulkDiscount),
+        etaMinutes: item.etaMinutes,
         product: {
           id: item.product.id,
           slug: item.product.slug,
           name: item.product.name,
           brand: item.product.brand,
+          sku: item.product.sku,
+          category: item.product.category?.name ?? null,
+          variant: variantLabel,
+          mrp,
           unit: item.product.unit,
           thumbnailUrl: item.product.images[0]?.url ?? null,
           maxOrder: item.product.maxOrder,

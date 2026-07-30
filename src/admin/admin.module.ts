@@ -41,6 +41,7 @@ import { AdminUsersService } from './users/admin-users.service';
 // Hubs
 import { AdminHubsController } from './hubs/admin-hubs.controller';
 import { AdminHubsService } from './hubs/admin-hubs.service';
+import { AdminHubOrdersService } from './hubs/admin-hub-orders.service';
 
 // Membership
 import { AdminMembershipController } from './membership/admin-membership.controller';
@@ -184,6 +185,7 @@ import { LoyaltyModule } from '../modules/loyalty/loyalty.module';
     AdminHubManagersService,
     AdminUsersService,
     AdminHubsService,
+    AdminHubOrdersService,
     AdminMembershipService,
     AdminLoyaltyService,
     AdminProductsService,

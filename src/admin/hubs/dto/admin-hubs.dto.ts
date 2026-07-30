@@ -699,14 +699,95 @@ export class AssignHubManagerDto {
   managerId: string;
 }
 
+export enum HubOrderTab {
+  ALL = 'all',
+  ACTIVE = 'active',
+  COMPLETED = 'completed',
+  CANCELLED = 'cancelled',
+  PENDING_DISPATCH = 'pending_dispatch',
+  OUT_FOR_DELIVERY = 'out_for_delivery',
+}
+
+export enum HubOrderDateRange {
+  TODAY = 'today',
+  YESTERDAY = 'yesterday',
+  WEEK = 'week',
+  MONTH = 'month',
+  CUSTOM = 'custom',
+}
+
+export enum HubOrderSortField {
+  CREATED_AT = 'createdAt',
+  GRAND_TOTAL = 'grandTotal',
+  ORDER_STATUS = 'orderStatus',
+  CUSTOMER_NAME = 'customerName',
+}
+
 export class AdminHubOrdersQueryDto {
   @ApiPropertyOptional({
     enum: HubOrderGroup,
-    description: 'Filter orders by lifecycle group',
+    description: 'Legacy lifecycle group filter',
   })
   @IsOptional()
   @IsEnum(HubOrderGroup)
-  status?: HubOrderGroup;
+  statusGroup?: HubOrderGroup;
+
+  @ApiPropertyOptional({ description: 'Filter by specific order status' })
+  @IsOptional()
+  @IsString()
+  orderStatus?: string;
+
+  @ApiPropertyOptional({ enum: HubOrderTab, description: 'Order list tab filter' })
+  @IsOptional()
+  @IsEnum(HubOrderTab)
+  tab?: HubOrderTab;
+
+  @ApiPropertyOptional({ enum: HubOrderDateRange })
+  @IsOptional()
+  @IsEnum(HubOrderDateRange)
+  dateRange?: HubOrderDateRange;
+
+  @ApiPropertyOptional({ description: 'ISO date for custom range start' })
+  @IsOptional()
+  @IsString()
+  fromDate?: string;
+
+  @ApiPropertyOptional({ description: 'ISO date for custom range end' })
+  @IsOptional()
+  @IsString()
+  toDate?: string;
+
+  @ApiPropertyOptional({ description: 'Payment method filter (Cash, UPI, Credit, etc.)' })
+  @IsOptional()
+  @IsString()
+  paymentMethod?: string;
+
+  @ApiPropertyOptional({ description: 'Payment status: PAID, PENDING, PARTIAL' })
+  @IsOptional()
+  @IsString()
+  paymentStatus?: string;
+
+  @ApiPropertyOptional({
+    description: 'Customer type: Individual, Contractor, Builder, Dealer, Architect',
+  })
+  @IsOptional()
+  @IsString()
+  customerType?: string;
+
+  @ApiPropertyOptional({ description: 'Search by order ID, customer, phone, or invoice' })
+  @IsOptional()
+  @IsString()
+  search?: string;
+
+  @ApiPropertyOptional({ enum: HubOrderSortField, default: HubOrderSortField.CREATED_AT })
+  @IsOptional()
+  @IsEnum(HubOrderSortField)
+  sortBy?: HubOrderSortField = HubOrderSortField.CREATED_AT;
+
+  @ApiPropertyOptional({ enum: HubSortOrder, default: HubSortOrder.DESC })
+  @IsOptional()
+  @IsEnum(HubSortOrder)
+  sortOrder?: HubSortOrder = HubSortOrder.DESC;
 
   @ApiPropertyOptional({ default: 1 })
   @IsOptional()
@@ -721,4 +802,17 @@ export class AdminHubOrdersQueryDto {
   @IsInt()
   @Min(1)
   limit?: number = 20;
+}
+
+export enum HubOrderExportFormat {
+  CSV = 'csv',
+  XLSX = 'xlsx',
+  PDF = 'pdf',
+}
+
+export class AdminHubOrdersExportQueryDto extends AdminHubOrdersQueryDto {
+  @ApiPropertyOptional({ enum: HubOrderExportFormat, default: HubOrderExportFormat.CSV })
+  @IsOptional()
+  @IsEnum(HubOrderExportFormat)
+  format?: HubOrderExportFormat = HubOrderExportFormat.CSV;
 }

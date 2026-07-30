@@ -1,11 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../common/database/prisma.service';
 import { OrdersService } from '../orders/orders.service';
-import { ORDER_STATUS_LABELS } from '../orders/orders.constants';
 import {
   OrderStatusResponseDto,
   OrderTimelineEventDto,
 } from '../orders/dto/order-response.dto';
+import { getCustomerOrderStatusLabel } from '../../common/delivery/customer-delivery.util';
 
 @Injectable()
 export class OrderTrackingService {
@@ -38,7 +38,7 @@ export class OrderTrackingService {
       orderId: order.id,
       orderNumber: order.orderNumber,
       status: order.orderStatus,
-      statusLabel: ORDER_STATUS_LABELS[order.orderStatus],
+      statusLabel: getCustomerOrderStatusLabel(order.orderStatus),
       updatedAt: order.updatedAt.toISOString(),
     };
   }
@@ -63,7 +63,7 @@ export class OrderTrackingService {
       currentStep: order.status,
       statusLabel: order.statusLabel,
       steps,
-      estimatedArrival: undefined,
+      estimatedArrival: order.expectedDeliveryAt ?? undefined,
       driver: order.driver
         ? {
             name: order.driver.name,
@@ -71,8 +71,6 @@ export class OrderTrackingService {
             vehicleNumber: order.driver.vehicleNumber ?? '',
           }
         : undefined,
-      warehouse: order.hub?.name,
-      hub: order.hub,
       orderNumber: order.orderNumber,
       paymentMethod: order.payment.method,
       paymentStatus: order.payment.status,

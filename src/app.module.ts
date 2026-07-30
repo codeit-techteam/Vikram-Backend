@@ -27,6 +27,8 @@ import { WishlistModule } from './modules/wishlist/wishlist.module';
 import { CartModule } from './modules/cart/cart.module';
 import { CheckoutModule } from './modules/checkout/checkout.module';
 import { CoverageModule } from './modules/coverage/coverage.module';
+import { DeliveryModule } from './modules/delivery/delivery.module';
+import { ServiceabilityModule } from './modules/serviceability/serviceability.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { OrderTrackingModule } from './modules/order-tracking/order-tracking.module';
 import { InvoiceModule } from './modules/invoice/invoice.module';
@@ -92,6 +94,8 @@ import { SchedulerModule } from './modules/scheduler/scheduler.module';
     CartModule,
     CheckoutModule,
     CoverageModule,
+    DeliveryModule,
+    ServiceabilityModule,
     OrdersModule,
     OrderTrackingModule,
     InvoiceModule,

@@ -45,6 +45,8 @@ export const CACHE_KEYS = {
   CATEGORY: (slug: string) => `category:${slug}`,
   PRODUCTS_PAGE: (page: number) => `products:page:${page}`,
   PRODUCTS: (hash: string) => `products:${hash}`,
+  PRODUCTS_HOME: (hubId?: string, limit?: number) =>
+    `products:home:${hubId ?? 'default'}:${limit ?? 10}`,
   PRODUCT: (slug: string) => `product:${slug}`,
   OFFERS: 'offers',
   OFFERS_FEATURED: 'offers:featured',

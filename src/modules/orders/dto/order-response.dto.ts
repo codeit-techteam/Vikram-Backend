@@ -17,8 +17,26 @@ export class OrderItemResponseDto {
   @ApiPropertyOptional()
   variantId?: string | null;
 
-  @ApiProperty()
+  @ApiProperty({ description: 'Product name snapshot' })
   name!: string;
+
+  @ApiProperty({ description: 'Alias of name for client convenience' })
+  productName!: string;
+
+  @ApiPropertyOptional()
+  productImage?: string | null;
+
+  @ApiPropertyOptional()
+  sku?: string | null;
+
+  @ApiPropertyOptional()
+  brand?: string | null;
+
+  @ApiPropertyOptional()
+  category?: string | null;
+
+  @ApiPropertyOptional()
+  variant?: string | null;
 
   @ApiProperty()
   quantity!: number;
@@ -26,13 +44,19 @@ export class OrderItemResponseDto {
   @ApiProperty()
   unit!: string;
 
-  @ApiProperty()
+  @ApiProperty({ example: 425, description: 'Unit selling price (ex-GST)' })
   unitPrice!: number;
 
-  @ApiProperty()
+  @ApiProperty({ example: 425, description: 'Alias of unitPrice' })
+  price!: number;
+
+  @ApiPropertyOptional({ example: 450 })
+  mrp?: number | null;
+
+  @ApiProperty({ example: 18 })
   gst!: number;
 
-  @ApiProperty()
+  @ApiProperty({ example: 850 })
   subtotal!: number;
 }
 
@@ -149,6 +173,9 @@ export class OrderListItemDto {
   @ApiProperty()
   itemCount!: number;
 
+  @ApiProperty({ type: [OrderItemResponseDto] })
+  items!: OrderItemResponseDto[];
+
   @ApiProperty()
   grandTotal!: number;
 
@@ -169,6 +196,12 @@ export class OrderListItemDto {
 
   @ApiPropertyOptional()
   priorityOrder?: boolean;
+
+  @ApiPropertyOptional()
+  deliveredAt?: string | null;
+
+  @ApiPropertyOptional()
+  expectedDeliveryAt?: string | null;
 }
 
 export class OrderListResponseDto {

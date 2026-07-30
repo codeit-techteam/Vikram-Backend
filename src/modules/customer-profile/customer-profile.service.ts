@@ -136,7 +136,37 @@ export class CustomerProfileService {
         where: { customerId, deletedAt: null },
         orderBy: { createdAt: 'desc' },
         take: 5,
-        include: { items: { select: { id: true } } },
+        include: {
+          items: {
+            orderBy: { createdAt: 'asc' },
+            include: {
+              product: {
+                select: {
+                  id: true,
+                  name: true,
+                  sku: true,
+                  brand: true,
+                  unit: true,
+                  spec: true,
+                  retailPrice: true,
+                  category: { select: { name: true } },
+                  images: {
+                    where: { deletedAt: null },
+                    orderBy: [{ isPrimary: 'desc' }, { displayOrder: 'asc' }],
+                    take: 1,
+                    select: { url: true },
+                  },
+                  variants: {
+                    where: { deletedAt: null },
+                    orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
+                    take: 1,
+                    select: { id: true, label: true, displayUnit: true },
+                  },
+                },
+              },
+            },
+          },
+        },
       }),
       this.customerService.getAddresses(customerId),
       this.prisma.wishlistItem.count({
@@ -149,18 +179,61 @@ export class CustomerProfileService {
     ]);
 
     return {
-      recentOrders: orders.map((order) => ({
-        id: order.id,
-        orderNumber: order.orderNumber,
-        status: order.orderStatus,
-        statusLabel: ORDER_STATUS_LABELS[order.orderStatus],
-        itemCount: order.items.length,
-        grandTotal: decimalToNumber(order.grandTotal),
-        paymentStatus: order.paymentStatus,
-        paymentMethod: order.paymentMethod,
-        createdAt: order.createdAt.toISOString(),
-        canCancel: CANCELLABLE_STATUSES.includes(order.orderStatus),
-      })),
+      recentOrders: orders.map((order) => {
+        const items = order.items.map((item) => {
+          const product = item.product;
+          const productName = item.name || product?.name || 'Product';
+          const productImage =
+            item.productImage ?? product?.images?.[0]?.url ?? null;
+          const variant =
+            item.variant ??
+            product?.variants?.[0]?.label ??
+            product?.variants?.[0]?.displayUnit ??
+            product?.spec ??
+            null;
+          const unitPrice = decimalToNumber(item.unitPrice);
+          return {
+            id: item.id,
+            productId: item.productId,
+            variantId: item.variantId ?? product?.variants?.[0]?.id ?? null,
+            name: productName,
+            productName,
+            productImage,
+            sku: item.sku ?? product?.sku ?? null,
+            brand: item.brand ?? product?.brand ?? null,
+            category: item.category ?? product?.category?.name ?? null,
+            variant,
+            quantity: item.quantity,
+            unit: item.unit || product?.unit || '',
+            unitPrice,
+            price: unitPrice,
+            mrp:
+              item.mrp != null
+                ? decimalToNumber(item.mrp)
+                : product?.retailPrice != null
+                  ? decimalToNumber(product.retailPrice)
+                  : null,
+            gst: decimalToNumber(item.gst),
+            subtotal: decimalToNumber(item.subtotal),
+          };
+        });
+
+        return {
+          id: order.id,
+          orderNumber: order.orderNumber,
+          status: order.orderStatus,
+          statusLabel: ORDER_STATUS_LABELS[order.orderStatus],
+          itemCount: items.length,
+          items,
+          grandTotal: decimalToNumber(order.grandTotal),
+          paymentStatus: order.paymentStatus,
+          paymentMethod: order.paymentMethod,
+          createdAt: order.createdAt.toISOString(),
+          canCancel: CANCELLABLE_STATUSES.includes(order.orderStatus),
+          deliveredAt: order.deliveredAt?.toISOString() ?? null,
+          expectedDeliveryAt: order.expectedDeliveryAt?.toISOString() ?? null,
+        };
+      }),
       addresses,
       wishlistCount: wishlist,
       cartCount: cart,

@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Injectable,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import type { OrderStatus, Prisma } from '../../../generated/prisma/client';
 import { PrismaService } from '../../common/database/prisma.service';
 import { LoyaltyTransactionService } from '../../modules/loyalty/loyalty-transaction.service';
@@ -35,6 +36,7 @@ export class HubOrdersService {
     private readonly orderRepo: HubOrderRepository,
     private readonly loyaltyTransactionService: LoyaltyTransactionService,
     private readonly orderEvents: OrderEventsService,
+    private readonly configService: ConfigService,
   ) {}
 
   async findAll(hubId: string, query: HubOrderQueryDto) {
@@ -533,7 +535,7 @@ export class HubOrdersService {
       throw new BadRequestException('Delivery OTP already verified');
     }
 
-    const otp = String(Math.floor(100000 + Math.random() * 900000));
+    const otp = this.generateDeliveryOtpCode();
     const now = new Date();
 
     const updated = await this.prisma.order.update({
@@ -591,7 +593,12 @@ export class HubOrdersService {
     }
 
     const provided = String(dto.otp).trim();
-    if (provided !== order.deliveryOtp) {
+    const devBypass = this.getDeliveryOtpBypassCode();
+    const isDev = this.configService.get<string>('app.env') !== 'production';
+    if (
+      provided !== order.deliveryOtp &&
+      !(isDev && devBypass && provided === devBypass)
+    ) {
       throw new BadRequestException('Invalid OTP');
     }
 
@@ -900,5 +907,18 @@ export class HubOrdersService {
 
     await this.finalizeDelivery(hubId, orderId, dto.remarks ?? 'Order Delivered', updatedBy);
     return pod;
+  }
+
+  /** Fixed OTP in non-production for hub delivery verification testing. */
+  private generateDeliveryOtpCode(): string {
+    const isDev = this.configService.get<string>('app.env') !== 'production';
+    if (isDev) {
+      return this.getDeliveryOtpBypassCode();
+    }
+    return String(Math.floor(100000 + Math.random() * 900000));
+  }
+
+  private getDeliveryOtpBypassCode(): string {
+    return this.configService.get<string>('otp.devBypassCode') ?? '123456';
   }
 }

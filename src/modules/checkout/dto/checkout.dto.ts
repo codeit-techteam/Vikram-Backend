@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsInt, IsOptional, IsUUID, IsString, MaxLength, Min } from 'class-validator';
 import { Type } from 'class-transformer';
+import { IsInt, IsOptional, IsUUID, IsString, MaxLength, Min, IsNumber } from 'class-validator';
 import { CartItemResponseDto } from '../../cart/dto/cart.dto';
 import { LOYALTY_MIN_REDEEM_POINTS } from '../../loyalty/loyalty.constants';
 
@@ -133,14 +133,17 @@ export class CheckoutResponseDto {
   @ApiProperty({ example: 1 })
   itemCount!: number;
 
-  @ApiPropertyOptional({ type: CheckoutHubDto, nullable: true })
-  nearestHub!: CheckoutHubDto | null;
+  @ApiProperty({ example: true })
+  serviceable!: boolean;
 
-  @ApiProperty({
-    example: true,
-    description: 'True when a nearby hub has stock for all cart items',
-  })
-  hubAvailable!: boolean;
+  @ApiProperty({ example: 28 })
+  deliveryETA!: number;
+
+  @ApiProperty({ example: 'Delivery in 28 mins' })
+  deliveryMessage!: string;
+
+  @ApiPropertyOptional({ example: '5:30 PM' })
+  deliveringBy?: string | null;
 
   @ApiProperty({
     example: 'Ready for order placement',

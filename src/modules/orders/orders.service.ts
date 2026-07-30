@@ -12,6 +12,10 @@ import {
   PaymentStatus,
   Prisma,
 } from '../../../generated/prisma/client';
+import {
+  getCustomerOrderStatusLabel,
+  sanitizeCustomerTimelineMessage,
+} from '../../common/delivery/customer-delivery.util';
 import { PrismaService } from '../../common/database/prisma.service';
 import { CacheService } from '../../common/cache/cache.service';
 import { CACHE_KEYS, CACHE_TTL } from '../../common/cache/cache.constants';
@@ -26,6 +30,7 @@ import { PlaceOrderDto, OrderResponseDto } from './dto/order.dto';
 import { OrderListQueryDto } from './dto/order-query.dto';
 import {
   OrderDetailResponseDto,
+  OrderItemResponseDto,
   OrderListItemDto,
   OrderListResponseDto,
   OrderTimelineEventDto,
@@ -37,6 +42,36 @@ import {
 } from './orders.constants';
 import { getOrderStatusLabel } from './order-lifecycle.constants';
 import { OrderEventsService } from './order-events.service';
+
+const ORDER_ITEM_PRODUCT_SELECT = {
+  id: true,
+  name: true,
+  sku: true,
+  brand: true,
+  unit: true,
+  spec: true,
+  retailPrice: true,
+  category: { select: { name: true } },
+  images: {
+    where: { deletedAt: null },
+    orderBy: [{ isPrimary: 'desc' as const }, { displayOrder: 'asc' as const }],
+    take: 1,
+    select: { url: true },
+  },
+  variants: {
+    where: { deletedAt: null },
+    orderBy: [{ displayOrder: 'asc' as const }, { createdAt: 'asc' as const }],
+    take: 1,
+    select: { id: true, label: true, displayUnit: true },
+  },
+} satisfies Prisma.ProductSelect;
+
+const ORDER_ITEMS_WITH_PRODUCT = {
+  orderBy: { createdAt: 'asc' as const },
+  include: {
+    product: { select: ORDER_ITEM_PRODUCT_SELECT },
+  },
+} satisfies Prisma.Order$itemsArgs;
 
 const ORDER_DETAIL_INCLUDE = {
   customer: {
@@ -73,9 +108,7 @@ const ORDER_DETAIL_INCLUDE = {
       vehicleType: true,
     },
   },
-  items: {
-    orderBy: { createdAt: 'asc' as const },
-  },
+  items: ORDER_ITEMS_WITH_PRODUCT,
   timeline: {
     orderBy: { createdAt: 'asc' as const },
   },
@@ -122,12 +155,19 @@ export class OrdersService {
       loyaltyPointsToRedeem: dto.loyaltyPointsToRedeem,
     });
 
+    const nearestHub = await this.checkoutService.findNearestHubWithStock(
+      checkout.address,
+      checkout.items.map((item) => ({
+        productId: item.productId,
+        quantity: item.quantity,
+      })),
+    );
+
     const order = await this.prisma.$transaction(
       async (tx) => {
         const orderNumber = await this.nextOrderNumber(tx);
-        const hubCanFulfill =
-          checkout.hubAvailable && checkout.nearestHub != null;
-        const assignedHubId = hubCanFulfill ? checkout.nearestHub!.id : null;
+        const hubCanFulfill = nearestHub?.canFulfill === true;
+        const assignedHubId = hubCanFulfill ? nearestHub!.id : null;
         const finalStatus = hubCanFulfill
           ? OrderStatus.HUB_ASSIGNED
           : OrderStatus.AWAITING_HUB_ALLOCATION;
@@ -198,9 +238,15 @@ export class OrdersService {
               create: checkout.items.map((item) => ({
                 productId: item.productId,
                 name: item.product.name,
+                productImage: item.product.thumbnailUrl ?? null,
+                sku: item.product.sku ?? null,
+                brand: item.product.brand ?? null,
+                category: item.product.category ?? null,
+                variant: item.product.variant ?? null,
                 quantity: item.quantity,
                 unit: item.product.unit,
                 unitPrice: item.price,
+                mrp: item.product.mrp ?? item.price,
                 gst: item.gst,
                 subtotal: item.subtotal,
               })),
@@ -224,16 +270,15 @@ export class OrdersService {
                 hubCanFulfill
                   ? {
                       status: OrderStatus.HUB_ASSIGNED,
-                      remarks: `Hub Assigned — ${checkout.nearestHub!.code} (${checkout.nearestHub!.name})`,
-                      message: `Hub Assigned — ${checkout.nearestHub!.name}`,
+                      remarks: 'Preparing Order',
+                      message: 'Preparing Order',
                       updatedBy: 'SYSTEM',
                       updatedByRole: 'SYSTEM',
                     }
                   : {
                       status: OrderStatus.AWAITING_HUB_ALLOCATION,
-                      remarks:
-                        'Awaiting Hub Allocation — no nearby hub has full stock',
-                      message: 'Awaiting Hub Allocation',
+                      remarks: 'Preparing Order',
+                      message: 'Preparing Order',
                       updatedBy: 'SYSTEM',
                       updatedByRole: 'SYSTEM',
                     },
@@ -241,7 +286,7 @@ export class OrdersService {
             },
           },
           include: {
-            items: true,
+            items: ORDER_ITEMS_WITH_PRODUCT,
             timeline: { orderBy: { createdAt: 'asc' } },
             hub: true,
             address: true,
@@ -277,19 +322,19 @@ export class OrdersService {
       type: NotificationType.ORDER,
       label: 'ORDER PLACED',
       title: `Order ${order.orderNumber} placed successfully`,
-      body: checkout.hubAvailable
-        ? `Your order ${order.orderNumber} has been confirmed and assigned to ${checkout.nearestHub!.name}. Grand total ₹${checkout.grandTotal}. Payment: ${paymentMethod}.`
-        : `Your order ${order.orderNumber} has been placed and is awaiting hub allocation. Grand total ₹${checkout.grandTotal}.`,
+      body: checkout.serviceable
+        ? `Your order ${order.orderNumber} has been confirmed. Estimated delivery: ${checkout.deliveryMessage}. Grand total ₹${checkout.grandTotal}. Payment: ${paymentMethod}.`
+        : `Your order ${order.orderNumber} has been placed. Grand total ₹${checkout.grandTotal}.`,
       actionLabel: 'View Order',
       actionRoute: `/(tabs)/orders`,
       actionVariant: 'outline',
       priority: 10,
     });
 
-    if (checkout.hubAvailable && checkout.nearestHub) {
+    if (nearestHub?.canFulfill) {
       await this.prisma.hubNotification.create({
         data: {
-          hubId: checkout.nearestHub.id,
+          hubId: nearestHub.id,
           type: 'ORDER',
           title: `New Order ${order.orderNumber}`,
           body: `COD order ₹${checkout.grandTotal} assigned. Accept and assign a driver.`,
@@ -303,7 +348,7 @@ export class OrdersService {
       orderId: order.id,
       orderNumber: order.orderNumber,
       status: order.orderStatus,
-      statusLabel: getOrderStatusLabel(order.orderStatus),
+      statusLabel: getCustomerOrderStatusLabel(order.orderStatus),
       updatedAt: order.updatedAt.toISOString(),
       hubId: order.hubId,
       customerId: order.customerId,
@@ -332,31 +377,8 @@ export class OrdersService {
         state: order.address.state,
         pincode: order.address.pincode,
       },
-      hub: order.hub
-        ? {
-            id: order.hub.id,
-            code: order.hub.code,
-            name: order.hub.name,
-            city: order.hub.city,
-          }
-        : null,
-      items: order.items.map((item) => ({
-        id: item.id,
-        productId: item.productId,
-        name: item.name,
-        quantity: item.quantity,
-        unit: item.unit,
-        unitPrice: decimalToNumber(item.unitPrice),
-        gst: decimalToNumber(item.gst),
-        subtotal: decimalToNumber(item.subtotal),
-      })),
-      timeline: order.timeline.map((t) => ({
-        id: t.id,
-        status: t.status,
-        remarks: t.remarks,
-        updatedBy: t.updatedBy,
-        createdAt: t.createdAt.toISOString(),
-      })),
+      items: order.items.map((item) => this.mapOrderItem(item)),
+      timeline: order.timeline.map((t) => this.mapTimelineEvent(t)),
       createdAt: order.createdAt.toISOString(),
       updatedAt: order.updatedAt.toISOString(),
     };
@@ -409,7 +431,7 @@ export class OrdersService {
         skip: (page - 1) * limit,
         take: limit,
         include: {
-          items: { select: { id: true } },
+          items: ORDER_ITEMS_WITH_PRODUCT,
         },
       }),
     ]);
@@ -431,10 +453,40 @@ export class OrdersService {
       where: { customerId, deletedAt: null },
       orderBy: { createdAt: 'desc' },
       take: limit,
-      include: { items: { select: { id: true } } },
+      include: { items: ORDER_ITEMS_WITH_PRODUCT },
     });
 
     return orders.map((order) => this.mapListItem(order));
+  }
+
+  async reorder(
+    customerId: string,
+    orderId: string,
+  ): Promise<{
+    cartItemCount: number;
+    message: string;
+    products: OrderItemResponseDto[];
+    addedCount: number;
+    unavailableCount: number;
+  }> {
+    const order = await this.prisma.order.findFirst({
+      where: { id: orderId, customerId, deletedAt: null },
+      include: { items: ORDER_ITEMS_WITH_PRODUCT },
+    });
+
+    if (!order) {
+      throw new NotFoundException('Order not found');
+    }
+
+    const products = order.items.map((item) => this.mapOrderItem(item));
+
+    return {
+      cartItemCount: products.length,
+      message: 'Reorder items ready',
+      products,
+      addedCount: products.length,
+      unavailableCount: 0,
+    };
   }
 
   async findOne(
@@ -572,17 +624,92 @@ export class OrdersService {
     createdAt: Date;
     updatedAt?: Date;
   }): OrderTimelineEventDto {
-    const statusLabel = getOrderStatusLabel(event.status);
+    const statusLabel = getCustomerOrderStatusLabel(event.status);
+    const message = sanitizeCustomerTimelineMessage(
+      event.status,
+      event.message ?? event.remarks,
+    );
     return {
       id: event.id,
       status: event.status,
       statusLabel,
-      remarks: event.remarks,
-      message: event.message ?? event.remarks ?? statusLabel,
+      remarks: message,
+      message,
       updatedBy: event.updatedBy ?? 'SYSTEM',
       updatedByRole: event.updatedByRole ?? null,
       createdAt: event.createdAt.toISOString(),
       updatedAt: (event.updatedAt ?? event.createdAt).toISOString(),
+    };
+  }
+
+  private mapOrderItem(item: {
+    id: string;
+    productId: string;
+    variantId?: string | null;
+    name: string;
+    productImage?: string | null;
+    sku?: string | null;
+    brand?: string | null;
+    category?: string | null;
+    variant?: string | null;
+    quantity: number;
+    unit: string;
+    unitPrice: unknown;
+    mrp?: unknown;
+    gst: unknown;
+    subtotal: unknown;
+    product?: {
+      name?: string | null;
+      sku?: string | null;
+      brand?: string | null;
+      unit?: string | null;
+      spec?: string | null;
+      retailPrice?: unknown;
+      category?: { name: string } | null;
+      images?: Array<{ url: string }>;
+      variants?: Array<{
+        id: string;
+        label: string;
+        displayUnit?: string | null;
+      }>;
+    } | null;
+  }): OrderItemResponseDto {
+    const product = item.product;
+    const productName = item.name || product?.name || 'Product';
+    const productImage =
+      item.productImage ?? product?.images?.[0]?.url ?? null;
+    const variant =
+      item.variant ??
+      product?.variants?.[0]?.label ??
+      product?.variants?.[0]?.displayUnit ??
+      product?.spec ??
+      null;
+    const unitPrice = decimalToNumber(item.unitPrice);
+    const mrp =
+      item.mrp != null
+        ? decimalToNumber(item.mrp)
+        : product?.retailPrice != null
+          ? decimalToNumber(product.retailPrice)
+          : null;
+
+    return {
+      id: item.id,
+      productId: item.productId,
+      variantId: item.variantId ?? product?.variants?.[0]?.id ?? null,
+      name: productName,
+      productName,
+      productImage,
+      sku: item.sku ?? product?.sku ?? null,
+      brand: item.brand ?? product?.brand ?? null,
+      category: item.category ?? product?.category?.name ?? null,
+      variant,
+      quantity: item.quantity,
+      unit: item.unit || product?.unit || '',
+      unitPrice,
+      price: unitPrice,
+      mrp,
+      gst: decimalToNumber(item.gst),
+      subtotal: decimalToNumber(item.subtotal),
     };
   }
 
@@ -594,16 +721,20 @@ export class OrdersService {
     paymentStatus: OrderListItemDto['paymentStatus'];
     paymentMethod: OrderListItemDto['paymentMethod'];
     createdAt: Date;
+    deliveredAt?: Date | null;
+    expectedDeliveryAt?: Date | null;
     isEmergency?: boolean;
     priorityOrder?: boolean;
-    items: { id: string }[];
+    items: Array<Parameters<OrdersService['mapOrderItem']>[0]>;
   }): OrderListItemDto {
+    const items = order.items.map((item) => this.mapOrderItem(item));
     return {
       id: order.id,
       orderNumber: order.orderNumber,
       status: order.orderStatus,
-      statusLabel: getOrderStatusLabel(order.orderStatus),
-      itemCount: order.items.length,
+      statusLabel: getCustomerOrderStatusLabel(order.orderStatus),
+      itemCount: items.length,
+      items,
       grandTotal: decimalToNumber(order.grandTotal),
       paymentStatus: order.paymentStatus,
       paymentMethod: order.paymentMethod,
@@ -611,6 +742,8 @@ export class OrdersService {
       canCancel: CANCELLABLE_STATUSES.includes(order.orderStatus),
       isEmergency: order.isEmergency ?? false,
       priorityOrder: order.priorityOrder ?? false,
+      deliveredAt: order.deliveredAt?.toISOString() ?? null,
+      expectedDeliveryAt: order.expectedDeliveryAt?.toISOString() ?? null,
     };
   }
 
@@ -624,7 +757,7 @@ export class OrdersService {
       id: order.id,
       orderNumber: order.orderNumber,
       status: order.orderStatus,
-      statusLabel: getOrderStatusLabel(order.orderStatus),
+      statusLabel: getCustomerOrderStatusLabel(order.orderStatus),
       subtotal: decimalToNumber(order.subtotal),
       gstAmount: decimalToNumber(order.gstAmount),
       deliveryCharge: decimalToNumber(order.deliveryCharge),
@@ -643,27 +776,7 @@ export class OrdersService {
         email: order.customer.email,
         fullName: order.customer.fullName,
       },
-      items: order.items.map((item) => ({
-        id: item.id,
-        productId: item.productId,
-        variantId: item.variantId,
-        name: item.name,
-        quantity: item.quantity,
-        unit: item.unit,
-        unitPrice: decimalToNumber(item.unitPrice),
-        gst: decimalToNumber(item.gst),
-        subtotal: decimalToNumber(item.subtotal),
-      })),
-      hub: order.hub
-        ? {
-            id: order.hub.id,
-            code: order.hub.code,
-            name: order.hub.name,
-            city: order.hub.city,
-            pincode: order.hub.pincode,
-            phone: order.hub.phone,
-          }
-        : null,
+      items: order.items.map((item) => this.mapOrderItem(item)),
       address: {
         id: order.address.id,
         label: order.address.label,

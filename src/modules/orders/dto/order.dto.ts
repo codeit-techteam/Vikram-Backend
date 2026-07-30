@@ -54,8 +54,29 @@ export class OrderItemResponseDto {
   @ApiProperty()
   productId!: string;
 
+  @ApiPropertyOptional()
+  variantId?: string | null;
+
   @ApiProperty()
   name!: string;
+
+  @ApiProperty()
+  productName!: string;
+
+  @ApiPropertyOptional()
+  productImage?: string | null;
+
+  @ApiPropertyOptional()
+  sku?: string | null;
+
+  @ApiPropertyOptional()
+  brand?: string | null;
+
+  @ApiPropertyOptional()
+  category?: string | null;
+
+  @ApiPropertyOptional()
+  variant?: string | null;
 
   @ApiProperty()
   quantity!: number;
@@ -65,6 +86,12 @@ export class OrderItemResponseDto {
 
   @ApiProperty({ example: 425 })
   unitPrice!: number;
+
+  @ApiProperty({ example: 425 })
+  price!: number;
+
+  @ApiPropertyOptional({ example: 450 })
+  mrp?: number | null;
 
   @ApiProperty({ example: 18 })
   gst!: number;
@@ -158,8 +185,8 @@ export class OrderResponseDto {
   @ApiProperty({ type: OrderAddressSnapshotDto })
   address!: OrderAddressSnapshotDto;
 
-  @ApiPropertyOptional({ type: OrderHubSummaryDto, nullable: true })
-  hub!: OrderHubSummaryDto | null;
+  @ApiPropertyOptional({ type: OrderHubSummaryDto, nullable: true, deprecated: true })
+  hub?: OrderHubSummaryDto | null;
 
   @ApiProperty({ type: [OrderItemResponseDto] })
   items!: OrderItemResponseDto[];

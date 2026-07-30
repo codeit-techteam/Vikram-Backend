@@ -8,6 +8,9 @@ import {
 import { Public } from '../../common/decorators/public.decorator';
 import { SWAGGER_TAGS } from '../../common/constants/swagger.constants';
 import { ApiResponseDto } from '../../common/dto/api-response.dto';
+import { ProductService } from '../product/product.service';
+import { ProductQueryDto } from '../product/dto/product-query.dto';
+import { ProductListResponseDto } from '../product/dto/product-response.dto';
 import { CategoryService } from './category.service';
 import { CategoryQueryDto } from './dto/category-query.dto';
 import {
@@ -19,7 +22,10 @@ import {
 @ApiTags(SWAGGER_TAGS.CATEGORIES)
 @Controller({ version: '1', path: 'categories' })
 export class CategoryController {
-  constructor(private readonly categoryService: CategoryService) {}
+  constructor(
+    private readonly categoryService: CategoryService,
+    private readonly productService: ProductService,
+  ) {}
 
   @Get()
   @ApiOperation({
@@ -30,25 +36,6 @@ export class CategoryController {
   @ApiResponse({
     status: 200,
     description: 'Categories fetched successfully',
-    schema: {
-      example: {
-        success: true,
-        message: 'Categories fetched successfully',
-        data: [
-          {
-            id: 'uuid',
-            slug: 'cement',
-            name: 'Cement',
-            image: '/assets/category-cement.png',
-            icon: null,
-            displayOrder: 1,
-            isVisible: true,
-            isFeatured: true,
-            productCount: 12,
-          },
-        ],
-      },
-    },
   })
   async findAll(
     @Query() query: CategoryQueryDto,
@@ -57,6 +44,31 @@ export class CategoryController {
     return {
       success: true,
       message: 'Categories fetched successfully',
+      data,
+    };
+  }
+
+  @Get(':id/products')
+  @ApiOperation({
+    summary: 'List products for a category (by UUID or slug)',
+    description:
+      'Paginated products for the given category id/slug. Includes child subcategory products when filtering by parent.',
+  })
+  @ApiParam({ name: 'id', example: 'cement', description: 'Category UUID or slug' })
+  @ApiResponse({ status: 200, description: 'Category products fetched' })
+  @ApiResponse({ status: 404, description: 'Category not found' })
+  async findProducts(
+    @Param('id') id: string,
+    @Query() query: ProductQueryDto,
+  ): Promise<{
+    success: boolean;
+    message: string;
+    data: ProductListResponseDto;
+  }> {
+    const data = await this.productService.findByCategoryIdOrSlug(id, query);
+    return {
+      success: true,
+      message: 'Category products fetched successfully',
       data,
     };
   }

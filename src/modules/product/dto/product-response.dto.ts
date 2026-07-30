@@ -40,10 +40,44 @@ export class ProductVariantResponseDto {
   price!: number;
 
   @ApiPropertyOptional()
+  mrp?: number | null;
+
+  @ApiPropertyOptional()
+  discountPercent?: number;
+
+  @ApiPropertyOptional()
   bulkPrice?: number | null;
 
   @ApiProperty()
   inStock!: boolean;
+
+  @ApiPropertyOptional({ example: 42 })
+  stockLeft?: number | null;
+}
+
+export class BulkPricingTierDto {
+  @ApiProperty({ example: 10 })
+  minQty!: number;
+
+  @ApiProperty({ example: 350 })
+  price!: number;
+
+  @ApiPropertyOptional({ example: 'Buy 10+' })
+  label?: string | null;
+}
+
+export class HubInventorySummaryDto {
+  @ApiProperty()
+  hubId!: string;
+
+  @ApiPropertyOptional()
+  hubName?: string | null;
+
+  @ApiProperty()
+  availableQty!: number;
+
+  @ApiPropertyOptional()
+  variantId?: string | null;
 }
 
 export class ProductCategorySummaryDto {
@@ -55,6 +89,9 @@ export class ProductCategorySummaryDto {
 
   @ApiProperty()
   name!: string;
+
+  @ApiPropertyOptional()
+  parentId?: string | null;
 }
 
 export class ProductResponseDto {
@@ -80,6 +117,9 @@ export class ProductResponseDto {
   brand?: string | null;
 
   @ApiPropertyOptional()
+  brandLogoUrl?: string | null;
+
+  @ApiPropertyOptional()
   description?: string | null;
 
   @ApiProperty()
@@ -90,6 +130,15 @@ export class ProductResponseDto {
 
   @ApiProperty()
   categoryName!: string;
+
+  @ApiPropertyOptional()
+  subcategoryId?: string | null;
+
+  @ApiPropertyOptional()
+  subcategorySlug?: string | null;
+
+  @ApiPropertyOptional()
+  subcategoryName?: string | null;
 
   @ApiPropertyOptional({ type: ProductCategorySummaryDto })
   category?: ProductCategorySummaryDto;
@@ -112,17 +161,26 @@ export class ProductResponseDto {
   @ApiProperty()
   unit!: string;
 
-  @ApiProperty({ description: 'Retail price (alias: price)' })
+  @ApiProperty({ description: 'Retail / current selling price' })
   retailPrice!: number;
 
   @ApiProperty({ description: 'Alias for retailPrice' })
   price!: number;
+
+  @ApiPropertyOptional({ description: 'Maximum retail price (MRP)' })
+  mrp?: number | null;
+
+  @ApiPropertyOptional({ example: 22, description: 'Discount % vs MRP' })
+  discountPercent?: number;
 
   @ApiProperty({ example: 18, description: 'GST percentage' })
   gst!: number;
 
   @ApiPropertyOptional({ description: 'Primary / thumbnail image URL' })
   thumbnail?: string | null;
+
+  @ApiPropertyOptional({ type: [String], description: 'Gallery image URLs' })
+  gallery?: string[];
 
   @ApiPropertyOptional()
   bulkPrice?: number | null;
@@ -133,6 +191,9 @@ export class ProductResponseDto {
   @ApiPropertyOptional()
   bulkLabel?: string | null;
 
+  @ApiPropertyOptional({ type: [BulkPricingTierDto] })
+  bulkPricing?: BulkPricingTierDto[];
+
   @ApiProperty()
   minOrder!: number;
 
@@ -140,10 +201,19 @@ export class ProductResponseDto {
   maxOrder?: number | null;
 
   @ApiProperty()
+  incrementStep!: number;
+
+  @ApiProperty()
+  defaultQuantity!: number;
+
+  @ApiProperty()
   hasVariants!: boolean;
 
   @ApiPropertyOptional()
   defaultVariantId?: string | null;
+
+  @ApiProperty({ example: 0 })
+  variantCount!: number;
 
   @ApiPropertyOptional()
   perPiecePrice?: number | null;
@@ -154,6 +224,24 @@ export class ProductResponseDto {
   @ApiProperty()
   isBestSelling!: boolean;
 
+  @ApiProperty()
+  isBestseller!: boolean;
+
+  @ApiProperty()
+  isNewArrival!: boolean;
+
+  @ApiPropertyOptional()
+  deliveryEligible?: boolean;
+
+  @ApiPropertyOptional({ example: 4.5 })
+  averageRating?: number;
+
+  @ApiPropertyOptional({ example: 128 })
+  reviewCount?: number;
+
+  @ApiPropertyOptional()
+  rating?: number;
+
   @ApiPropertyOptional()
   specs?: Record<string, string> | null;
 
@@ -163,19 +251,32 @@ export class ProductResponseDto {
   @ApiPropertyOptional({ type: [ProductVariantResponseDto] })
   variants?: ProductVariantResponseDto[];
 
+  /** Alias used by client apps that expect variantList */
+  @ApiPropertyOptional({ type: [ProductVariantResponseDto] })
+  variantList?: ProductVariantResponseDto[];
+
+  @ApiPropertyOptional({ example: 'Delivery in 22 mins' })
+  deliveryMessage?: string;
+
   @ApiPropertyOptional({ type: [ProductResponseDto] })
   relatedProducts?: ProductResponseDto[];
 
-  @ApiPropertyOptional({ example: 120, description: 'Total available stock across hubs' })
+  @ApiPropertyOptional({ example: 120 })
   stockLeft?: number;
 
-  @ApiPropertyOptional({ example: '1-2 days', description: 'Estimated delivery time' })
+  @ApiPropertyOptional({ example: 'Available stock remaining' })
+  availableStock?: number;
+
+  @ApiPropertyOptional({ example: '35 mins' })
   deliveryETA?: string;
 
-  @ApiPropertyOptional({ example: 403.75, description: 'Member-exclusive price' })
+  @ApiPropertyOptional({ example: 35 })
+  estimatedDeliveryMinutes?: number | null;
+
+  @ApiPropertyOptional({ example: 403.75 })
   membershipPrice?: number | null;
 
-  @ApiPropertyOptional({ example: true, description: 'Whether bulk ordering is available' })
+  @ApiPropertyOptional({ example: true })
   isBulkAvailable?: boolean;
 }
 

@@ -1096,8 +1096,8 @@ export class AdminHubsService {
       deletedAt: null,
     };
 
-    if (query.status) {
-      where.orderStatus = { in: ORDER_GROUP_MAP[query.status] };
+    if (query.statusGroup) {
+      where.orderStatus = { in: ORDER_GROUP_MAP[query.statusGroup] };
     }
 
     const [orders, total, statusCounts] = await Promise.all([

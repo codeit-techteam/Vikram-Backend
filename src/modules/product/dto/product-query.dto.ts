@@ -20,6 +20,14 @@ export class ProductQueryDto extends PaginationQueryDto {
   category?: string;
 
   @ApiPropertyOptional({
+    example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+    description: 'Filter by category UUID (includes child subcategory products)',
+  })
+  @IsOptional()
+  @IsString()
+  categoryId?: string;
+
+  @ApiPropertyOptional({
     example: 'cement',
     description: 'Alias for category (category slug)',
     deprecated: true,
@@ -57,6 +65,15 @@ export class ProductQueryDto extends PaginationQueryDto {
   @IsBoolean()
   bestSelling?: boolean;
 
+  @ApiPropertyOptional({
+    description:
+      'Return only deal/offer products (discount, bulk pricing, or active campaign)',
+  })
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
+  @IsBoolean()
+  offers?: boolean;
+
   @ApiPropertyOptional({ enum: ProductListingType })
   @IsOptional()
   @IsEnum(ProductListingType)
@@ -86,4 +103,12 @@ export class ProductQueryDto extends PaginationQueryDto {
   @IsOptional()
   @Type(() => Number)
   maxPrice?: number;
+
+  @ApiPropertyOptional({
+    example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+    description: 'Scope available stock to a specific hub inventory',
+  })
+  @IsOptional()
+  @IsString()
+  hubId?: string;
 }

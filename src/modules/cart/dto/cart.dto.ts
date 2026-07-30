@@ -3,6 +3,7 @@ import { Type } from 'class-transformer';
 import {
   IsInt,
   IsNotEmpty,
+  IsNumber,
   IsOptional,
   IsUUID,
   Min,
@@ -18,9 +19,16 @@ export class AddCartItemDto {
   productId!: string;
 
   @ApiPropertyOptional({
+    description: 'Product variant UUID (required when product has multiple variants)',
+  })
+  @IsOptional()
+  @IsUUID()
+  variantId?: string;
+
+  @ApiPropertyOptional({
     example: 1,
     default: 1,
-    description: 'Quantity to add (increments if product already in cart)',
+    description: 'Quantity to add (increments if product+variant already in cart)',
     minimum: 1,
   })
   @IsOptional()
@@ -28,6 +36,18 @@ export class AddCartItemDto {
   @IsInt()
   @Min(1)
   quantity?: number;
+
+  @ApiPropertyOptional({ description: 'Preferred fulfillment hub UUID' })
+  @IsOptional()
+  @IsUUID()
+  hubId?: string;
+
+  @ApiPropertyOptional({ description: 'Snapshot ETA minutes from delivery API' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  etaMinutes?: number;
 }
 
 export class UpdateCartItemDto {
@@ -55,6 +75,18 @@ export class CartProductDto {
   @ApiPropertyOptional()
   brand?: string | null;
 
+  @ApiPropertyOptional()
+  sku?: string | null;
+
+  @ApiPropertyOptional()
+  category?: string | null;
+
+  @ApiPropertyOptional()
+  variant?: string | null;
+
+  @ApiPropertyOptional()
+  mrp?: number | null;
+
   @ApiProperty()
   unit!: string;
 
@@ -75,6 +107,12 @@ export class CartItemResponseDto {
   @ApiProperty()
   productId!: string;
 
+  @ApiPropertyOptional()
+  variantId?: string | null;
+
+  @ApiPropertyOptional()
+  hubId?: string | null;
+
   @ApiProperty({ example: 2 })
   quantity!: number;
 
@@ -92,6 +130,12 @@ export class CartItemResponseDto {
 
   @ApiProperty({ example: 1003, description: 'Line total including GST' })
   lineTotal!: number;
+
+  @ApiPropertyOptional({ example: 50, description: 'Bulk discount saved on this line' })
+  bulkDiscount?: number;
+
+  @ApiPropertyOptional({ example: 35 })
+  etaMinutes?: number | null;
 
   @ApiProperty({ type: CartProductDto })
   product!: CartProductDto;

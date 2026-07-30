@@ -8,8 +8,10 @@ import {
   Post,
   Put,
   Query,
+  Res,
   UseGuards,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -25,7 +27,9 @@ import { ROLE_GROUPS } from '../constants/admin-rbac.constants';
 import { CurrentAdmin } from '../decorators/current-admin.decorator';
 import type { AuthenticatedAdmin } from '../auth/admin-jwt.strategy';
 import { AdminHubsService } from './admin-hubs.service';
+import { AdminHubOrdersService } from './admin-hub-orders.service';
 import {
+  AdminHubOrdersExportQueryDto,
   AdminHubOrdersQueryDto,
   AdminHubQueryDto,
   AddHubDriversDto,
@@ -44,7 +48,10 @@ import {
 @UseGuards(AdminJwtAuthGuard, AdminRolesGuard)
 @ApiBearerAuth(SWAGGER_BEARER_AUTH)
 export class AdminHubsController {
-  constructor(private readonly hubsService: AdminHubsService) {}
+  constructor(
+    private readonly hubsService: AdminHubsService,
+    private readonly hubOrdersService: AdminHubOrdersService,
+  ) {}
 
   @Get()
   @AdminRoles(...ROLE_GROUPS.WAREHOUSE)
@@ -106,16 +113,84 @@ export class AdminHubsController {
     return { success: true, message: 'Hub inventory summary fetched', data };
   }
 
+  @Get(':id/orders/dashboard')
+  @AdminRoles(...ROLE_GROUPS.WAREHOUSE)
+  @ApiOperation({
+    summary: 'Hub order dashboard KPIs',
+    description:
+      'Returns order counts, revenue, delivery metrics with today vs yesterday trends for a hub.',
+  })
+  @ApiParam({ name: 'id', description: 'Hub UUID' })
+  async getOrdersDashboard(@Param('id') id: string) {
+    const data = await this.hubOrdersService.getDashboard(id);
+    return { success: true, message: 'Hub order dashboard fetched', data };
+  }
+
+  @Get(':id/orders/analytics')
+  @AdminRoles(...ROLE_GROUPS.WAREHOUSE)
+  @ApiOperation({
+    summary: 'Hub order analytics',
+    description:
+      'Returns weekly/monthly order stats, top products/categories, repeat customers, and pending COD.',
+  })
+  @ApiParam({ name: 'id', description: 'Hub UUID' })
+  async getOrdersAnalytics(@Param('id') id: string) {
+    const data = await this.hubOrdersService.getAnalytics(id);
+    return { success: true, message: 'Hub order analytics fetched', data };
+  }
+
+  @Get(':id/orders/active')
+  @AdminRoles(...ROLE_GROUPS.WAREHOUSE)
+  @ApiOperation({ summary: 'Active hub orders' })
+  @ApiParam({ name: 'id', description: 'Hub UUID' })
+  async getActiveOrders(@Param('id') id: string, @Query() query: AdminHubOrdersQueryDto) {
+    const data = await this.hubOrdersService.listActiveOrders(id, query);
+    return { success: true, message: 'Active hub orders fetched', data };
+  }
+
+  @Get(':id/orders/completed')
+  @AdminRoles(...ROLE_GROUPS.WAREHOUSE)
+  @ApiOperation({ summary: 'Completed hub orders' })
+  @ApiParam({ name: 'id', description: 'Hub UUID' })
+  async getCompletedOrders(@Param('id') id: string, @Query() query: AdminHubOrdersQueryDto) {
+    const data = await this.hubOrdersService.listCompletedOrders(id, query);
+    return { success: true, message: 'Completed hub orders fetched', data };
+  }
+
+  @Get(':id/orders/cancelled')
+  @AdminRoles(...ROLE_GROUPS.WAREHOUSE)
+  @ApiOperation({ summary: 'Cancelled hub orders' })
+  @ApiParam({ name: 'id', description: 'Hub UUID' })
+  async getCancelledOrders(@Param('id') id: string, @Query() query: AdminHubOrdersQueryDto) {
+    const data = await this.hubOrdersService.listCancelledOrders(id, query);
+    return { success: true, message: 'Cancelled hub orders fetched', data };
+  }
+
+  @Get(':id/orders/export')
+  @AdminRoles(...ROLE_GROUPS.WAREHOUSE)
+  @ApiOperation({ summary: 'Export hub orders (CSV, Excel, PDF)' })
+  @ApiParam({ name: 'id', description: 'Hub UUID' })
+  async exportOrders(
+    @Param('id') id: string,
+    @Query() query: AdminHubOrdersExportQueryDto,
+    @Res() res: Response,
+  ) {
+    const file = await this.hubOrdersService.exportOrders(id, query);
+    res.setHeader('Content-Type', file.contentType);
+    res.setHeader('Content-Disposition', `attachment; filename="${file.filename}"`);
+    res.send(file.body);
+  }
+
   @Get(':id/orders')
   @AdminRoles(...ROLE_GROUPS.WAREHOUSE)
   @ApiOperation({
     summary: 'Hub orders',
     description:
-      'List hub orders grouped by lifecycle: PENDING, PROCESSING, DISPATCHED, DELIVERED, CANCELLED.',
+      'Paginated hub orders with filters for tab, date range, payment, status, and search.',
   })
   @ApiParam({ name: 'id', description: 'Hub UUID' })
   async getOrders(@Param('id') id: string, @Query() query: AdminHubOrdersQueryDto) {
-    const data = await this.hubsService.getOrders(id, query);
+    const data = await this.hubOrdersService.listOrders(id, query);
     return { success: true, message: 'Hub orders fetched', data };
   }
 

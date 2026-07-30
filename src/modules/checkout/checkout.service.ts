@@ -13,9 +13,9 @@ import {
 } from '../loyalty/loyalty.constants';
 import { decimalToNumber } from '../../common/shopping/pricing.util';
 import { CoverageService } from '../coverage/coverage.service';
+import { DeliveryService } from '../delivery/delivery.service';
 import {
   CheckoutAddressDto,
-  CheckoutHubDto,
   CheckoutResponseDto,
   PrepareCheckoutDto,
 } from './dto/checkout.dto';
@@ -33,6 +33,7 @@ export class CheckoutService {
     private readonly loyaltyService: LoyaltyService,
     private readonly loyaltyTransactionService: LoyaltyTransactionService,
     private readonly coverageService: CoverageService,
+    private readonly deliveryService: DeliveryService,
   ) {}
 
   async getCheckout(
@@ -72,6 +73,18 @@ export class CheckoutService {
     );
 
     const hubAvailable = nearestHub?.canFulfill === true;
+    const deliveryPreview =
+      address.latitude != null && address.longitude != null
+        ? await this.deliveryService.calculateEta({
+            latitude: address.latitude,
+            longitude: address.longitude,
+            pincode: address.pincode,
+            cartItems: cart.items.map((i) => ({
+              productId: i.productId,
+              quantity: i.quantity,
+            })),
+          })
+        : null;
 
     const [membershipSummary, loyaltySummary, redeemablePoints] =
       await Promise.all([
@@ -126,11 +139,14 @@ export class CheckoutService {
       deliveryCharge,
       grandTotal: adjustedGrandTotal,
       itemCount: cart.itemCount,
-      nearestHub,
-      hubAvailable,
+      serviceable: deliveryPreview?.serviceable ?? hubAvailable,
+      deliveryETA: deliveryPreview?.deliveryETA ?? 0,
+      deliveryMessage:
+        deliveryPreview?.deliveryMessage ?? 'Delivery details unavailable',
+      deliveringBy: deliveryPreview?.deliveringBy ?? null,
       readinessMessage: hubAvailable
         ? 'Ready for order placement'
-        : 'No nearby hub has full stock — order will be placed as Awaiting Hub Allocation',
+        : 'Some items may need extra time — you can still place your order',
       paymentMethod: 'CASH',
       notes: dto.notes ?? null,
       membershipDiscount,
@@ -186,7 +202,7 @@ export class CheckoutService {
   async findNearestHubWithStock(
     address: CheckoutAddressDto,
     items: Array<{ productId: string; quantity: number }>,
-  ): Promise<CheckoutHubDto | null> {
+  ) {
     const match = await this.coverageService.findNearestHub(
       {
         latitude: address.latitude,
