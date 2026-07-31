@@ -117,4 +117,9 @@ export default () => ({
     smtpPass: process.env.SMTP_PASS ?? '',
     smtpSecure: process.env.SMTP_SECURE === 'true',
   },
+  firebase: {
+    projectId: process.env.FIREBASE_PROJECT_ID ?? '',
+    clientEmail: process.env.FIREBASE_CLIENT_EMAIL ?? '',
+    privateKey: process.env.FIREBASE_PRIVATE_KEY ?? '',
+  },
 });

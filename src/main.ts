@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory, Reflector } from '@nestjs/core';
+import { IoAdapter } from '@nestjs/platform-socket.io';
 import compression from 'compression';
 import helmet from 'helmet';
 import morgan from 'morgan';
@@ -16,6 +17,7 @@ import { ApiResponseInterceptor } from './common/interceptors/api-response.inter
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
+  app.useWebSocketAdapter(new IoAdapter(app));
 
   const configService = app.get(ConfigService);
   const logger = app.get(Logger);

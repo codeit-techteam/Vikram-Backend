@@ -7,7 +7,8 @@ import {
 
 /**
  * In-process order event bus.
- * Clients without sockets should poll GET /orders/:id every 10s.
+ * RealtimeModule listens and fans out Socket.IO `order.updated` to customers.
+ * HTTP polling remains a fallback for clients without an active socket.
  */
 @Injectable()
 export class OrderEventsService implements OnModuleDestroy {
@@ -19,8 +20,8 @@ export class OrderEventsService implements OnModuleDestroy {
   }
 
   emitOrderUpdated(payload: OrderUpdatedPayload): void {
-    this.logger.debug(
-      `${ORDER_UPDATED_EVENT} ${payload.orderId} → ${payload.status}`,
+    this.logger.log(
+      `ORDER_UPDATED emitted orderId=${payload.orderId} status=${payload.status}`,
     );
     this.emitter.emit(ORDER_UPDATED_EVENT, payload);
   }

@@ -721,6 +721,7 @@ export class OrdersService {
     paymentStatus: OrderListItemDto['paymentStatus'];
     paymentMethod: OrderListItemDto['paymentMethod'];
     createdAt: Date;
+    updatedAt?: Date;
     deliveredAt?: Date | null;
     expectedDeliveryAt?: Date | null;
     isEmergency?: boolean;
@@ -728,6 +729,7 @@ export class OrdersService {
     items: Array<Parameters<OrdersService['mapOrderItem']>[0]>;
   }): OrderListItemDto {
     const items = order.items.map((item) => this.mapOrderItem(item));
+    const updatedAt = (order.updatedAt ?? order.createdAt).toISOString();
     return {
       id: order.id,
       orderNumber: order.orderNumber,
@@ -739,6 +741,8 @@ export class OrdersService {
       paymentStatus: order.paymentStatus,
       paymentMethod: order.paymentMethod,
       createdAt: order.createdAt.toISOString(),
+      updatedAt,
+      version: Date.parse(updatedAt) || (order.updatedAt ?? order.createdAt).getTime(),
       canCancel: CANCELLABLE_STATUSES.includes(order.orderStatus),
       isEmergency: order.isEmergency ?? false,
       priorityOrder: order.priorityOrder ?? false,
@@ -770,6 +774,7 @@ export class OrdersService {
       canCancel: CANCELLABLE_STATUSES.includes(order.orderStatus),
       createdAt: order.createdAt.toISOString(),
       updatedAt: order.updatedAt.toISOString(),
+      version: order.updatedAt.getTime(),
       customer: {
         id: order.customer.id,
         phone: order.customer.phone,

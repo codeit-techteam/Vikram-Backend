@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { OrderStatus, Prisma } from '../../../generated/prisma/client';
@@ -31,6 +32,8 @@ import type {
 
 @Injectable()
 export class HubOrdersService {
+  private readonly logger = new Logger(HubOrdersService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly orderRepo: HubOrderRepository,
@@ -171,14 +174,25 @@ export class HubOrdersService {
     };
   }
 
-  private emitUpdated(order: {
-    id: string;
-    orderNumber: string;
-    orderStatus: OrderStatus;
-    updatedAt: Date;
-    hubId?: string | null;
-    customerId?: string;
-  }) {
+  private emitUpdated(
+    order: {
+      id: string;
+      orderNumber: string;
+      orderStatus: OrderStatus;
+      updatedAt: Date;
+      hubId?: string | null;
+      customerId?: string;
+      assignedDriverId?: string | null;
+      expectedDeliveryAt?: Date | null;
+    },
+    extras?: Partial<{
+      oldStatus: OrderStatus | string | null;
+      trackingStatus: string;
+    }>,
+  ) {
+    this.logger.log(
+      `[Hub] Status Updated orderId=${order.id} status=${order.orderStatus} tracking=${extras?.trackingStatus ?? order.orderStatus}`,
+    );
     this.orderEvents.emitOrderUpdated({
       orderId: order.id,
       orderNumber: order.orderNumber,
@@ -187,6 +201,11 @@ export class HubOrdersService {
       updatedAt: order.updatedAt.toISOString(),
       hubId: order.hubId,
       customerId: order.customerId,
+      driverId: order.assignedDriverId ?? null,
+      eta: order.expectedDeliveryAt?.toISOString() ?? null,
+      expectedDeliveryAt: order.expectedDeliveryAt?.toISOString() ?? null,
+      oldStatus: extras?.oldStatus ?? null,
+      trackingStatus: extras?.trackingStatus ?? order.orderStatus,
     });
   }
 
@@ -508,7 +527,7 @@ export class HubOrdersService {
       dto.remarks ?? 'Driver Reached Customer',
     );
 
-    this.emitUpdated(updated);
+    this.emitUpdated(updated, { trackingStatus: 'REACHED_CUSTOMER' });
     return this.findOne(hubId, orderId);
   }
 

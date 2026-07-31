@@ -43,6 +43,7 @@ import { EmergencyOrderModule } from './modules/emergency-order/emergency-order.
 import { AdminModule } from './admin/admin.module';
 import { HubModule } from './hub/hub.module';
 import { SchedulerModule } from './modules/scheduler/scheduler.module';
+import { RealtimeModule } from './realtime/realtime.module';
 
 @Module({
   imports: [
@@ -109,6 +110,7 @@ import { SchedulerModule } from './modules/scheduler/scheduler.module';
     AdminModule,
     HubModule,
     SchedulerModule,
+    RealtimeModule,
   ],
   controllers: [AppController],
   providers: [AppService],

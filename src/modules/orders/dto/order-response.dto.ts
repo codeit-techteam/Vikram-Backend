@@ -202,6 +202,16 @@ export class OrderListItemDto {
 
   @ApiPropertyOptional()
   expectedDeliveryAt?: string | null;
+
+  @ApiPropertyOptional({
+    description: 'ISO timestamp — used by clients for cache freshness',
+  })
+  updatedAt?: string;
+
+  @ApiPropertyOptional({
+    description: 'Monotonic version (updatedAt epoch ms)',
+  })
+  version?: number;
 }
 
 export class OrderListResponseDto {
@@ -260,6 +270,11 @@ export class OrderDetailResponseDto {
 
   @ApiProperty()
   updatedAt!: string;
+
+  @ApiPropertyOptional({
+    description: 'Monotonic version (updatedAt epoch ms)',
+  })
+  version?: number;
 
   @ApiProperty({ type: OrderCustomerDto })
   customer!: OrderCustomerDto;

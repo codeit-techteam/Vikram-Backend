@@ -174,12 +174,50 @@ export function resolveStatusInput(input: string): OrderStatus | null {
 
 export const ORDER_UPDATED_EVENT = 'ORDER_UPDATED';
 
+/** Primary Socket.IO event for customer apps. */
+export const ORDER_STATUS_UPDATED_EVENT = 'order.updated';
+
+/** Legacy alias — still emitted for older clients. */
+export const ORDER_STATUS_UPDATED_EVENT_LEGACY = 'OrderStatusUpdated';
+
+export type OrderDriverPayload = {
+  id?: string;
+  name: string;
+  phone?: string | null;
+};
+
+export type OrderVehiclePayload = {
+  id?: string;
+  registration: string;
+  type?: string | null;
+};
+
+export type OrderTimelinePayloadEntry = {
+  id: string;
+  status: string;
+  statusLabel: string;
+  message: string;
+  createdAt: string;
+};
+
 export type OrderUpdatedPayload = {
   orderId: string;
   orderNumber?: string;
   status: OrderStatus;
   statusLabel: string;
+  oldStatus?: OrderStatus | string | null;
   updatedAt: string;
+  version?: number;
   hubId?: string | null;
   customerId?: string;
+  driverId?: string | null;
+  eta?: string | null;
+  expectedDeliveryAt?: string | null;
+  trackingStatus?: string | null;
+  driver?: OrderDriverPayload | null;
+  vehicle?: OrderVehiclePayload | null;
+  driverReachedAt?: string | null;
+  deliveryOtpGenerated?: boolean;
+  deliveryOtpVerified?: boolean;
+  timeline?: OrderTimelinePayloadEntry[];
 };
