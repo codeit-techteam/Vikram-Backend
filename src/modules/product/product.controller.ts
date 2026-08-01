@@ -32,6 +32,7 @@ export class ProductController {
   @ApiQuery({ name: 'featured', required: false, example: true })
   @ApiQuery({ name: 'bestSelling', required: false, example: true })
   @ApiQuery({ name: 'offers', required: false, example: true })
+  @ApiQuery({ name: 'newArrivals', required: false, example: true })
   @ApiQuery({ name: 'page', required: false, example: 1 })
   @ApiQuery({ name: 'limit', required: false, example: 20 })
   @ApiQuery({ name: 'sortBy', required: false, example: 'price' })

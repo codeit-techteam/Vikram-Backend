@@ -262,13 +262,7 @@ export class ProductService {
     deliveryEtaMinutes: number | null = null,
   ): Promise<ProductResponseDto[]> {
     const products = await this.prisma.product.findMany({
-      where: {
-        ...PRODUCT_ACTIVE_WHERE,
-        OR: [
-          { listingType: 'NEW_ARRIVAL' },
-          { createdAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } },
-        ],
-      },
+      where: this.newArrivalsWhere(),
       orderBy: [{ createdAt: 'desc' }, { displayOrder: 'asc' }],
       take: limit,
       include: PRODUCT_LIST_INCLUDE,
@@ -504,6 +498,7 @@ export class ProductService {
       !query.featured &&
       !query.bestSelling &&
       !query.offers &&
+      !query.newArrivals &&
       !query.listingType &&
       !query.brand &&
       !query.grade &&
@@ -512,6 +507,32 @@ export class ProductService {
       query.maxPrice === undefined &&
       !query.sortBy
     );
+  }
+
+  private newArrivalsWhere(): Prisma.ProductWhereInput {
+    return {
+      ...PRODUCT_ACTIVE_WHERE,
+      OR: [
+        { listingType: 'NEW_ARRIVAL' },
+        { createdAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } },
+      ],
+    };
+  }
+
+  private mergeOrFilter(
+    where: Prisma.ProductWhereInput,
+    orFilter: Prisma.ProductWhereInput[],
+  ): void {
+    if (where.OR) {
+      where.AND = [
+        ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+        { OR: where.OR },
+        { OR: orFilter },
+      ];
+      delete where.OR;
+    } else {
+      where.OR = orFilter;
+    }
   }
 
   private buildWhereClause(query: ProductQueryDto): Prisma.ProductWhereInput {
@@ -532,6 +553,12 @@ export class ProductService {
     if (query.featured) where.isFeatured = true;
     if (query.bestSelling) where.isBestSelling = true;
     if (query.listingType) where.listingType = query.listingType;
+    if (query.newArrivals) {
+      this.mergeOrFilter(where, [
+        { listingType: 'NEW_ARRIVAL' },
+        { createdAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } },
+      ]);
+    }
     if (query.offers) {
       const now = new Date();
       const offerOr: Prisma.ProductWhereInput[] = [
@@ -556,12 +583,7 @@ export class ProductService {
           AND: [{ mrp: { not: null } }, { retailPrice: { gt: 0 } }],
         },
       ];
-      if (where.OR) {
-        where.AND = [...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []), { OR: where.OR }, { OR: offerOr }];
-        delete where.OR;
-      } else {
-        where.OR = offerOr;
-      }
+      this.mergeOrFilter(where, offerOr);
     }
     if (query.brand) where.brand = { equals: query.brand, mode: 'insensitive' };
     if (query.grade) where.grade = query.grade;
@@ -582,12 +604,7 @@ export class ProductService {
         { description: { contains: term, mode: 'insensitive' } },
         { category: { name: { contains: term, mode: 'insensitive' } } },
       ];
-      if (where.OR) {
-        where.AND = [{ OR: where.OR }, { OR: searchOr }];
-        delete where.OR;
-      } else {
-        where.OR = searchOr;
-      }
+      this.mergeOrFilter(where, searchOr);
     }
 
     return where;
@@ -607,7 +624,7 @@ export class ProductService {
       case 'sales':
         return [{ salesCount: sortOrder }];
       case 'createdAt':
-        return [{ createdAt: sortOrder }];
+        return [{ createdAt: sortOrder }, { displayOrder: 'asc' }];
       default:
         return [{ displayOrder: 'asc' }, { priority: 'desc' }];
     }

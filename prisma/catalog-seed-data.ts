@@ -110,8 +110,8 @@ export const SEED_CATEGORIES: SeedCategory[] = [
   },
   {
     slug: 'bricks',
-    name: 'Bricks & Masonry',
-    nameHi: 'ईंट और चिनाई',
+    name: 'Bricks',
+    nameHi: 'ईंट',
     labelKey: 'bricksAndMasonry',
     displayOrder: 4,
     priority: 85,

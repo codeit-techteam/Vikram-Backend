@@ -74,6 +74,15 @@ export class ProductQueryDto extends PaginationQueryDto {
   @IsBoolean()
   offers?: boolean;
 
+  @ApiPropertyOptional({
+    description:
+      'Return recently added products (NEW_ARRIVAL listing type or created within last 30 days). Matches home screen Recently Added rail.',
+  })
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
+  @IsBoolean()
+  newArrivals?: boolean;
+
   @ApiPropertyOptional({ enum: ProductListingType })
   @IsOptional()
   @IsEnum(ProductListingType)

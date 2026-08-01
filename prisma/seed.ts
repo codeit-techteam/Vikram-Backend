@@ -71,11 +71,14 @@ async function main() {
     }),
     prisma.category.upsert({
       where: { slug: 'bricks' },
-      update: {},
+      update: {
+        name: 'Bricks',
+        nameHi: 'ईंट',
+      },
       create: {
         slug: 'bricks',
-        name: 'Bricks & Masonry',
-        nameHi: 'ईंट और चिनाई',
+        name: 'Bricks',
+        nameHi: 'ईंट',
         labelKey: 'bricksAndMasonry',
         imageUrl: '/assets/category-bricks.png',
         isFeatured: true,
