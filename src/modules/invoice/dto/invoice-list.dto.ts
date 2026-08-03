@@ -58,6 +58,15 @@ export class InvoiceListItemDto {
   paymentStatus!: string;
 
   @ApiPropertyOptional()
+  customerName?: string | null;
+
+  @ApiPropertyOptional({ enum: ['GST', 'RETAIL'] })
+  invoiceType?: 'GST' | 'RETAIL';
+
+  @ApiPropertyOptional({ type: [String] })
+  productNames?: string[];
+
+  @ApiPropertyOptional()
   pdfPath?: string | null;
 
   @ApiPropertyOptional()

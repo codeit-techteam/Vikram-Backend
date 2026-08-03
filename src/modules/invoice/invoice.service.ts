@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { InvoiceStatus, Prisma } from '../../../generated/prisma/client';
+import { InvoiceStatus, PaymentStatus, Prisma } from '../../../generated/prisma/client';
 import { EmailService } from '../../common/email/email.service';
 import { buildPaginationMeta } from '../../common/dto/pagination.dto';
 import { PrismaService } from '../../common/database/prisma.service';
@@ -108,6 +108,17 @@ export class InvoiceService {
     };
 
     if (query.status) where.status = query.status;
+    if (query.paymentStatus) {
+      const normalized = query.paymentStatus.toUpperCase();
+      if ((Object.values(PaymentStatus) as string[]).includes(normalized)) {
+        where.paymentStatus = normalized as PaymentStatus;
+      }
+    }
+    if (query.fromDate || query.toDate) {
+      where.invoiceDate = {};
+      if (query.fromDate) where.invoiceDate.gte = new Date(query.fromDate);
+      if (query.toDate) where.invoiceDate.lte = new Date(query.toDate);
+    }
     if (query.search) {
       where.OR = [
         { invoiceNumber: { contains: query.search, mode: 'insensitive' } },
@@ -115,10 +126,13 @@ export class InvoiceService {
       ];
     }
 
+    const sortBy = query.sortBy === 'grandTotal' ? 'grandTotal' : 'invoiceDate';
+    const sortOrder = query.sortOrder ?? 'desc';
+
     const [invoices, total] = await Promise.all([
       this.prisma.invoice.findMany({
         where,
-        orderBy: { invoiceDate: query.sortOrder ?? 'desc' },
+        orderBy: { [sortBy]: sortOrder },
         skip,
         take: limit,
         include: { order: { select: { orderNumber: true } } },
@@ -586,8 +600,26 @@ export class InvoiceService {
     paymentStatus: string;
     pdfPath: string | null;
     pdfGeneratedAt: Date | null;
+    customerSnapshot?: unknown;
+    itemsSnapshot?: unknown;
     order: { orderNumber: string };
   }): InvoiceListItemDto {
+    const customerSnapshot =
+      (invoice.customerSnapshot as Record<string, unknown> | null) ?? {};
+    const gstNumber = String(customerSnapshot.gstNumber ?? '').trim();
+    const customerName =
+      String(
+        customerSnapshot.companyName ??
+          customerSnapshot.fullName ??
+          '',
+      ).trim() || null;
+    const items = Array.isArray(invoice.itemsSnapshot)
+      ? (invoice.itemsSnapshot as Array<{ name?: string }>)
+      : [];
+    const productNames = items
+      .map((item) => String(item?.name ?? '').trim())
+      .filter(Boolean);
+
     return {
       id: invoice.id,
       orderId: invoice.orderId,
@@ -597,6 +629,9 @@ export class InvoiceService {
       invoiceDate: invoice.invoiceDate.toISOString(),
       grandTotal: decimalToNumber(invoice.grandTotal),
       paymentStatus: invoice.paymentStatus,
+      customerName,
+      invoiceType: gstNumber ? 'GST' : 'RETAIL',
+      productNames,
       pdfPath: invoice.pdfPath,
       pdfGeneratedAt: invoice.pdfGeneratedAt?.toISOString() ?? null,
     };

@@ -13,6 +13,21 @@ export class CustomerInvoiceQueryDto extends PaginationQueryDto {
   @IsOptional()
   @IsString()
   search?: string;
+
+  @ApiPropertyOptional({ description: 'Filter invoices from this date (ISO 8601)' })
+  @IsOptional()
+  @IsString()
+  fromDate?: string;
+
+  @ApiPropertyOptional({ description: 'Filter invoices until this date (ISO 8601)' })
+  @IsOptional()
+  @IsString()
+  toDate?: string;
+
+  @ApiPropertyOptional({ description: 'Filter by payment status (PAID, PENDING, etc.)' })
+  @IsOptional()
+  @IsString()
+  paymentStatus?: string;
 }
 
 export class AdminInvoiceQueryDto extends PaginationQueryDto {

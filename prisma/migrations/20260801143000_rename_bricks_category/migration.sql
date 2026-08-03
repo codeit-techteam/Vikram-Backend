@@ -2,11 +2,11 @@
 UPDATE "categories"
 SET
   "name" = 'Bricks',
-  "nameHi" = 'ईंट',
-  "updatedAt" = CURRENT_TIMESTAMP
+  "name_hi" = 'ईंट',
+  "updated_at" = CURRENT_TIMESTAMP
 WHERE "slug" = 'bricks'
   AND (
     "name" ILIKE 'Bricks%Masonry%'
     OR "name" ILIKE 'Bricks%and%Mason%'
-    OR "nameHi" LIKE 'ईंट%'
+    OR "name_hi" LIKE 'ईंट%'
   );
