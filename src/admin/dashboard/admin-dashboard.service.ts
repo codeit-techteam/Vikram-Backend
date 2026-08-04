@@ -36,6 +36,7 @@ export class AdminDashboardService {
       activeVideos,
       banners,
       notifications,
+      activeOffers,
       recentOrders,
     ] = await Promise.all([
       this.prisma.customer.count({ where: { deletedAt: null } }),
@@ -77,6 +78,9 @@ export class AdminDashboardService {
       this.prisma.video.count({ where: { status: 'ACTIVE', deletedAt: null } }),
       this.prisma.banner.count({ where: { status: 'ACTIVE', deletedAt: null } }),
       this.prisma.notification.count({ where: { deletedAt: null } }),
+      this.prisma.offer.count({
+        where: { status: 'ACTIVE', isVisible: true, deletedAt: null },
+      }),
       this.prisma.order.findMany({
         where: { deletedAt: null },
         orderBy: { createdAt: 'desc' },
@@ -113,6 +117,7 @@ export class AdminDashboardService {
         activeVideos,
         banners,
         notifications,
+        activeOffers,
       },
       recentOrders: recentOrders.map((o) => ({
         ...o,

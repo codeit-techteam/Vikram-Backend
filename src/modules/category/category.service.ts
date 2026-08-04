@@ -3,6 +3,7 @@ import { PrismaService } from '../../common/database/prisma.service';
 import { CacheService } from '../../common/cache/cache.service';
 import { CACHE_KEYS, CACHE_TTL } from '../../common/cache/cache.constants';
 import { ACTIVE_WHERE, PRODUCT_ACTIVE_WHERE } from '../../common/utils/prisma.util';
+import { normalizeMediaUrl } from '../../common/utils/media-url';
 import {
   CategoryDetailResponseDto,
   CategoryResponseDto,
@@ -129,18 +130,25 @@ export class CategoryService {
     displayOrder: number;
     isFeatured: boolean;
     isVisible: boolean;
+    updatedAt?: Date | string | null;
     _count?: { products: number };
   }): CategoryResponseDto {
+    const imageUrl = normalizeMediaUrl(cat.imageUrl, {
+      updatedAt: cat.updatedAt,
+    });
+    const iconUrl = normalizeMediaUrl(cat.iconUrl, {
+      updatedAt: cat.updatedAt,
+    });
     return {
       id: cat.id,
       slug: cat.slug,
       name: cat.name,
       nameHi: cat.nameHi,
       description: cat.description,
-      image: cat.imageUrl,
-      imageUrl: cat.imageUrl,
-      icon: cat.iconUrl,
-      iconUrl: cat.iconUrl,
+      image: imageUrl,
+      imageUrl,
+      icon: iconUrl,
+      iconUrl,
       labelKey: cat.labelKey,
       displayOrder: cat.displayOrder,
       isFeatured: cat.isFeatured,

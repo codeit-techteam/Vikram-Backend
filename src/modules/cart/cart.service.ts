@@ -19,6 +19,7 @@ import {
   CartResponseDto,
   UpdateCartItemDto,
 } from './dto/cart.dto';
+import { pickPreferredMediaUrl } from '../../common/utils/media-url';
 
 type BulkTier = { minQty: number; price: number; label?: string | null };
 
@@ -380,7 +381,7 @@ export class CartService {
                 images: {
                   where: { deletedAt: null },
                   orderBy: [{ isPrimary: 'desc' }, { displayOrder: 'asc' }],
-                  take: 1,
+                  take: 6,
                 },
                 variants: {
                   where: { deletedAt: null },
@@ -435,7 +436,9 @@ export class CartService {
           variant: variantLabel,
           mrp,
           unit: item.product.unit,
-          thumbnailUrl: item.product.images[0]?.url ?? null,
+          thumbnailUrl: pickPreferredMediaUrl(
+            item.product.images.map((img) => img.url),
+          ),
           maxOrder: item.product.maxOrder,
           minOrder: item.product.minOrder,
         },

@@ -12,6 +12,11 @@ import {
   buildDeliveryMessage,
   computeDeliveryEtaMinutes,
 } from '../../common/delivery/customer-delivery.util';
+import {
+  normalizeMediaUrl,
+  normalizeMediaUrlList,
+  pickPreferredMediaUrl,
+} from '../../common/utils/media-url';
 import { CoverageService } from '../coverage/coverage.service';
 import { ProductQueryDto } from './dto/product-query.dto';
 import {
@@ -796,6 +801,7 @@ export class ProductService {
       reviewCount?: number;
       deliveryETA?: string | null;
       specs?: unknown;
+      updatedAt?: Date | string | null;
       category: {
         id: string;
         slug: string;
@@ -838,8 +844,23 @@ export class ProductService {
     const membershipPrice = product.membershipPrice
       ? Number(product.membershipPrice)
       : Math.round(retailPrice * 0.95 * 100) / 100;
-    const thumbnail = product.images[0]?.url ?? null;
-    const gallery = product.images.map((img) => img.url);
+    const preferredUrl = pickPreferredMediaUrl(
+      product.images.map((img) => img.url),
+    );
+    const thumbnail =
+      normalizeMediaUrl(preferredUrl, {
+        updatedAt: product.updatedAt,
+      }) ?? null;
+    const gallery = normalizeMediaUrlList(
+      // Put preferred URL first so adapters picking gallery[0] stay consistent.
+      [
+        preferredUrl,
+        ...product.images
+          .map((img) => img.url)
+          .filter((url) => url !== preferredUrl),
+      ],
+      { updatedAt: product.updatedAt },
+    );
     const bulkPricing = this.resolveBulkPricing(product);
     const isBulkAvailable = bulkPricing.length > 0;
     const averageRating = product.averageRating != null ? Number(product.averageRating) : 0;
@@ -888,6 +909,7 @@ export class ProductService {
       discountPercent: this.discountPercent(mrp, retailPrice),
       gst: Number(product.gst),
       thumbnail,
+      imageUrl: thumbnail,
       gallery,
       bulkPrice,
       bulkThreshold: product.bulkThreshold,
@@ -924,14 +946,18 @@ export class ProductService {
           : product.deliveryETA ?? undefined,
       membershipPrice,
       isBulkAvailable,
-      images: product.images.map((img) => ({
-        id: img.id,
-        url: img.url,
-        imageUrl: img.url,
-        altText: img.altText,
-        isPrimary: img.isPrimary,
-        displayOrder: img.displayOrder,
-      })),
+      images: product.images.map((img) => {
+        const url =
+          normalizeMediaUrl(img.url, { updatedAt: product.updatedAt }) ?? '';
+        return {
+          id: img.id,
+          url,
+          imageUrl: url,
+          altText: img.altText,
+          isPrimary: img.isPrimary,
+          displayOrder: img.displayOrder,
+        };
+      }).filter((img) => Boolean(img.url)),
     };
 
     if (variants) {

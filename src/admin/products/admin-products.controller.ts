@@ -6,7 +6,7 @@ import { AdminRolesGuard } from '../guards/admin-roles.guard';
 import { AdminRoles } from '../decorators/admin-roles.decorator';
 import { ROLE_GROUPS } from '../constants/admin-rbac.constants';
 import { AdminProductsService } from './admin-products.service';
-import { CreateProductDto, UpdateProductDto, UpdateInventoryDto, ProductQueryDto } from './dto/admin-products.dto';
+import { CreateProductDto, UpdateProductDto, UpdateInventoryDto, ProductQueryDto, SetProductImagesDto, ProductImageItemDto } from './dto/admin-products.dto';
 import { CurrentAdmin } from '../decorators/current-admin.decorator';
 import type { AuthenticatedAdmin } from '../auth/admin-jwt.strategy';
 import { AuditService } from '../audit/audit.service';
@@ -71,6 +71,65 @@ export class AdminProductsController {
     const data = await this.productsService.remove(id);
     await this.auditService.log({ adminUserId: admin.id, adminEmail: admin.email, action: 'DELETE', resource: 'Product', resourceId: id });
     return { success: true, message: 'Product deleted', data };
+  }
+
+  @Patch(':id/images')
+  @AdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
+  @ApiOperation({ summary: 'Replace product images gallery' })
+  async setImages(
+    @Param('id') id: string,
+    @Body() dto: SetProductImagesDto,
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+  ) {
+    const data = await this.productsService.setImages(id, dto.images);
+    await this.auditService.log({
+      adminUserId: admin.id,
+      adminEmail: admin.email,
+      action: 'UPDATE',
+      resource: 'Product',
+      resourceId: id,
+      newValue: { images: dto.images.length },
+    });
+    return { success: true, message: 'Product images updated', data };
+  }
+
+  @Post(':id/images')
+  @AdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
+  @ApiOperation({ summary: 'Add a product image' })
+  async addImage(
+    @Param('id') id: string,
+    @Body() dto: ProductImageItemDto,
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+  ) {
+    const data = await this.productsService.addImage(id, dto);
+    await this.auditService.log({
+      adminUserId: admin.id,
+      adminEmail: admin.email,
+      action: 'UPDATE',
+      resource: 'Product',
+      resourceId: id,
+      newValue: dto,
+    });
+    return { success: true, message: 'Product image added', data };
+  }
+
+  @Delete(':id/images/:imageId')
+  @AdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
+  @ApiOperation({ summary: 'Remove a product image' })
+  async removeImage(
+    @Param('id') id: string,
+    @Param('imageId') imageId: string,
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+  ) {
+    const data = await this.productsService.removeImage(id, imageId);
+    await this.auditService.log({
+      adminUserId: admin.id,
+      adminEmail: admin.email,
+      action: 'DELETE',
+      resource: 'ProductImage',
+      resourceId: imageId,
+    });
+    return { success: true, message: 'Product image deleted', data };
   }
 
   @Patch(':id/stock')

@@ -179,6 +179,11 @@ export class ProductResponseDto {
   @ApiPropertyOptional({ description: 'Primary / thumbnail image URL' })
   thumbnail?: string | null;
 
+  @ApiPropertyOptional({
+    description: 'Alias of thumbnail — primary product image URL',
+  })
+  imageUrl?: string | null;
+
   @ApiPropertyOptional({ type: [String], description: 'Gallery image URLs' })
   gallery?: string[];
 

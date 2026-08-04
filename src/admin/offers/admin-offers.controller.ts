@@ -6,7 +6,7 @@ import { AdminRolesGuard } from '../guards/admin-roles.guard';
 import { AdminRoles } from '../decorators/admin-roles.decorator';
 import { ROLE_GROUPS } from '../constants/admin-rbac.constants';
 import { AdminOffersService } from './admin-offers.service';
-import { CreateOfferDto, UpdateOfferDto, OfferQueryDto } from './dto/admin-offers.dto';
+import { CreateOfferDto, UpdateOfferDto, OfferQueryDto, SetOfferProductsDto } from './dto/admin-offers.dto';
 import { CurrentAdmin } from '../decorators/current-admin.decorator';
 import type { AuthenticatedAdmin } from '../auth/admin-jwt.strategy';
 import { AuditService } from '../audit/audit.service';
@@ -71,6 +71,26 @@ export class AdminOffersController {
     const data = await this.offersService.deactivate(id);
     await this.auditService.log({ adminUserId: admin.id, adminEmail: admin.email, action: 'UNPUBLISH', resource: 'Offer', resourceId: id });
     return { success: true, message: 'Offer deactivated', data };
+  }
+
+  @Patch(':id/products')
+  @AdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
+  @ApiOperation({ summary: 'Replace products linked to an offer' })
+  async setProducts(
+    @Param('id') id: string,
+    @Body() dto: SetOfferProductsDto,
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+  ) {
+    const data = await this.offersService.setProducts(id, dto.productIds);
+    await this.auditService.log({
+      adminUserId: admin.id,
+      adminEmail: admin.email,
+      action: 'UPDATE',
+      resource: 'Offer',
+      resourceId: id,
+      newValue: dto,
+    });
+    return { success: true, message: 'Offer products updated', data };
   }
 
   @Delete(':id')

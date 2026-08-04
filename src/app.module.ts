@@ -44,6 +44,7 @@ import { AdminModule } from './admin/admin.module';
 import { HubModule } from './hub/hub.module';
 import { SchedulerModule } from './modules/scheduler/scheduler.module';
 import { RealtimeModule } from './realtime/realtime.module';
+import { StorageModule } from './storage/storage.module';
 
 @Module({
   imports: [
@@ -76,6 +77,7 @@ import { RealtimeModule } from './realtime/realtime.module';
     EmailModule,
     RedisModule,
     CacheModule,
+    StorageModule,
     QueueModule,
     HealthModule,
     CategoryModule,

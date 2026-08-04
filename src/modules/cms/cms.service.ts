@@ -6,27 +6,50 @@ import {
 } from '../../../generated/prisma/client';
 import { PrismaService } from '../../common/database/prisma.service';
 import { CacheService } from '../../common/cache/cache.service';
+import { R2StorageService } from '../../storage/r2.service';
 import { CACHE_KEYS, CACHE_TTL } from '../../common/cache/cache.constants';
 import { VISIBLE_WHERE } from '../../common/utils/prisma.util';
+import { normalizeMediaUrl } from '../../common/utils/media-url';
 import {
   CmsAdvertisementDto,
   CmsBannerDto,
+  CmsEmergencyBannerDto,
   CmsHomeResponseDto,
   CmsHomeSectionDto,
+  CmsOfferDto,
   CmsPromotionDto,
+  CmsQuickActionDto,
   CmsTestimonialDto,
 } from './dto/cms-response.dto';
+
+function media(url?: string | null): string | null {
+  return normalizeMediaUrl(url);
+}
+
+const scheduleFilter = (now: Date) => ({
+  OR: [
+    { startsAt: null, endsAt: null },
+    { startsAt: { lte: now }, endsAt: null },
+    { startsAt: null, endsAt: { gte: now } },
+    { startsAt: { lte: now }, endsAt: { gte: now } },
+  ],
+});
 
 @Injectable()
 export class CmsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly cache: CacheService,
+    private readonly storage: R2StorageService,
   ) {}
 
   async getHome(): Promise<CmsHomeResponseDto> {
-    const cached = await this.cache.get<CmsHomeResponseDto>(CACHE_KEYS.CMS_HOME);
-    if (cached) return cached;
+    // Skip Redis cache when R2 uses signed URLs (they must be refreshed).
+    const useCache = this.storage.hasPublicBaseUrl();
+    if (useCache) {
+      const cached = await this.cache.get<CmsHomeResponseDto>(CACHE_KEYS.CMS_HOME);
+      if (cached) return cached;
+    }
 
     const [
       sections,
@@ -35,6 +58,9 @@ export class CmsService {
       testimonials,
       promotions,
       videoBanners,
+      offers,
+      quickActions,
+      emergencyBanner,
     ] = await Promise.all([
       this.getHomeSections(),
       this.getBanners(),
@@ -42,15 +68,24 @@ export class CmsService {
       this.getTestimonials(),
       this.getPromotions(),
       this.getVideoBanners(),
+      this.getOffersForYou(),
+      this.getQuickActions(),
+      this.getEmergencyBanner(),
     ]);
 
     const result: CmsHomeResponseDto = {
       sections,
       banners,
+      heroBanners: banners.filter((b) => b.placement === 'HOME_HERO'),
       ads,
+      brandAdvertisements: ads,
       testimonials,
       promotions,
       videoBanners,
+      heroVideo: videoBanners[0] ?? null,
+      offers,
+      quickActions,
+      emergencyBanner,
       emergencyDelivery:
         promotions.find((p) => p.cardType === 'EMERGENCY_DELIVERY') ?? null,
       bulkProcurement:
@@ -60,7 +95,9 @@ export class CmsService {
       membership: promotions.find((p) => p.cardType === 'MEMBERSHIP') ?? null,
     };
 
-    await this.cache.set(CACHE_KEYS.CMS_HOME, result, CACHE_TTL.CMS_HOME);
+    if (useCache) {
+      await this.cache.set(CACHE_KEYS.CMS_HOME, result, CACHE_TTL.CMS_HOME);
+    }
     return result;
   }
 
@@ -80,12 +117,7 @@ export class CmsService {
             BannerPlacement.BULK_PROCUREMENT,
           ],
         },
-        OR: [
-          { startsAt: null, endsAt: null },
-          { startsAt: { lte: now }, endsAt: null },
-          { startsAt: null, endsAt: { gte: now } },
-          { startsAt: { lte: now }, endsAt: { gte: now } },
-        ],
+        ...scheduleFilter(now),
       },
       orderBy: [{ displayOrder: 'asc' }, { priority: 'desc' }],
     });
@@ -99,8 +131,13 @@ export class CmsService {
     const cached = await this.cache.get<CmsAdvertisementDto[]>(CACHE_KEYS.CMS_ADS);
     if (cached) return cached;
 
+    const now = new Date();
     const ads = await this.prisma.advertisement.findMany({
-      where: { isActive: true, deletedAt: null },
+      where: {
+        isActive: true,
+        deletedAt: null,
+        ...scheduleFilter(now),
+      },
       orderBy: [{ displayOrder: 'asc' }, { priority: 'desc' }],
     });
 
@@ -109,7 +146,8 @@ export class CmsService {
       title: a.title,
       brandName: a.brandName,
       description: a.description,
-      imageUrl: a.imageUrl,
+      imageUrl: media(a.imageUrl) ?? a.imageUrl,
+      logoUrl: media(a.logoUrl),
       buttonText: a.buttonText,
       redirectType: a.redirectType,
       redirectId: a.redirectId,
@@ -141,10 +179,10 @@ export class CmsService {
       location: t.location,
       rating: t.rating,
       review: t.review,
-      thumbnailUrl: t.thumbnail,
-      videoUrl: t.videoUrl,
-      profileImage: t.profileImage ?? t.imageUrl,
-      imageUrl: t.imageUrl,
+      thumbnailUrl: media(t.thumbnail),
+      videoUrl: media(t.videoUrl),
+      profileImage: media(t.profileImage ?? t.imageUrl),
+      imageUrl: media(t.imageUrl),
       displayOrder: t.sortOrder,
       featured: t.featured,
       isActive: t.isPublished,
@@ -165,8 +203,13 @@ export class CmsService {
     );
     if (cached) return cached;
 
+    const now = new Date();
     const cards = await this.prisma.promotionalCard.findMany({
-      where: { isActive: true, deletedAt: null },
+      where: {
+        isActive: true,
+        deletedAt: null,
+        ...scheduleFilter(now),
+      },
       orderBy: [{ displayOrder: 'asc' }, { priority: 'desc' }],
     });
 
@@ -175,12 +218,10 @@ export class CmsService {
       title: c.title,
       subtitle: c.subtitle,
       description: c.description,
-      imageUrl: c.imageUrl,
+      imageUrl: media(c.imageUrl),
       buttonText: c.buttonText,
       badge: c.badge,
-      benefits: Array.isArray(c.benefits)
-        ? (c.benefits as string[])
-        : null,
+      benefits: Array.isArray(c.benefits) ? (c.benefits as string[]) : null,
       redirectType: c.redirectType,
       redirectId: c.redirectId,
       cardType: c.cardType,
@@ -223,62 +264,169 @@ export class CmsService {
     return result;
   }
 
+  async getOffersForYou(): Promise<CmsOfferDto[]> {
+    const now = new Date();
+    const offers = await this.prisma.offer.findMany({
+      where: {
+        ...VISIBLE_WHERE,
+        isFeatured: true,
+        ...scheduleFilter(now),
+      },
+      orderBy: [{ displayOrder: 'asc' }, { priority: 'desc' }],
+      take: 20,
+    });
+
+    return offers.map((o) => ({
+      id: o.id,
+      slug: o.slug,
+      title: o.title,
+      description: o.description,
+      imageUrl: media(o.imageUrl),
+      discountLabel: o.discountLabel ?? o.badge,
+      badge: o.badge,
+      offerType: o.offerType,
+      displayOrder: o.displayOrder,
+      priority: o.priority,
+      endsAt: o.endsAt,
+    }));
+  }
+
+  async getQuickActions(): Promise<CmsQuickActionDto[]> {
+    const now = new Date();
+    const actions = await this.prisma.quickAction.findMany({
+      where: {
+        deletedAt: null,
+        isVisible: true,
+        ...scheduleFilter(now),
+      },
+      orderBy: [{ displayOrder: 'asc' }],
+    });
+
+    return actions.map((a) => ({
+      id: a.id,
+      label: a.label,
+      iconUrl: media(a.iconUrl),
+      iconKey: a.iconKey,
+      redirectType: a.redirectType,
+      redirectId: a.redirectId,
+      displayOrder: a.displayOrder,
+    }));
+  }
+
+  async getEmergencyBanner(): Promise<CmsEmergencyBannerDto | null> {
+    const now = new Date();
+
+    const promo = await this.prisma.promotionalCard.findFirst({
+      where: {
+        cardType: 'EMERGENCY_BANNER',
+        isActive: true,
+        deletedAt: null,
+        ...scheduleFilter(now),
+      },
+      orderBy: [{ priority: 'desc' }, { displayOrder: 'asc' }],
+    });
+
+    if (promo) {
+      return {
+        id: promo.id,
+        title: promo.title,
+        body: promo.subtitle ?? promo.description,
+        imageUrl: media(promo.imageUrl),
+        linkUrl: promo.redirectId,
+        linkTarget: promo.redirectId,
+        dismissible: true,
+      };
+    }
+
+    const announcement = await this.prisma.announcement.findFirst({
+      where: {
+        ...VISIBLE_WHERE,
+        ...scheduleFilter(now),
+      },
+      orderBy: [{ displayOrder: 'asc' }],
+    });
+
+    if (!announcement) return null;
+
+    return {
+      id: announcement.id,
+      title: announcement.title,
+      body: announcement.body,
+      imageUrl: media(announcement.imageUrl),
+      linkUrl: announcement.linkUrl,
+      linkTarget: announcement.linkTarget,
+      dismissible: true,
+    };
+  }
+
   private async getVideoBanners(): Promise<CmsBannerDto[]> {
     const now = new Date();
+
+    // Prefer R2-backed Video records for HOME hero
+    const videos = await this.prisma.video.findMany({
+      where: {
+        deletedAt: null,
+        published: true,
+        isVisible: true,
+        status: EntityStatus.ACTIVE,
+        placement: { in: ['HOME', 'HOME_HERO_VIDEO'] },
+        AND: [
+          { OR: [{ scheduledAt: null }, { scheduledAt: { lte: now } }] },
+          { OR: [{ expiresAt: null }, { expiresAt: { gte: now } }] },
+        ],
+      },
+      orderBy: [{ priority: 'desc' }, { displayOrder: 'asc' }, { updatedAt: 'desc' }],
+    });
+
+    if (videos.length > 0) {
+      return Promise.all(
+        videos.map(async (v, index) => {
+          const videoUrl = v.storageKey
+            ? await this.storage.resolveReadableUrl(
+                v.publicUrl || v.videoUrl,
+                v.storageKey,
+              )
+            : v.publicUrl || v.videoUrl;
+
+          return {
+            id: v.id,
+            title: v.title,
+            subtitle: v.description,
+            buttonText: v.ctaLabel || 'Shop Now',
+            buttonAction: v.linkUrl ? 'route' : null,
+            bannerType: BannerType.VIDEO,
+            imageUrl: v.thumbnailUrl ?? '',
+            videoUrl,
+            thumbnailUrl: v.thumbnailUrl,
+            badge: null,
+            priority: v.priority,
+            displayOrder: v.displayOrder || index,
+            isActive: true,
+            startDate: v.scheduledAt,
+            endDate: v.expiresAt,
+            linkUrl: v.linkUrl,
+            linkType: v.linkUrl ? 'ROUTE' : null,
+            linkTarget: v.linkTarget || v.linkUrl,
+            secondaryButtonText: null,
+            secondaryLinkUrl: null,
+            secondaryLinkType: null,
+            secondaryLinkTarget: null,
+            placement: 'HOME_HERO_VIDEO',
+          };
+        }),
+      );
+    }
+
     const banners = await this.prisma.banner.findMany({
       where: {
         ...VISIBLE_WHERE,
         bannerType: BannerType.VIDEO,
-        OR: [
-          { startsAt: null, endsAt: null },
-          { startsAt: { lte: now }, endsAt: null },
-          { startsAt: null, endsAt: { gte: now } },
-          { startsAt: { lte: now }, endsAt: { gte: now } },
-        ],
+        ...scheduleFilter(now),
       },
       orderBy: [{ displayOrder: 'asc' }, { priority: 'desc' }],
     });
 
-    if (banners.length > 0) {
-      return banners.map((b) => this.mapBanner(b));
-    }
-
-    // Fallback: HOME placement videos table
-    const videos = await this.prisma.video.findMany({
-      where: {
-        deletedAt: null,
-        isVisible: true,
-        status: EntityStatus.ACTIVE,
-        placement: 'HOME',
-      },
-      orderBy: [{ displayOrder: 'asc' }, { priority: 'desc' }],
-    });
-
-    return videos.map((v, index) => ({
-      id: v.id,
-      title: v.title,
-      subtitle: v.description,
-      buttonText: 'Shop Now',
-      buttonAction: v.linkTarget ? 'product' : null,
-      bannerType: BannerType.VIDEO,
-      imageUrl: v.thumbnailUrl ?? '',
-      videoUrl: v.videoUrl,
-      thumbnailUrl: v.thumbnailUrl,
-      badge: null,
-      priority: v.priority,
-      displayOrder: v.displayOrder || index,
-      isActive: true,
-      startDate: null,
-      endDate: null,
-      linkUrl: v.linkUrl,
-      linkType: v.linkTarget ? 'product' : null,
-      linkTarget: v.linkTarget,
-      secondaryButtonText: null,
-      secondaryLinkUrl: null,
-      secondaryLinkType: null,
-      secondaryLinkTarget: null,
-      placement: 'HOME',
-    }));
+    return banners.map((b) => this.mapBanner(b));
   }
 
   private mapBanner(b: {
@@ -286,11 +434,16 @@ export class CmsService {
     title: string;
     subtitle: string | null;
     imageUrl: string;
+    mobileUrl?: string | null;
+    tabletUrl?: string | null;
+    desktopUrl?: string | null;
     videoUrl: string | null;
     thumbnailUrl: string | null;
     badge: string | null;
     bannerType: BannerType;
     ctaLabel: string | null;
+    ctaColor?: string | null;
+    backgroundColor?: string | null;
     buttonAction: string | null;
     linkUrl: string | null;
     linkType: string | null;
@@ -299,7 +452,7 @@ export class CmsService {
     secondaryLinkUrl: string | null;
     secondaryLinkType: string | null;
     secondaryLinkTarget: string | null;
-    placement: BannerPlacement;
+    placement: BannerPlacement | string;
     displayOrder: number;
     priority: number;
     startsAt: Date | null;
@@ -313,10 +466,15 @@ export class CmsService {
       buttonText: b.ctaLabel,
       buttonAction: b.buttonAction ?? b.linkType,
       bannerType: b.bannerType,
-      imageUrl: b.imageUrl,
-      videoUrl: b.videoUrl,
-      thumbnailUrl: b.thumbnailUrl,
+      imageUrl: media(b.mobileUrl || b.imageUrl) ?? '',
+      mobileUrl: media(b.mobileUrl),
+      tabletUrl: media(b.tabletUrl),
+      desktopUrl: media(b.desktopUrl),
+      videoUrl: media(b.videoUrl),
+      thumbnailUrl: media(b.thumbnailUrl),
       badge: b.badge,
+      ctaColor: b.ctaColor,
+      backgroundColor: b.backgroundColor,
       priority: b.priority,
       displayOrder: b.displayOrder,
       isActive: b.isVisible,
@@ -329,7 +487,7 @@ export class CmsService {
       secondaryLinkUrl: b.secondaryLinkUrl,
       secondaryLinkType: b.secondaryLinkType,
       secondaryLinkTarget: b.secondaryLinkTarget,
-      placement: b.placement,
+      placement: b.placement as string,
     };
   }
 }

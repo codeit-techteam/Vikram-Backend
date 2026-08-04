@@ -63,9 +63,29 @@ import { AdminCategoriesService } from './categories/admin-categories.service';
 import { AdminBannersController } from './banners/admin-banners.controller';
 import { AdminBannersService } from './banners/admin-banners.service';
 
+// Advertisements
+import { AdminAdvertisementsController } from './advertisements/admin-advertisements.controller';
+import { AdminAdvertisementsService } from './advertisements/admin-advertisements.service';
+
+// Promotional Cards
+import { AdminPromotionalCardsController } from './promotional-cards/admin-promotional-cards.controller';
+import { AdminPromotionalCardsService } from './promotional-cards/admin-promotional-cards.service';
+
+// Home Sections
+import { AdminHomeSectionsController } from './home-sections/admin-home-sections.controller';
+import { AdminHomeSectionsService } from './home-sections/admin-home-sections.service';
+
+// Quick Actions
+import { AdminQuickActionsController } from './quick-actions/admin-quick-actions.controller';
+import { AdminQuickActionsService } from './quick-actions/admin-quick-actions.service';
+
 // Videos
 import { AdminVideosController } from './videos/admin-videos.controller';
 import { AdminVideosService } from './videos/admin-videos.service';
+
+// Media (R2 uploads)
+import { AdminMediaController } from './media/admin-media.controller';
+import { AdminUploadAliasController } from './media/admin-upload-alias.controller';
 
 // Testimonials
 import { AdminTestimonialsController } from './testimonials/admin-testimonials.controller';
@@ -157,7 +177,13 @@ import { LoyaltyModule } from '../modules/loyalty/loyalty.module';
     AdminProductsController,
     AdminCategoriesController,
     AdminBannersController,
+    AdminAdvertisementsController,
+    AdminPromotionalCardsController,
+    AdminHomeSectionsController,
+    AdminQuickActionsController,
     AdminVideosController,
+    AdminMediaController,
+    AdminUploadAliasController,
     AdminTestimonialsController,
     AdminBulkController,
     AdminEmergencyController,
@@ -191,6 +217,10 @@ import { LoyaltyModule } from '../modules/loyalty/loyalty.module';
     AdminProductsService,
     AdminCategoriesService,
     AdminBannersService,
+    AdminAdvertisementsService,
+    AdminPromotionalCardsService,
+    AdminHomeSectionsService,
+    AdminQuickActionsService,
     AdminVideosService,
     AdminTestimonialsService,
     AdminBulkService,

@@ -14,6 +14,7 @@ export class CreateProductDto {
   @ApiPropertyOptional() @IsOptional() @IsString() description?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() grade?: string;
   @ApiProperty() @IsNumber() retailPrice: number;
+  @ApiPropertyOptional() @IsOptional() @IsNumber() mrp?: number;
   @ApiPropertyOptional() @IsOptional() @IsNumber() bulkPrice?: number;
   @ApiPropertyOptional() @IsOptional() @IsNumber() membershipPrice?: number;
   @ApiPropertyOptional() @IsOptional() @IsInt() bulkThreshold?: number;
@@ -25,6 +26,12 @@ export class CreateProductDto {
   @ApiPropertyOptional() @IsOptional() @IsBoolean() isBestSelling?: boolean;
   @ApiPropertyOptional() @IsOptional() @IsString() listingType?: string;
   @ApiPropertyOptional() @IsOptional() @IsInt() displayOrder?: number;
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  imageUrls?: string[];
+  @ApiPropertyOptional() @IsOptional() @IsBoolean() isVisible?: boolean;
 }
 
 export class UpdateProductDto {
@@ -33,11 +40,26 @@ export class UpdateProductDto {
   @ApiPropertyOptional() @IsOptional() @IsString() brand?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() description?: string;
   @ApiPropertyOptional() @IsOptional() @IsNumber() retailPrice?: number;
+  @ApiPropertyOptional() @IsOptional() @IsNumber() mrp?: number;
   @ApiPropertyOptional() @IsOptional() @IsNumber() bulkPrice?: number;
+  @ApiPropertyOptional() @IsOptional() @IsInt() bulkThreshold?: number;
   @ApiPropertyOptional() @IsOptional() @IsNumber() membershipPrice?: number;
   @ApiPropertyOptional() @IsOptional() @IsBoolean() isFeatured?: boolean;
   @ApiPropertyOptional() @IsOptional() @IsString() entityStatus?: string;
   @ApiPropertyOptional() @IsOptional() @IsInt() displayOrder?: number;
+  @ApiPropertyOptional() @IsOptional() @IsBoolean() isVisible?: boolean;
+}
+
+export class ProductImageItemDto {
+  @ApiProperty() @IsString() url!: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() altText?: string;
+  @ApiPropertyOptional() @IsOptional() @IsBoolean() isPrimary?: boolean;
+}
+
+export class SetProductImagesDto {
+  @ApiProperty({ type: [ProductImageItemDto] })
+  @IsArray()
+  images!: ProductImageItemDto[];
 }
 
 export class UpdateStockDto {

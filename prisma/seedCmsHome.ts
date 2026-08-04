@@ -104,7 +104,41 @@ export async function seedCmsHome(prisma: PrismaClient): Promise<void> {
       displayOrder: 11,
       apiSource: 'cms.promotions',
       layoutType: 'card',
-      // Catalog-adjacent; kept disabled on Home by default
+    },
+    {
+      sectionType: HomeSectionType.PRODUCT_DISCOVERY,
+      title: 'Discover Products',
+      displayOrder: 4,
+      apiSource: 'products.home',
+      layoutType: 'grid',
+    },
+    {
+      sectionType: HomeSectionType.OFFER_FOR_YOU,
+      title: 'Offers For You',
+      displayOrder: 5,
+      apiSource: 'cms.offers',
+      layoutType: 'horizontal',
+    },
+    {
+      sectionType: HomeSectionType.QUICK_ACTIONS,
+      title: 'Quick Actions',
+      displayOrder: 2,
+      apiSource: 'cms.quickActions',
+      layoutType: 'row',
+    },
+    {
+      sectionType: HomeSectionType.EMERGENCY_BANNER,
+      title: 'Emergency Banner',
+      displayOrder: 0,
+      apiSource: 'cms.emergencyBanner',
+      layoutType: 'strip',
+    },
+    {
+      sectionType: HomeSectionType.FEATURED_COLLECTION,
+      title: 'Featured Collections',
+      displayOrder: 12,
+      apiSource: 'cms.promotions',
+      layoutType: 'carousel',
     },
   ];
 
@@ -117,7 +151,11 @@ export async function seedCmsHome(prisma: PrismaClient): Promise<void> {
         displayOrder: section.displayOrder,
         apiSource: section.apiSource,
         layoutType: section.layoutType,
-        enabled: section.sectionType !== HomeSectionType.PRIORITY_EXPRESS,
+        enabled:
+          section.sectionType !== HomeSectionType.PRIORITY_EXPRESS &&
+          section.sectionType !== HomeSectionType.FEATURED_COLLECTION &&
+          section.sectionType !== HomeSectionType.EMERGENCY_BANNER &&
+          section.sectionType !== HomeSectionType.RECOMMENDED,
       },
       create: {
         sectionType: section.sectionType,
@@ -126,7 +164,11 @@ export async function seedCmsHome(prisma: PrismaClient): Promise<void> {
         displayOrder: section.displayOrder,
         apiSource: section.apiSource,
         layoutType: section.layoutType,
-        enabled: section.sectionType !== HomeSectionType.PRIORITY_EXPRESS,
+        enabled:
+          section.sectionType !== HomeSectionType.PRIORITY_EXPRESS &&
+          section.sectionType !== HomeSectionType.FEATURED_COLLECTION &&
+          section.sectionType !== HomeSectionType.EMERGENCY_BANNER &&
+          section.sectionType !== HomeSectionType.RECOMMENDED,
       },
     });
   }
@@ -216,7 +258,7 @@ export async function seedCmsHome(prisma: PrismaClient): Promise<void> {
       badge: '2-Hour Delivery',
       bannerType: BannerType.VIDEO,
       imageUrl: HERO_IMAGE,
-      videoUrl: 'assets/videos/delivery-hero.mp4',
+      videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
       thumbnailUrl: HERO_IMAGE,
       ctaLabel: 'Shop Now',
       buttonAction: 'product',
@@ -234,7 +276,7 @@ export async function seedCmsHome(prisma: PrismaClient): Promise<void> {
       badge: '2-Hour Delivery',
       bannerType: BannerType.VIDEO,
       imageUrl: HERO_IMAGE,
-      videoUrl: 'assets/videos/delivery-hero.mp4',
+      videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
       thumbnailUrl: HERO_IMAGE,
       ctaLabel: 'Shop Now',
       buttonAction: 'product',
@@ -252,7 +294,7 @@ export async function seedCmsHome(prisma: PrismaClient): Promise<void> {
     data: {
       title: 'Materials Delivered Right to Your Site',
       description: 'Real-time tracking, verified drivers, zero delays.',
-      videoUrl: 'assets/videos/delivery-hero.mp4',
+      videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
       thumbnailUrl: HERO_IMAGE,
       linkTarget: 'ultratech-premium-ppc-cement',
     },
@@ -532,7 +574,7 @@ export async function seedCmsHome(prisma: PrismaClient): Promise<void> {
       rating: 5,
       review:
         'Cement delivered to our site within 2 hours. Quality was exactly as promised.',
-      videoUrl: 'assets/videos/landscape.mp4',
+      videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
       thumbnail: 'assets/category-cement.png',
       sortOrder: 1,
       featured: true,
@@ -547,7 +589,7 @@ export async function seedCmsHome(prisma: PrismaClient): Promise<void> {
       rating: 5,
       review:
         'Bulk brick order handled professionally. Saved us two days of procurement.',
-      videoUrl: 'assets/videos/bricks.mp4',
+      videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4',
       thumbnail: 'assets/category-bricks.png',
       sortOrder: 2,
       featured: true,
@@ -562,7 +604,7 @@ export async function seedCmsHome(prisma: PrismaClient): Promise<void> {
       rating: 5,
       review:
         'Reliable partner for every project. Materials always arrive on schedule.',
-      videoUrl: 'assets/videos/unbeatable.mp4',
+      videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4',
       thumbnail: 'assets/category-steel.png',
       sortOrder: 3,
       featured: true,
@@ -577,7 +619,7 @@ export async function seedCmsHome(prisma: PrismaClient): Promise<void> {
       rating: 5,
       review:
         'Premium river sand delivered in bulk — fine grain, zero debris. Our plaster finish turned out flawless.',
-      videoUrl: 'assets/videos/landscape.mp4',
+      videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
       thumbnail: 'assets/category-sand.png',
       sortOrder: 4,
       featured: false,
@@ -592,7 +634,7 @@ export async function seedCmsHome(prisma: PrismaClient): Promise<void> {
       rating: 5,
       review:
         'Bajriwala has transformed how we manage site logistics. Highly recommended.',
-      videoUrl: 'assets/videos/landscape.mp4',
+      videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
       thumbnail: 'assets/category-aggregates.png',
       sortOrder: 5,
       featured: false,
@@ -697,5 +739,68 @@ export async function seedCmsHome(prisma: PrismaClient): Promise<void> {
     }
   }
 
-  console.log('Seeded Home Screen CMS (sections, banners, ads, promotions, testimonials).');
+  const quickActions = [
+    {
+      slug: 'bulk-inquiry',
+      label: 'Bulk Inquiry',
+      iconKey: 'bulk',
+      redirectType: RedirectType.BULK_INQUIRY,
+      redirectId: '/bulk-procurement',
+      displayOrder: 1,
+    },
+    {
+      slug: 'whatsapp',
+      label: 'WhatsApp',
+      iconKey: 'whatsapp',
+      redirectType: RedirectType.WHATSAPP,
+      redirectId: 'https://wa.me/919999999999',
+      displayOrder: 2,
+    },
+    {
+      slug: 'call',
+      label: 'Call',
+      iconKey: 'call',
+      redirectType: RedirectType.ROUTE,
+      redirectId: 'tel:+919999999999',
+      displayOrder: 3,
+    },
+    {
+      slug: 'membership',
+      label: 'Membership',
+      iconKey: 'membership',
+      redirectType: RedirectType.MEMBERSHIP,
+      redirectId: '/membership',
+      displayOrder: 4,
+    },
+    {
+      slug: 'track-order',
+      label: 'Track Order',
+      iconKey: 'track',
+      redirectType: RedirectType.ROUTE,
+      redirectId: '/orders',
+      displayOrder: 5,
+    },
+  ];
+
+  for (const action of quickActions) {
+    await prisma.quickAction.upsert({
+      where: { slug: action.slug },
+      update: {
+        label: action.label,
+        iconKey: action.iconKey,
+        redirectType: action.redirectType,
+        redirectId: action.redirectId,
+        displayOrder: action.displayOrder,
+        isVisible: true,
+      },
+      create: {
+        ...action,
+        isVisible: true,
+      },
+    });
+  }
+
+  console.log(
+    'Seeded Home Screen CMS (sections, banners, ads, promotions, testimonials, quick actions).',
+  );
 }

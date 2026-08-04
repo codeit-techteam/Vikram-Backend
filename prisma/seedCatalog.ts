@@ -96,7 +96,10 @@ export async function seedCatalog(
         nameHi: cat.nameHi,
         labelKey: cat.labelKey,
         description: cat.description,
-        imageUrl,
+        // Never overwrite an existing HTTPS (R2) image with a legacy /assets path.
+        ...(!(existing?.imageUrl || '').startsWith('http')
+          ? { imageUrl }
+          : {}),
         displayOrder: cat.displayOrder,
         priority: cat.priority,
         isFeatured: cat.isFeatured,
@@ -224,7 +227,12 @@ export async function seedCatalog(
         },
       });
       summary.imagesFixed += 1;
-    } else if (existingImage.url !== imagePath) {
+    } else if (
+      !existingImage.url.startsWith('http://') &&
+      !existingImage.url.startsWith('https://') &&
+      existingImage.url !== imagePath
+    ) {
+      // Only backfill missing/legacy paths — never clobber R2 URLs.
       await client.productImage.update({
         where: { id: existingImage.id },
         data: { url: imagePath, altText: p.name, isPrimary: true },

@@ -42,6 +42,10 @@ import {
 } from './orders.constants';
 import { getOrderStatusLabel } from './order-lifecycle.constants';
 import { OrderEventsService } from './order-events.service';
+import {
+  normalizeMediaUrl,
+  pickPreferredMediaUrl,
+} from '../../common/utils/media-url';
 
 const ORDER_ITEM_PRODUCT_SELECT = {
   id: true,
@@ -55,8 +59,8 @@ const ORDER_ITEM_PRODUCT_SELECT = {
   images: {
     where: { deletedAt: null },
     orderBy: [{ isPrimary: 'desc' as const }, { displayOrder: 'asc' as const }],
-    take: 1,
-    select: { url: true },
+    take: 6,
+    select: { url: true, isPrimary: true, displayOrder: true },
   },
   variants: {
     where: { deletedAt: null },
@@ -238,7 +242,10 @@ export class OrdersService {
               create: checkout.items.map((item) => ({
                 productId: item.productId,
                 name: item.product.name,
-                productImage: item.product.thumbnailUrl ?? null,
+                productImage: normalizeMediaUrl(
+                  (item.product as { thumbnailUrl?: string | null }).thumbnailUrl ??
+                    null,
+                ),
                 sku: item.product.sku ?? null,
                 brand: item.product.brand ?? null,
                 category: item.product.category ?? null,
@@ -676,8 +683,12 @@ export class OrdersService {
   }): OrderItemResponseDto {
     const product = item.product;
     const productName = item.name || product?.name || 'Product';
-    const productImage =
-      item.productImage ?? product?.images?.[0]?.url ?? null;
+    const productImage = normalizeMediaUrl(
+      pickPreferredMediaUrl([
+        item.productImage,
+        ...(product?.images?.map((img) => img.url) ?? []),
+      ]),
+    );
     const variant =
       item.variant ??
       product?.variants?.[0]?.label ??

@@ -67,6 +67,11 @@ enum HomeSectionType {
   RECOMMENDED
   PRIORITY_EXPRESS
   POPULAR_PRODUCTS
+  OFFER_FOR_YOU
+  QUICK_ACTIONS
+  PRODUCT_DISCOVERY
+  EMERGENCY_BANNER
+  FEATURED_COLLECTION
 }
 
 enum RedirectType {
@@ -75,6 +80,13 @@ enum RedirectType {
   CATEGORY
   EXTERNAL
   NONE
+  OFFER
+  BRAND
+  SEARCH
+  WHATSAPP
+  BULK_INQUIRY
+  MEMBERSHIP
+  MATERIAL_EXPERT
 }
 
 enum OfferType {
@@ -86,8 +98,10 @@ enum OfferType {
 
 enum VideoPlacement {
   HOME
+  HOME_HERO_VIDEO
   CATEGORY
   PRODUCT
+  TUTORIALS
 }
 
 enum OrderStatus {
@@ -602,11 +616,15 @@ model Banner {
   subtitle             String?         @db.VarChar(300)
   imageUrl             String          @map("image_url") @db.VarChar(500)
   mobileUrl            String?         @map("mobile_url") @db.VarChar(500)
+  tabletUrl            String?         @map("tablet_url") @db.VarChar(500)
+  desktopUrl           String?         @map("desktop_url") @db.VarChar(500)
   videoUrl             String?         @map("video_url") @db.VarChar(500)
   thumbnailUrl         String?         @map("thumbnail_url") @db.VarChar(500)
   badge                String?         @db.VarChar(100)
   bannerType           BannerType      @default(IMAGE) @map("banner_type")
   ctaLabel             String?         @map("cta_label") @db.VarChar(100)
+  ctaColor             String?         @map("cta_color") @db.VarChar(30)
+  backgroundColor      String?         @map("background_color") @db.VarChar(30)
   buttonAction         String?         @map("button_action") @db.VarChar(100)
   linkUrl              String?         @map("link_url") @db.VarChar(500)
   linkType             String?         @map("link_type") @db.VarChar(50)
@@ -640,17 +658,21 @@ model Advertisement {
   brandName    String       @map("brand_name") @db.VarChar(120)
   description  String?      @db.Text
   imageUrl     String       @map("image_url") @db.VarChar(500)
+  logoUrl      String?      @map("logo_url") @db.VarChar(500)
   buttonText   String?      @map("button_text") @db.VarChar(100)
   redirectType RedirectType @default(NONE) @map("redirect_type")
   redirectId   String?      @map("redirect_id") @db.VarChar(200)
   displayOrder Int          @default(0) @map("display_order")
   priority     Int          @default(0)
+  startsAt     DateTime?    @map("starts_at")
+  endsAt       DateTime?    @map("ends_at")
   isActive     Boolean      @default(true) @map("is_active")
   deletedAt    DateTime?    @map("deleted_at")
   createdAt    DateTime     @default(now()) @map("created_at")
   updatedAt    DateTime     @updatedAt @map("updated_at")
 
   @@index([isActive, displayOrder])
+  @@index([startsAt, endsAt])
   @@index([deletedAt])
   @@map("advertisements")
 }
@@ -670,6 +692,8 @@ model PromotionalCard {
   cardType     String       @map("card_type") @db.VarChar(50)
   priority     Int          @default(0)
   displayOrder Int          @default(0) @map("display_order")
+  startsAt     DateTime?    @map("starts_at")
+  endsAt       DateTime?    @map("ends_at")
   isActive     Boolean      @default(true) @map("is_active")
   deletedAt    DateTime?    @map("deleted_at")
   createdAt    DateTime     @default(now()) @map("created_at")
@@ -677,8 +701,30 @@ model PromotionalCard {
 
   @@index([isActive, displayOrder])
   @@index([cardType, isActive])
+  @@index([startsAt, endsAt])
   @@index([deletedAt])
   @@map("promotional_cards")
+}
+
+model QuickAction {
+  id           String       @id @default(uuid()) @db.Uuid
+  slug         String       @unique @db.VarChar(120)
+  label        String       @db.VarChar(100)
+  iconUrl      String?      @map("icon_url") @db.VarChar(500)
+  iconKey      String?      @map("icon_key") @db.VarChar(80)
+  redirectType RedirectType @default(ROUTE) @map("redirect_type")
+  redirectId   String?      @map("redirect_id") @db.VarChar(200)
+  displayOrder Int          @default(0) @map("display_order")
+  isVisible    Boolean      @default(true) @map("is_visible")
+  startsAt     DateTime?    @map("starts_at")
+  endsAt       DateTime?    @map("ends_at")
+  deletedAt    DateTime?    @map("deleted_at")
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+
+  @@index([isVisible, displayOrder])
+  @@index([deletedAt])
+  @@map("quick_actions")
 }
 
 model HomeSection {
@@ -757,22 +803,33 @@ model Video {
   slug         String         @unique @db.VarChar(120)
   title        String         @db.VarChar(200)
   description  String?        @db.Text
-  videoUrl     String         @map("video_url") @db.VarChar(500)
-  thumbnailUrl String?        @map("thumbnail_url") @db.VarChar(500)
-  placement    VideoPlacement @default(HOME)
-  linkUrl      String?        @map("link_url") @db.VarChar(500)
-  linkTarget   String?        @map("link_target") @db.VarChar(200)
+  storageKey   String?        @map("storage_key") @db.VarChar(500)
+  videoUrl     String         @map("video_url") @db.VarChar(2000)
+  publicUrl    String?        @map("public_url") @db.VarChar(2000)
+  thumbnailUrl String?        @map("thumbnail_url") @db.VarChar(2000)
+  thumbnailKey String?        @map("thumbnail_key") @db.VarChar(500)
+  mimeType     String?        @map("mime_type") @db.VarChar(100)
+  sizeBytes    BigInt?        @map("size_bytes")
   duration     Int?
+  placement    VideoPlacement @default(HOME_HERO_VIDEO)
+  linkUrl      String?        @map("link_url") @db.VarChar(1000)
+  linkTarget   String?        @map("link_target") @db.VarChar(200)
+  ctaLabel     String?        @map("cta_label") @db.VarChar(100)
   displayOrder Int            @default(0) @map("display_order")
   priority     Int            @default(0)
   isVisible    Boolean        @default(true) @map("is_visible")
+  published    Boolean        @default(false)
   visibility   Visibility     @default(PUBLIC)
   status       EntityStatus   @default(ACTIVE)
+  scheduledAt  DateTime?      @map("scheduled_at")
+  expiresAt    DateTime?      @map("expires_at")
+  createdBy    String?        @map("created_by") @db.Uuid
   deletedAt    DateTime?      @map("deleted_at")
   createdAt    DateTime       @default(now()) @map("created_at")
   updatedAt    DateTime       @updatedAt @map("updated_at")
 
   @@index([placement, status, isVisible, displayOrder])
+  @@index([placement, published, priority])
   @@index([deletedAt])
   @@map("videos")
 }

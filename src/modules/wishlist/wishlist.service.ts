@@ -8,6 +8,7 @@ import { PrismaService } from '../../common/database/prisma.service';
 import { CacheService } from '../../common/cache/cache.service';
 import { CACHE_KEYS, CACHE_TTL } from '../../common/cache/cache.constants';
 import { PRODUCT_ACTIVE_WHERE } from '../../common/utils/prisma.util';
+import { pickPreferredMediaUrl } from '../../common/utils/media-url';
 import { decimalToNumber } from '../../common/shopping/pricing.util';
 import {
   AddWishlistDto,
@@ -124,7 +125,7 @@ export class WishlistService {
                 images: {
                   where: { deletedAt: null },
                   orderBy: [{ isPrimary: 'desc' }, { displayOrder: 'asc' }],
-                  take: 1,
+                  take: 6,
                 },
               },
             },
@@ -145,7 +146,9 @@ export class WishlistService {
         unit: item.product.unit,
         price: decimalToNumber(item.product.retailPrice),
         gst: decimalToNumber(item.product.gst),
-        thumbnailUrl: item.product.images[0]?.url ?? null,
+        thumbnailUrl: pickPreferredMediaUrl(
+          item.product.images.map((img) => img.url),
+        ),
         isVisible:
           item.product.isVisible &&
           item.product.entityStatus === 'ACTIVE' &&

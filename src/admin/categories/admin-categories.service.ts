@@ -1,11 +1,19 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { EntityStatus, Visibility } from '../../../generated/prisma/client';
+import { EntityStatus } from '../../../generated/prisma/client';
 import { PrismaService } from '../../common/database/prisma.service';
-import type { CreateCategoryDto, UpdateCategoryDto, ReorderCategoriesDto } from './dto/admin-categories.dto';
+import { CacheService } from '../../common/cache/cache.service';
+import type {
+  CreateCategoryDto,
+  UpdateCategoryDto,
+  ReorderCategoriesDto,
+} from './dto/admin-categories.dto';
 
 @Injectable()
 export class AdminCategoriesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly cache: CacheService,
+  ) {}
 
   async findAll() {
     return this.prisma.category.findMany({
@@ -21,14 +29,18 @@ export class AdminCategoriesService {
   async findOne(id: string) {
     const cat = await this.prisma.category.findFirst({
       where: { id, deletedAt: null },
-      include: { parent: true, children: { where: { deletedAt: null } }, _count: { select: { products: true } } },
+      include: {
+        parent: true,
+        children: { where: { deletedAt: null } },
+        _count: { select: { products: true } },
+      },
     });
     if (!cat) throw new NotFoundException('Category not found');
     return cat;
   }
 
   async create(dto: CreateCategoryDto) {
-    return this.prisma.category.create({
+    const cat = await this.prisma.category.create({
       data: {
         name: dto.name,
         slug: dto.slug,
@@ -42,11 +54,13 @@ export class AdminCategoriesService {
         status: (dto.status as any) ?? 'ACTIVE',
       },
     });
+    await this.cache.invalidateCategories();
+    return cat;
   }
 
   async update(id: string, dto: UpdateCategoryDto) {
     await this.findOne(id);
-    return this.prisma.category.update({
+    const cat = await this.prisma.category.update({
       where: { id },
       data: {
         ...(dto.name !== undefined && { name: dto.name }),
@@ -60,17 +74,35 @@ export class AdminCategoriesService {
         ...(dto.status !== undefined && { status: dto.status as EntityStatus }),
       },
     });
+    await this.cache.invalidateCategories();
+    return cat;
   }
 
   async remove(id: string) {
     await this.findOne(id);
-    return this.prisma.category.update({ where: { id }, data: { deletedAt: new Date() } });
+    const cat = await this.prisma.category.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+    });
+    await this.cache.invalidateCategories();
+    return cat;
   }
 
   async toggleActive(id: string) {
     const cat = await this.findOne(id);
-    const newStatus = cat.status === EntityStatus.ACTIVE ? EntityStatus.INACTIVE : EntityStatus.ACTIVE;
-    return this.prisma.category.update({ where: { id }, data: { status: newStatus } });
+    const newStatus =
+      cat.status === EntityStatus.ACTIVE
+        ? EntityStatus.INACTIVE
+        : EntityStatus.ACTIVE;
+    const updated = await this.prisma.category.update({
+      where: { id },
+      data: {
+        status: newStatus,
+        isVisible: newStatus === EntityStatus.ACTIVE,
+      },
+    });
+    await this.cache.invalidateCategories();
+    return updated;
   }
 
   async reorder(dto: ReorderCategoriesDto) {
@@ -82,6 +114,7 @@ export class AdminCategoriesService {
         }),
       ),
     );
+    await this.cache.invalidateCategories();
     return { reordered: dto.items.length };
   }
 }

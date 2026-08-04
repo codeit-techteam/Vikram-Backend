@@ -6,9 +6,12 @@ import { CmsService } from './cms.service';
 import {
   CmsAdvertisementDto,
   CmsBannerDto,
+  CmsEmergencyBannerDto,
   CmsHomeResponseDto,
   CmsHomeSectionDto,
+  CmsOfferDto,
   CmsPromotionDto,
+  CmsQuickActionDto,
   CmsTestimonialDto,
 } from './dto/cms-response.dto';
 
@@ -103,5 +106,57 @@ export class CmsController {
       message: 'Home sections fetched successfully',
       data,
     };
+  }
+
+  @Get('offers')
+  @ApiOperation({ summary: 'List featured Offer For You items' })
+  async getOffers(): Promise<{
+    success: boolean;
+    message: string;
+    data: CmsOfferDto[];
+  }> {
+    const data = await this.cmsService.getOffersForYou();
+    return { success: true, message: 'Offers fetched successfully', data };
+  }
+
+  @Get('quick-actions')
+  @ApiOperation({ summary: 'List homepage quick action buttons' })
+  async getQuickActions(): Promise<{
+    success: boolean;
+    message: string;
+    data: CmsQuickActionDto[];
+  }> {
+    const data = await this.cmsService.getQuickActions();
+    return {
+      success: true,
+      message: 'Quick actions fetched successfully',
+      data,
+    };
+  }
+
+  @Get('emergency-banner')
+  @ApiOperation({ summary: 'Get active dismissible emergency banner' })
+  async getEmergencyBanner(): Promise<{
+    success: boolean;
+    message: string;
+    data: CmsEmergencyBannerDto | null;
+  }> {
+    const data = await this.cmsService.getEmergencyBanner();
+    return {
+      success: true,
+      message: 'Emergency banner fetched successfully',
+      data,
+    };
+  }
+
+  @Get('layout')
+  @ApiOperation({ summary: 'Alias for homepage section layout' })
+  async getLayout(): Promise<{
+    success: boolean;
+    message: string;
+    data: CmsHomeSectionDto[];
+  }> {
+    const data = await this.cmsService.getHomeSections();
+    return { success: true, message: 'Layout fetched successfully', data };
   }
 }
