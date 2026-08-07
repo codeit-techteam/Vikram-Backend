@@ -1,10 +1,18 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/database/prisma.service';
-import type { CreateTestimonialDto, UpdateTestimonialDto, TestimonialQueryDto } from './dto/admin-testimonials.dto';
+import { CacheService } from '../../common/cache/cache.service';
+import type {
+  CreateTestimonialDto,
+  UpdateTestimonialDto,
+  TestimonialQueryDto,
+} from './dto/admin-testimonials.dto';
 
 @Injectable()
 export class AdminTestimonialsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly cache: CacheService,
+  ) {}
 
   async findAll(query: TestimonialQueryDto) {
     const page = query.page ?? 1;
@@ -23,19 +31,24 @@ export class AdminTestimonialsService {
       this.prisma.testimonial.count({ where }),
     ]);
 
-    return { data, meta: { page, limit, total, totalPages: Math.ceil(total / limit) } };
+    return {
+      data,
+      meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    };
   }
 
   async findOne(id: string) {
-    const testimonial = await this.prisma.testimonial.findUnique({ where: { id } });
+    const testimonial = await this.prisma.testimonial.findUnique({
+      where: { id },
+    });
     if (!testimonial) throw new NotFoundException('Testimonial not found');
     return testimonial;
   }
 
   async create(dto: CreateTestimonialDto) {
-    return this.prisma.testimonial.create({
+    const row = await this.prisma.testimonial.create({
       data: {
-        type: (dto.type as any),
+        type: dto.type as any,
         customerName: dto.customerName,
         designation: dto.designation,
         location: dto.location,
@@ -48,36 +61,60 @@ export class AdminTestimonialsService {
         isPublished: false,
       },
     });
+    await this.cache.invalidateCms();
+    return row;
   }
 
   async update(id: string, dto: UpdateTestimonialDto) {
     await this.findOne(id);
-    return this.prisma.testimonial.update({ where: { id }, data: dto });
+    const row = await this.prisma.testimonial.update({
+      where: { id },
+      data: dto,
+    });
+    await this.cache.invalidateCms();
+    return row;
   }
 
   async remove(id: string) {
     await this.findOne(id);
-    return this.prisma.testimonial.delete({ where: { id } });
+    const row = await this.prisma.testimonial.delete({ where: { id } });
+    await this.cache.invalidateCms();
+    return row;
   }
 
   async publish(id: string) {
     await this.findOne(id);
-    return this.prisma.testimonial.update({ where: { id }, data: { isPublished: true } });
+    const row = await this.prisma.testimonial.update({
+      where: { id },
+      data: { isPublished: true },
+    });
+    await this.cache.invalidateCms();
+    return row;
   }
 
   async unpublish(id: string) {
     await this.findOne(id);
-    return this.prisma.testimonial.update({ where: { id }, data: { isPublished: false } });
+    const row = await this.prisma.testimonial.update({
+      where: { id },
+      data: { isPublished: false },
+    });
+    await this.cache.invalidateCms();
+    return row;
   }
 
   async reorder(items: Array<{ id: string; sortOrder: number }>) {
     await Promise.all(
-      items.map((item) => this.prisma.testimonial.update({ where: { id: item.id }, data: { sortOrder: item.sortOrder } })),
+      items.map((item) =>
+        this.prisma.testimonial.update({
+          where: { id: item.id },
+          data: { sortOrder: item.sortOrder },
+        }),
+      ),
     );
+    await this.cache.invalidateCms();
     return { reordered: items.length };
   }
 
-  // Customer App Home API: published testimonials consumed automatically
   async getPublished() {
     return this.prisma.testimonial.findMany({
       where: { isPublished: true },

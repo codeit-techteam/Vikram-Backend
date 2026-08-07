@@ -284,6 +284,29 @@ export class ReceiveRequisitionItemDto {
   remarks?: string;
 }
 
+export class ReceivingDocumentInputDto {
+  @ApiProperty()
+  @IsString()
+  url!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  name?: string;
+
+  @ApiPropertyOptional({
+    description: 'GRN | GATE_PASS | DELIVERY_NOTE | SIGNED_INVOICE | OTHER',
+  })
+  @IsOptional()
+  @IsString()
+  type?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  size?: string;
+}
+
 export class ReceiveRequisitionDto {
   @ApiProperty({ type: [ReceiveRequisitionItemDto] })
   @IsArray()
@@ -295,6 +318,35 @@ export class ReceiveRequisitionDto {
   @IsOptional()
   @IsString()
   comment?: string;
+
+  @ApiPropertyOptional({
+    type: [String],
+    description: 'Cloudflare R2 public URLs for delivery photos',
+  })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  photoUrls?: string[];
+
+  @ApiPropertyOptional({
+    description: 'Cloudflare R2 document metadata (GRN, gate pass, etc.)',
+    type: [ReceivingDocumentInputDto],
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ReceivingDocumentInputDto)
+  documents?: ReceivingDocumentInputDto[];
+
+  @ApiPropertyOptional({ description: 'Alias for transfer / requisition id' })
+  @IsOptional()
+  @IsString()
+  transferId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  requisitionId?: string;
 }
 
 export class RequisitionCommentDto {

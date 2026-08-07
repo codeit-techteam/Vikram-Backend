@@ -63,6 +63,28 @@ export class CmsController {
     return { success: true, message: 'Ads fetched successfully', data };
   }
 
+  @Get('brand-ads')
+  @ApiOperation({ summary: 'Alias for brand advertisements' })
+  async getBrandAds(): Promise<{
+    success: boolean;
+    message: string;
+    data: CmsAdvertisementDto[];
+  }> {
+    const data = await this.cmsService.getAds();
+    return { success: true, message: 'Brand ads fetched successfully', data };
+  }
+
+  @Get('videos')
+  @ApiOperation({ summary: 'List active CMS video banners / hero videos' })
+  async getVideos(): Promise<{
+    success: boolean;
+    message: string;
+    data: CmsBannerDto[];
+  }> {
+    const data = await this.cmsService.getPublicVideos();
+    return { success: true, message: 'Videos fetched successfully', data };
+  }
+
   @Get('testimonials')
   @ApiOperation({ summary: 'List published testimonials' })
   async getTestimonials(): Promise<{
@@ -158,5 +180,16 @@ export class CmsController {
   }> {
     const data = await this.cmsService.getHomeSections();
     return { success: true, message: 'Layout fetched successfully', data };
+  }
+
+  @Get('home-layout')
+  @ApiOperation({ summary: 'Alias for homepage section layout' })
+  async getHomeLayout(): Promise<{
+    success: boolean;
+    message: string;
+    data: CmsHomeSectionDto[];
+  }> {
+    const data = await this.cmsService.getHomeSections();
+    return { success: true, message: 'Home layout fetched successfully', data };
   }
 }

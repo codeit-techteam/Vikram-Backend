@@ -183,16 +183,66 @@ export class HubOrdersService {
       hubId?: string | null;
       customerId?: string;
       assignedDriverId?: string | null;
+      assignedVehicleId?: string | null;
       expectedDeliveryAt?: Date | null;
     },
     extras?: Partial<{
       oldStatus: OrderStatus | string | null;
       trackingStatus: string;
+      driver: { id?: string; name: string; phone?: string | null } | null;
+      vehicle: { id?: string; registration: string; type?: string | null } | null;
     }>,
   ) {
     this.logger.log(
       `[Hub] Status Updated orderId=${order.id} status=${order.orderStatus} tracking=${extras?.trackingStatus ?? order.orderStatus}`,
     );
+
+    void this.resolveAndEmit(order, extras);
+  }
+
+  private async resolveAndEmit(
+    order: {
+      id: string;
+      orderNumber: string;
+      orderStatus: OrderStatus;
+      updatedAt: Date;
+      hubId?: string | null;
+      customerId?: string;
+      assignedDriverId?: string | null;
+      assignedVehicleId?: string | null;
+      expectedDeliveryAt?: Date | null;
+    },
+    extras?: Partial<{
+      oldStatus: OrderStatus | string | null;
+      trackingStatus: string;
+      driver: { id?: string; name: string; phone?: string | null } | null;
+      vehicle: { id?: string; registration: string; type?: string | null } | null;
+    }>,
+  ) {
+    let driver = extras?.driver ?? null;
+    let vehicle = extras?.vehicle ?? null;
+
+    if (!driver && order.assignedDriverId) {
+      const row = await this.prisma.driver.findUnique({
+        where: { id: order.assignedDriverId },
+        select: { id: true, name: true, phone: true },
+      });
+      if (row) driver = row;
+    }
+    if (!vehicle && order.assignedVehicleId) {
+      const row = await this.prisma.vehicle.findUnique({
+        where: { id: order.assignedVehicleId },
+        select: { id: true, registration: true, vehicleType: true },
+      });
+      if (row) {
+        vehicle = {
+          id: row.id,
+          registration: row.registration,
+          type: row.vehicleType,
+        };
+      }
+    }
+
     this.orderEvents.emitOrderUpdated({
       orderId: order.id,
       orderNumber: order.orderNumber,
@@ -206,6 +256,8 @@ export class HubOrdersService {
       expectedDeliveryAt: order.expectedDeliveryAt?.toISOString() ?? null,
       oldStatus: extras?.oldStatus ?? null,
       trackingStatus: extras?.trackingStatus ?? order.orderStatus,
+      driver,
+      vehicle,
     });
   }
 

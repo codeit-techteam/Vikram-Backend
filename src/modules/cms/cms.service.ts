@@ -359,6 +359,10 @@ export class CmsService {
     };
   }
 
+  async getPublicVideos(): Promise<CmsBannerDto[]> {
+    return this.getVideoBanners();
+  }
+
   private async getVideoBanners(): Promise<CmsBannerDto[]> {
     const now = new Date();
 

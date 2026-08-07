@@ -134,6 +134,9 @@ import { AdminSupportService } from './support/admin-support.service';
 
 // Requisitions
 import { AdminRequisitionsController } from './requisitions/admin-requisitions.controller';
+import { WarehouseRequisitionsController } from './requisitions/warehouse-requisitions.controller';
+import { AdminHubReceivingController } from './hub-receiving/admin-hub-receiving.controller';
+import { RequisitionTrackingController } from '../modules/requisitions/requisition-tracking.controller';
 import { RequisitionsModule } from '../modules/requisitions/requisitions.module';
 
 // Shared modules
@@ -197,6 +200,9 @@ import { LoyaltyModule } from '../modules/loyalty/loyalty.module';
     AdminInvoicesController,
     AdminSupportController,
     AdminRequisitionsController,
+    WarehouseRequisitionsController,
+    AdminHubReceivingController,
+    RequisitionTrackingController,
   ],
   providers: [
     AdminJwtStrategy,

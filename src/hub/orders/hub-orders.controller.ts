@@ -19,6 +19,7 @@ import { HubPermission } from '../decorators/hub-roles.decorator';
 import { CurrentHubUser } from '../decorators/current-hub-user.decorator';
 import type { AuthenticatedHubUser } from '../auth/hub-jwt.strategy';
 import { HubOrdersService } from './hub-orders.service';
+import { HubDispatchService } from '../dispatch/hub-dispatch.service';
 import { InvoiceService } from '../../modules/invoice/invoice.service';
 import {
   HubAssignDriverDto,
@@ -43,6 +44,7 @@ export class HubOrdersController {
   constructor(
     private readonly ordersService: HubOrdersService,
     private readonly invoiceService: InvoiceService,
+    private readonly dispatchService: HubDispatchService,
   ) {}
 
   @Get()
@@ -54,6 +56,14 @@ export class HubOrdersController {
   ) {
     const data = await this.ordersService.findAll(user.hubId, query);
     return { success: true, message: 'Hub orders fetched', data };
+  }
+
+  @Get('pending-dispatch')
+  @HubPermission('orders')
+  @ApiOperation({ summary: 'Orders ready for Dispatch Planning (not yet dispatched)' })
+  async pendingDispatch(@CurrentHubUser() user: AuthenticatedHubUser) {
+    const data = await this.dispatchService.getPendingOrders(user.hubId);
+    return { success: true, message: 'Pending dispatch orders fetched', data };
   }
 
   @Get(':id/timeline')

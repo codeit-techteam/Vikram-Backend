@@ -1908,18 +1908,21 @@ model HubUnloadingRecord {
 }
 
 model HubDispatch {
-  id           String             @id @default(uuid()) @db.Uuid
-  orderId      String             @unique @map("order_id") @db.Uuid
-  hubId        String             @map("hub_id") @db.Uuid
-  dispatchNo   String             @unique @map("dispatch_no") @db.VarChar(30)
-  driverId     String?            @map("driver_id") @db.Uuid
-  vehicleId    String?            @map("vehicle_id") @db.Uuid
-  status       HubOperationStatus @default(PENDING)
-  remarks      String?            @db.Text
-  dispatchedAt DateTime?          @map("dispatched_at")
-  completedAt  DateTime?          @map("completed_at")
-  createdAt    DateTime           @default(now()) @map("created_at")
-  updatedAt    DateTime           @updatedAt @map("updated_at")
+  id             String             @id @default(uuid()) @db.Uuid
+  orderId        String             @unique @map("order_id") @db.Uuid
+  hubId          String             @map("hub_id") @db.Uuid
+  dispatchNo     String             @unique @map("dispatch_no") @db.VarChar(30)
+  trackingNo     String?            @unique @map("tracking_no") @db.VarChar(40)
+  driverId       String?            @map("driver_id") @db.Uuid
+  vehicleId      String?            @map("vehicle_id") @db.Uuid
+  status         HubOperationStatus @default(PENDING)
+  deliverySlot   String?            @map("delivery_slot") @db.VarChar(50)
+  estimatedEtaAt DateTime?          @map("estimated_eta_at")
+  remarks        String?            @db.Text
+  dispatchedAt   DateTime?          @map("dispatched_at")
+  completedAt    DateTime?          @map("completed_at")
+  createdAt      DateTime           @default(now()) @map("created_at")
+  updatedAt      DateTime           @updatedAt @map("updated_at")
 
   order   Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   hub     Hub      @relation(fields: [hubId], references: [id], onDelete: Cascade)
@@ -1928,6 +1931,7 @@ model HubDispatch {
 
   @@index([hubId, status])
   @@index([dispatchNo])
+  @@index([trackingNo])
   @@map("hub_dispatches")
 }
 
@@ -2165,6 +2169,8 @@ model Requisition {
   warehouseBin         String?             @map("warehouse_bin") @db.VarChar(80)
   expectedDispatchDate DateTime?           @map("expected_dispatch_date")
   estimatedArrival     DateTime?           @map("estimated_arrival")
+  receivingPhotos      Json?               @map("receiving_photos")
+  receivingDocuments   Json?               @map("receiving_documents")
   createdAt            DateTime            @default(now()) @map("created_at")
   updatedAt            DateTime            @updatedAt @map("updated_at")
 

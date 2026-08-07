@@ -66,7 +66,7 @@ export class RequisitionsService {
     return {
       hub: { select: { id: true, code: true, name: true, city: true } },
       warehouseHub: { select: { id: true, code: true, name: true } },
-      vehicle: { select: { id: true, registration: true, capacity: true } },
+      vehicle: { select: { id: true, registration: true, capacity: true, vehicleType: true } },
       driver: { select: { id: true, name: true, phone: true } },
       items: {
         include: {
@@ -306,7 +306,7 @@ export class RequisitionsService {
   private async findOneRaw(id: string, hubId?: string) {
     const row = await this.prisma.requisition.findFirst({
       where: {
-        id,
+        OR: [{ id }, { requestNo: id }],
         ...(hubId ? { hubId } : {}),
       },
       include: this.requisitionInclude(),
@@ -314,6 +314,498 @@ export class RequisitionsService {
     if (!row) throw new NotFoundException('Requisition not found');
     return row;
   }
+
+  /** Incoming CW→hub shipments surfaced as Hub Panel "Transfers". */
+  async listIncomingTransfers(hubId: string) {
+    const rows = await this.prisma.requisition.findMany({
+      where: {
+        hubId,
+        status: {
+          in: [
+            'ALLOCATED',
+            'DISPATCHED',
+            'IN_TRANSIT',
+            'RECEIVED',
+            'COMPLETED',
+          ],
+        },
+      },
+      orderBy: [{ estimatedArrival: 'asc' }, { dispatchedAt: 'desc' }],
+      include: this.requisitionInclude(),
+    });
+
+    const transfers = rows.map((row) => this.mapIncomingTransfer(row));
+    const active = transfers.filter((t) => t.status !== 'received');
+    const delayed = active.filter((t) => t.isDelayed).length;
+    const onTime = active.length - delayed;
+
+    return {
+      summary: {
+        totalIncoming: active.length,
+        onTime,
+        delayed,
+      },
+      transfers,
+    };
+  }
+
+  async getIncomingTransfer(hubId: string, idOrRequestNo: string) {
+    const row = await this.findOneRaw(idOrRequestNo, hubId);
+    if (
+      ![
+        'ALLOCATED',
+        'DISPATCHED',
+        'IN_TRANSIT',
+        'RECEIVED',
+        'COMPLETED',
+      ].includes(row.status)
+    ) {
+      throw new NotFoundException('Incoming transfer not found');
+    }
+    return this.mapIncomingTransfer(row);
+  }
+
+  private mapIncomingTransfer(
+    row: Awaited<ReturnType<typeof this.findOneRaw>>,
+  ) {
+    const now = new Date();
+    const eta = row.estimatedArrival;
+    const isToday =
+      !!eta &&
+      eta.getFullYear() === now.getFullYear() &&
+      eta.getMonth() === now.getMonth() &&
+      eta.getDate() === now.getDate();
+    const isDelayed =
+      !!eta &&
+      eta.getTime() < now.getTime() &&
+      ['DISPATCHED', 'IN_TRANSIT', 'ALLOCATED'].includes(row.status);
+
+    let status:
+      | 'ready'
+      | 'in_transit'
+      | 'arriving_today'
+      | 'delayed'
+      | 'received'
+      | 'dispatched' = 'in_transit';
+
+    if (row.status === 'ALLOCATED') status = 'ready';
+    else if (row.status === 'DISPATCHED') status = 'dispatched';
+    else if (row.status === 'COMPLETED' || row.status === 'RECEIVED')
+      status = 'received';
+    else if (isDelayed) status = 'delayed';
+    else if (isToday) status = 'arriving_today';
+    else status = 'in_transit';
+
+    const etaDisplay = (() => {
+      if (status === 'received') return 'Received';
+      if (status === 'ready') {
+        return row.expectedDispatchDate
+          ? `Ready · Dispatch ${formatDisplayDate(row.expectedDispatchDate)}`
+          : 'Ready for dispatch';
+      }
+      if (!eta) return row.dispatchedAt ? 'In transit' : 'ETA pending';
+      if (isDelayed) {
+        return `${eta.toLocaleString('en-IN', {
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        })} (Delayed)`;
+      }
+      if (isToday) {
+        return `Today, ${eta.toLocaleTimeString('en-IN', {
+          hour: '2-digit',
+          minute: '2-digit',
+        })}`;
+      }
+      const hours = Math.max(
+        0,
+        Math.round((eta.getTime() - now.getTime()) / 36e5),
+      );
+      if (hours > 0 && hours < 48) return `ETA in ${hours} Hours`;
+      return eta.toLocaleString('en-IN', {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    })();
+
+    const driverPhone = row.driver?.phone ?? '';
+
+    return {
+      id: row.id,
+      transferId: row.requestNo,
+      status,
+      eta: eta?.toISOString() ?? null,
+      scheduled: row.expectedDispatchDate?.toISOString() ?? null,
+      etaDisplay,
+      isDelayed,
+      source: row.warehouseHub?.name ?? MAIN_WAREHOUSE.name,
+      destination: row.hub.name,
+      dispatchDate: row.dispatchedAt?.toISOString(),
+      vehicle: row.vehicleRegistration ?? row.vehicle?.registration ?? 'TBD',
+      vehicleDetails: {
+        number: row.vehicleRegistration ?? row.vehicle?.registration ?? 'TBD',
+        type: row.vehicle?.vehicleType
+          ? String(row.vehicle.vehicleType)
+          : 'Material Carrier',
+        capacity: row.vehicle?.capacity
+          ? `${Number(row.vehicle.capacity)} Tons`
+          : '—',
+        status:
+          status === 'in_transit' || status === 'dispatched' || status === 'delayed'
+            ? 'On Route'
+            : status === 'received'
+              ? 'Delivered'
+              : 'Standby',
+      },
+      driver: {
+        name: row.driverName ?? row.driver?.name ?? 'TBD',
+        phone: driverPhone,
+      },
+      materials: row.items.map((item) => {
+        const qty =
+          item.allocatedQty ?? item.approvedQty ?? item.requestedQty;
+        return {
+          id: item.id,
+          name: item.productName,
+          quantity: `${qty} ${item.unit}`,
+          sku: item.sku ?? undefined,
+          productId: item.productId,
+          itemId: item.id,
+          requestedQty: item.requestedQty,
+          approvedQty: item.approvedQty,
+          allocatedQty: item.allocatedQty,
+          receivedQty: item.receivedQty,
+          unit: item.unit,
+        };
+      }),
+      manifest: row.items.map((item) => {
+        const qty =
+          item.allocatedQty ?? item.approvedQty ?? item.requestedQty;
+        return {
+          id: item.id,
+          name: item.productName,
+          quantity: qty,
+          unit: item.unit,
+          status:
+            row.status === 'COMPLETED' || row.status === 'RECEIVED'
+              ? ('delivered' as const)
+              : row.status === 'ALLOCATED'
+                ? ('pending' as const)
+                : ('in_transit' as const),
+          sku: item.sku ?? undefined,
+        };
+      }),
+      timeline: row.timeline.map((step) => ({
+        id: step.id,
+        title: step.title,
+        subtitle: step.subtitle ?? undefined,
+        timestamp: step.occurredAt
+          ? step.occurredAt.toLocaleString('en-IN', {
+              month: 'short',
+              day: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+            })
+          : '',
+        status: step.stepStatus as 'completed' | 'active' | 'pending',
+      })),
+      shipmentTimeline: row.timeline.map((step) => ({
+        id: step.id,
+        title: step.title,
+        timestamp: step.occurredAt
+          ? step.occurredAt.toLocaleString('en-IN', {
+              month: 'short',
+              day: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+            })
+          : undefined,
+        status: step.stepStatus as 'completed' | 'active' | 'pending',
+        highlight:
+          step.stepStatus === 'active' ? etaDisplay : undefined,
+      })),
+      documents: this.mergeTransferDocuments(row),
+      photos: this.parseReceivingPhotos(row.receivingPhotos),
+      receivingDocuments: this.parseReceivingDocuments(row.receivingDocuments),
+      requisitionId: row.id,
+      dispatchId: row.lrNumber ?? row.id,
+      createdAt: (
+        row.dispatchedAt ??
+        row.allocatedAt ??
+        row.createdAt
+      ).toISOString(),
+      rawStatus: row.status,
+      priority: row.priority,
+      lrNumber: row.lrNumber,
+      receivedBy: row.receivedByName ?? null,
+      receivedAt: row.receivedAt?.toISOString() ?? null,
+    };
+  }
+
+  private parseReceivingPhotos(value: unknown): Array<{
+    id: string;
+    url: string;
+    name?: string;
+    size?: string;
+    uploadedAt?: string;
+  }> {
+    if (!Array.isArray(value)) return [];
+    return value
+      .map((item, index) => {
+        if (!item || typeof item !== 'object') return null;
+        const row = item as Record<string, unknown>;
+        const url = typeof row.url === 'string' ? row.url : null;
+        if (!url) return null;
+        return {
+          id: typeof row.id === 'string' ? row.id : `photo-${index}`,
+          url,
+          name: typeof row.name === 'string' ? row.name : undefined,
+          size: typeof row.size === 'string' ? row.size : undefined,
+          uploadedAt:
+            typeof row.uploadedAt === 'string' ? row.uploadedAt : undefined,
+        };
+      })
+      .filter((item): item is NonNullable<typeof item> => !!item);
+  }
+
+  private parseReceivingDocuments(value: unknown): Array<{
+    id: string;
+    url: string;
+    name: string;
+    type: string;
+    size: string;
+    uploadedAt?: string;
+  }> {
+    if (!Array.isArray(value)) return [];
+    return value
+      .map((item, index) => {
+        if (!item || typeof item !== 'object') return null;
+        const row = item as Record<string, unknown>;
+        const url = typeof row.url === 'string' ? row.url : null;
+        if (!url) return null;
+        return {
+          id: typeof row.id === 'string' ? row.id : `doc-${index}`,
+          url,
+          name:
+            typeof row.name === 'string' ? row.name : `Document ${index + 1}`,
+          type: typeof row.type === 'string' ? row.type : 'OTHER',
+          size: typeof row.size === 'string' ? row.size : '—',
+          uploadedAt:
+            typeof row.uploadedAt === 'string' ? row.uploadedAt : undefined,
+        };
+      })
+      .filter((item): item is NonNullable<typeof item> => !!item);
+  }
+
+  private mergeTransferDocuments(
+    row: Awaited<ReturnType<typeof this.findOneRaw>>,
+  ) {
+    const docs: Array<{
+      id: string;
+      name: string;
+      type: string;
+      size: string;
+      url?: string;
+    }> = [];
+    if (row.lrNumber) {
+      docs.push({
+        id: `lr-${row.id}`,
+        name: `LR ${row.lrNumber}`,
+        type: 'LR',
+        size: '—',
+      });
+    }
+    for (const doc of this.parseReceivingDocuments(row.receivingDocuments)) {
+      docs.push({
+        id: doc.id,
+        name: doc.name,
+        type: doc.type,
+        size: doc.size,
+        url: doc.url,
+      });
+    }
+    return docs;
+  }
+
+  async listHubReceiving(params?: { search?: string; status?: string }) {
+    const rows = await this.prisma.requisition.findMany({
+      where: {
+        status: {
+          in: [
+            'DISPATCHED',
+            'IN_TRANSIT',
+            'RECEIVED',
+            'COMPLETED',
+          ],
+        },
+      },
+      orderBy: [
+        { receivedAt: 'desc' },
+        { estimatedArrival: 'asc' },
+        { dispatchedAt: 'desc' },
+      ],
+      include: this.requisitionInclude(),
+    });
+
+    const now = new Date();
+    const startOfDay = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+    );
+
+    let items = rows.map((row) => this.mapHubReceivingItem(row));
+
+    if (params?.search?.trim()) {
+      const q = params.search.toLowerCase();
+      items = items.filter(
+        (item) =>
+          item.transferId.toLowerCase().includes(q) ||
+          item.hubName.toLowerCase().includes(q) ||
+          item.vehicle.toLowerCase().includes(q) ||
+          item.driverName.toLowerCase().includes(q),
+      );
+    }
+
+    if (params?.status && params.status !== 'all') {
+      items = items.filter((item) => item.queueStatus === params.status);
+    }
+
+    const awaitingReceipt = items.filter(
+      (i) => i.queueStatus === 'awaiting_receipt',
+    ).length;
+    const receivedToday = items.filter(
+      (i) =>
+        i.queueStatus === 'received' &&
+        i.receivedAt &&
+        new Date(i.receivedAt) >= startOfDay,
+    ).length;
+    const completed = items.filter((i) => i.queueStatus === 'received').length;
+    const pendingVerification = awaitingReceipt;
+
+    return {
+      summary: {
+        awaitingReceipt,
+        receivedToday,
+        pendingVerification,
+        completed,
+        rejected: 0,
+      },
+      items,
+    };
+  }
+
+  async getHubReceivingDetail(idOrRequestNo: string) {
+    const row = await this.findOneRaw(idOrRequestNo);
+    if (
+      !['DISPATCHED', 'IN_TRANSIT', 'RECEIVED', 'COMPLETED'].includes(
+        row.status,
+      )
+    ) {
+      throw new NotFoundException('Hub receiving record not found');
+    }
+    return this.mapHubReceivingItem(row, true);
+  }
+
+  private mapHubReceivingItem(
+    row: Awaited<ReturnType<typeof this.findOneRaw>>,
+    detailed = false,
+  ) {
+    const isReceived =
+      row.status === 'COMPLETED' || row.status === 'RECEIVED';
+    const photos = this.parseReceivingPhotos(row.receivingPhotos);
+    const documents = this.parseReceivingDocuments(row.receivingDocuments);
+    const materials = row.items.map((item) => {
+      const dispatched =
+        item.allocatedQty ?? item.approvedQty ?? item.requestedQty;
+      const received = item.receivedQty ?? (isReceived ? dispatched : null);
+      const difference =
+        received == null ? null : Number(received) - Number(dispatched);
+      return {
+        id: item.id,
+        productId: item.productId,
+        productName: item.productName,
+        sku: item.sku,
+        unit: item.unit,
+        dispatchedQty: Number(dispatched),
+        receivedQty: received == null ? null : Number(received),
+        difference,
+        shortageQty: item.shortageQty ?? 0,
+        damageQty: item.damageQty ?? 0,
+        missingQty: item.missingQty ?? 0,
+        remarks: item.remarks,
+        status: isReceived
+          ? difference === 0
+            ? 'MATCHED'
+            : difference != null && difference < 0
+              ? 'SHORTAGE'
+              : 'RECEIVED'
+          : 'IN_TRANSIT',
+      };
+    });
+
+    const base = {
+      id: row.id,
+      transferId: row.requestNo,
+      requisitionId: row.id,
+      dispatchId: row.lrNumber ?? row.id,
+      hubId: row.hubId,
+      hubName: row.hub.name,
+      warehouseName: row.warehouseHub?.name ?? MAIN_WAREHOUSE.name,
+      vehicle: row.vehicleRegistration ?? row.vehicle?.registration ?? 'TBD',
+      driverName: row.driverName ?? row.driver?.name ?? 'TBD',
+      driverPhone: row.driver?.phone ?? null,
+      eta: row.estimatedArrival?.toISOString() ?? null,
+      dispatchDate: row.dispatchedAt?.toISOString() ?? null,
+      arrivedAt: row.estimatedArrival?.toISOString() ?? null,
+      receivedAt: row.receivedAt?.toISOString() ?? null,
+      receivedBy: row.receivedByName ?? null,
+      rawStatus: row.status,
+      queueStatus: isReceived ? ('received' as const) : ('awaiting_receipt' as const),
+      priority: row.priority,
+      materialSummary: materials
+        .map((m) => `${m.productName} x ${m.dispatchedQty}`)
+        .join(', '),
+      quantitySummary: `${materials.reduce((sum, m) => sum + m.dispatchedQty, 0)} units`,
+      hasProof: photos.length > 0 || documents.length > 0,
+      photoCount: photos.length,
+      documentCount: documents.length,
+      materials,
+      photos,
+      documents,
+    };
+
+    if (!detailed) return base;
+
+    return {
+      ...base,
+      timeline: row.timeline.map((step) => ({
+        id: step.id,
+        title: step.title,
+        subtitle: step.subtitle ?? undefined,
+        timestamp: step.occurredAt
+          ? step.occurredAt.toLocaleString('en-IN', {
+              month: 'short',
+              day: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+            })
+          : '',
+        status: step.stepStatus as 'completed' | 'active' | 'pending',
+      })),
+      activityLogs: row.auditLogs?.map((log) => ({
+        id: log.id,
+        who: log.actorName,
+        action: log.action,
+        role: log.actorRole,
+        at: log.createdAt.toISOString(),
+      })),
+    };
+  }
+
 
   private async writeAudit(
     requisitionId: string,
@@ -1009,7 +1501,7 @@ export class RequisitionsService {
       existing.hubId,
       'Requisition Dispatched',
       `${existing.requestNo} is in transit.${dto.lrNumber ? ` LR: ${dto.lrNumber}` : ''}`,
-      `/requisitions/${existing.id}`,
+      `/transfers`,
     );
 
     return this.mapDetail(updated);
@@ -1022,8 +1514,32 @@ export class RequisitionsService {
     dto: ReceiveRequisitionDto,
   ) {
     const existing = await this.findOneRaw(id, hubId);
-    if (!['IN_TRANSIT', 'DISPATCHED', 'ALLOCATED'].includes(existing.status)) {
+    if (!['IN_TRANSIT', 'DISPATCHED'].includes(existing.status)) {
       throw new BadRequestException('Requisition is not ready for receiving');
+    }
+
+    for (const item of dto.items) {
+      const row = existing.items.find((i) => i.id === item.itemId);
+      if (!row) {
+        throw new BadRequestException(`Unknown item: ${item.itemId}`);
+      }
+      const dispatched = Number(
+        row.allocatedQty ?? row.approvedQty ?? row.requestedQty,
+      );
+      if (item.receivedQty > dispatched) {
+        throw new BadRequestException(
+          `Received quantity cannot exceed dispatched quantity for ${row.productName}`,
+        );
+      }
+      if (item.receivedQty < dispatched) {
+        const shortage =
+          item.shortageQty ?? dispatched - item.receivedQty;
+        if (!item.remarks?.trim() && shortage > 0) {
+          throw new BadRequestException(
+            `Shortage reason/remarks required for ${row.productName}`,
+          );
+        }
+      }
     }
 
     const updated = await this.prisma.$transaction(async (tx) => {
@@ -1031,13 +1547,19 @@ export class RequisitionsService {
         const row = existing.items.find((i) => i.id === item.itemId);
         if (!row) continue;
 
+        const dispatched = Number(
+          row.allocatedQty ?? row.approvedQty ?? row.requestedQty,
+        );
+        const shortageQty =
+          item.shortageQty ?? Math.max(0, dispatched - item.receivedQty);
+
         await tx.requisitionItem.update({
           where: { id: item.itemId },
           data: {
             receivedQty: item.receivedQty,
-            shortageQty: item.shortageQty,
-            damageQty: item.damageQty,
-            missingQty: item.missingQty,
+            shortageQty,
+            damageQty: item.damageQty ?? 0,
+            missingQty: item.missingQty ?? 0,
             remarks: item.remarks,
             status: 'RECEIVED',
           },
@@ -1078,6 +1600,27 @@ export class RequisitionsService {
           receivedByName: actor.name,
           receivedAt: new Date(),
           completedAt: new Date(),
+          ...(dto.photoUrls?.length
+            ? {
+                receivingPhotos: dto.photoUrls.map((url, index) => ({
+                  id: `photo-${index}`,
+                  url,
+                  uploadedAt: new Date().toISOString(),
+                })),
+              }
+            : {}),
+          ...(dto.documents?.length
+            ? {
+                receivingDocuments: dto.documents.map((doc, index) => ({
+                  id: `doc-${index}`,
+                  url: doc.url,
+                  name: doc.name ?? `Document ${index + 1}`,
+                  type: doc.type ?? 'OTHER',
+                  size: doc.size ?? '—',
+                  uploadedAt: new Date().toISOString(),
+                })),
+              }
+            : {}),
         },
         include: this.requisitionInclude(),
       });
@@ -1089,6 +1632,13 @@ export class RequisitionsService {
     if (dto.comment) {
       await this.addComment(id, actor, { message: dto.comment });
     }
+
+    await this.notifyHub(
+      hubId,
+      'Receipt Submitted Successfully',
+      `${existing.requestNo} material receipt accepted. Inventory updated.`,
+      `/transfers`,
+    );
 
     return this.mapDetail(updated);
   }

@@ -364,20 +364,52 @@ export class HubDispatchCreateDto {
   @IsUUID()
   orderId!: string;
 
-  @ApiPropertyOptional()
-  @IsOptional()
+  @ApiProperty()
   @IsUUID()
-  driverId?: string;
+  driverId!: string;
+
+  @ApiProperty()
+  @IsUUID()
+  vehicleId!: string;
+
+  @ApiPropertyOptional({ description: 'Delivery slot label e.g. 02:30 PM' })
+  @IsOptional()
+  @IsString()
+  deliverySlot?: string;
+
+  @ApiPropertyOptional({ description: 'ISO ETA timestamp' })
+  @IsOptional()
+  @IsString()
+  estimatedEta?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsUUID()
-  vehicleId?: string;
+  hubId?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
   remarks?: string;
+}
+
+export class HubDispatchLiveQueryDto extends HubPaginationQueryDto {
+  @ApiPropertyOptional({
+    description: 'Queue tab: pending | loading | dispatched | out_for_delivery | delivered | cancelled | delay | all',
+  })
+  @IsOptional()
+  @IsString()
+  tab?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  search?: string;
+
+  @ApiPropertyOptional({ description: 'eta | priority | driver | vehicle' })
+  @IsOptional()
+  @IsString()
+  sortBy?: string;
 }
 
 export class HubDispatchUpdateDto {

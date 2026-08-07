@@ -50,6 +50,9 @@ import { HubUnloadingService } from './unloading/hub-unloading.service';
 import { HubDispatchController } from './dispatch/hub-dispatch.controller';
 import { HubDispatchService } from './dispatch/hub-dispatch.service';
 
+// Fleet (available vehicles / stats)
+import { HubFleetController } from './fleet/hub-fleet.controller';
+
 // Drivers
 import { HubDriversController } from './drivers/hub-drivers.controller';
 import { HubDriversService } from './drivers/hub-drivers.service';
@@ -76,6 +79,11 @@ import { HubReportsService } from './reports/hub-reports.service';
 
 // Requisitions
 import { HubRequisitionsController } from './requisitions/hub-requisitions.controller';
+import { HubMaterialsController } from './requisitions/hub-materials.controller';
+import { HubTransfersController } from './transfers/hub-transfers.controller';
+import { HubMediaController } from './media/hub-media.controller';
+import { HubMaterialReceiptsController } from './material-receipts/hub-material-receipts.controller';
+import { HubRequisitionTrackingController } from '../modules/requisitions/requisition-tracking.controller';
 
 // Search
 import { HubSearchController } from './search/hub-search.controller';
@@ -106,6 +114,7 @@ import { RequisitionsModule } from '../modules/requisitions/requisitions.module'
     HubLoadingController,
     HubUnloadingController,
     HubDispatchController,
+    HubFleetController,
     HubDriversController,
     HubVehiclesController,
     HubEmergencyController,
@@ -114,6 +123,11 @@ import { RequisitionsModule } from '../modules/requisitions/requisitions.module'
     HubReportsController,
     HubSearchController,
     HubRequisitionsController,
+    HubMaterialsController,
+    HubTransfersController,
+    HubMediaController,
+    HubMaterialReceiptsController,
+    HubRequisitionTrackingController,
   ],
   providers: [
     HubJwtStrategy,

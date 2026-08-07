@@ -1,4 +1,4 @@
-/** Canonical R2 folder prefixes for CMS / catalog media. */
+/** Canonical R2 folder prefixes for CMS / catalog / hub receipts media. */
 export const MEDIA_FOLDERS = {
   VIDEOS: 'videos',
   VIDEOS_HOME: 'videos/home',
@@ -15,6 +15,8 @@ export const MEDIA_FOLDERS = {
   ICONS: 'icons',
   THUMBNAILS: 'thumbnails',
   DOCUMENTS: 'documents',
+  HUB_RECEIPTS_PHOTOS: 'hub-receipts/photos',
+  HUB_RECEIPTS_DOCUMENTS: 'hub-receipts/documents',
 } as const;
 
 export type MediaFolder = (typeof MEDIA_FOLDERS)[keyof typeof MEDIA_FOLDERS];
@@ -41,6 +43,11 @@ export const MEDIA_FOLDER_ALIASES: Record<string, MediaFolder> = {
   thumbnails: MEDIA_FOLDERS.THUMBNAILS,
   documents: MEDIA_FOLDERS.DOCUMENTS,
   pdf: MEDIA_FOLDERS.DOCUMENTS,
+  'hub-receipts/photos': MEDIA_FOLDERS.HUB_RECEIPTS_PHOTOS,
+  'hub-receipts/documents': MEDIA_FOLDERS.HUB_RECEIPTS_DOCUMENTS,
+  'receiving/photos': MEDIA_FOLDERS.HUB_RECEIPTS_PHOTOS,
+  'receiving/documents': MEDIA_FOLDERS.HUB_RECEIPTS_DOCUMENTS,
+  receiving: MEDIA_FOLDERS.HUB_RECEIPTS_PHOTOS,
 };
 
 export function resolveMediaFolder(folder?: string | null): MediaFolder {
@@ -53,7 +60,14 @@ export function resolveMediaFolder(folder?: string | null): MediaFolder {
 export function inferMediaFolder(mimeType: string): MediaFolder {
   const mime = mimeType.toLowerCase();
   if (mime.startsWith('video/')) return MEDIA_FOLDERS.VIDEOS_HOME;
-  if (mime === 'application/pdf') return MEDIA_FOLDERS.DOCUMENTS;
+  if (
+    mime === 'application/pdf' ||
+    mime === 'application/msword' ||
+    mime ===
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+  ) {
+    return MEDIA_FOLDERS.DOCUMENTS;
+  }
   if (mime.startsWith('image/')) return MEDIA_FOLDERS.BANNERS;
   return MEDIA_FOLDERS.DOCUMENTS;
 }

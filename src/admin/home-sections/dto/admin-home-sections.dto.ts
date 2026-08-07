@@ -1,5 +1,12 @@
-import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsInt, IsOptional, IsString } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  IsArray,
+  IsBoolean,
+  IsInt,
+  IsOptional,
+  IsString,
+  ValidateNested,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class UpdateHomeSectionDto {
@@ -11,7 +18,24 @@ export class UpdateHomeSectionDto {
   @ApiPropertyOptional() @IsOptional() @IsString() layoutType?: string;
 }
 
+export class ReorderHomeSectionItemDto {
+  @ApiProperty() @IsString() id!: string;
+  @ApiProperty() @IsInt() displayOrder!: number;
+}
+
 export class ReorderHomeSectionsDto {
-  @ApiPropertyOptional()
-  items!: Array<{ id: string; displayOrder: number }>;
+  @ApiProperty({
+    type: 'array',
+    items: {
+      type: 'object',
+      properties: {
+        id: { type: 'string' },
+        displayOrder: { type: 'number' },
+      },
+    },
+  })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ReorderHomeSectionItemDto)
+  items!: ReorderHomeSectionItemDto[];
 }
