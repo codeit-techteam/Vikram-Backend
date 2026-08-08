@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../common/database/prisma.service';
+import { normalizeMediaUrl } from '../../common/utils/media-url';
 
 @Injectable()
 export class HubInventoryRepository {
@@ -19,7 +20,7 @@ export class HubInventoryRepository {
       sku: string | null;
       unit: string;
       deliveryETA: string | null;
-      images?: { url: string }[];
+      images?: { url: string; isPrimary?: boolean }[];
       category?: {
         id: string;
         slug: string;
@@ -30,12 +31,21 @@ export class HubInventoryRepository {
     const currentStock = row.availableQty + row.reservedQty;
     const availableStock = row.availableQty;
     const lowStock = availableStock <= row.lowStockThreshold;
+    const imageUrl = normalizeMediaUrl(row.product.images?.[0]?.url ?? null);
 
     return {
       id: row.id,
       hubId: row.hubId,
       productId: row.productId,
-      product: row.product,
+      product: {
+        ...row.product,
+        imageUrl,
+        images: (row.product.images ?? []).map((img) => ({
+          ...img,
+          url: normalizeMediaUrl(img.url) ?? img.url,
+        })),
+      },
+      imageUrl,
       currentStock,
       reservedStock: row.reservedQty,
       availableStock,
@@ -59,7 +69,15 @@ export class HubInventoryRepository {
           category: {
             select: { id: true, slug: true, name: true },
           },
-          images: { where: { isPrimary: true }, take: 1 },
+          images: {
+            where: { deletedAt: null },
+            orderBy: [
+              { isPrimary: 'desc' as const },
+              { displayOrder: 'asc' as const },
+            ],
+            take: 1,
+            select: { url: true, isPrimary: true },
+          },
         },
       },
     };

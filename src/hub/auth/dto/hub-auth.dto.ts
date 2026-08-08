@@ -81,6 +81,17 @@ export class HubManagerProfileDto {
   @ApiPropertyOptional()
   hubName?: string;
 
+  @ApiPropertyOptional({
+    description: 'Hub code allocated when the hub was created',
+    example: 'HUB-KAL-001',
+  })
+  hubCode?: string;
+
+  @ApiPropertyOptional({
+    description: 'Warehouse / dark-store code linked to the hub',
+  })
+  warehouseCode?: string | null;
+
   @ApiPropertyOptional()
   lastLoginAt?: Date | null;
 }

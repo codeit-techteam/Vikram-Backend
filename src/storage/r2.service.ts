@@ -20,6 +20,7 @@ import {
   generateUniqueKey,
   getPublicUrl,
   getSignedObjectUrl,
+  getSignedUploadUrl,
   type R2Config,
   type UploadResult,
   uploadBuffer,
@@ -108,6 +109,20 @@ export class R2StorageService {
       this.getClient(),
       this.config.bucketName,
       key,
+      expiresInSeconds,
+    );
+  }
+
+  async generateSignedUploadUrl(
+    key: string,
+    contentType: string,
+    expiresInSeconds = 60 * 15,
+  ): Promise<string> {
+    return getSignedUploadUrl(
+      this.getClient(),
+      this.config.bucketName,
+      key,
+      contentType,
       expiresInSeconds,
     );
   }

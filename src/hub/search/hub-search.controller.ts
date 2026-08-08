@@ -18,7 +18,10 @@ export class HubSearchController {
 
   @Get()
   @HubPermission('search')
-  @ApiOperation({ summary: 'Search orders, products, drivers, vehicles, inventory' })
+  @ApiOperation({
+    summary:
+      'Search hub orders, products/SKU, drivers, vehicles/trucks, dispatches, requisitions (type=all for header search)',
+  })
   async search(
     @CurrentHubUser() user: AuthenticatedHubUser,
     @Query() query: HubSearchQueryDto,

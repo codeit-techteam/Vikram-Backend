@@ -53,6 +53,17 @@ export class HubDriversController {
     return { success: true, message: 'Available drivers fetched', data };
   }
 
+  @Get(':id')
+  @HubPermission('drivers')
+  @ApiOperation({ summary: 'Get hub driver detail' })
+  async findOne(
+    @CurrentHubUser() user: AuthenticatedHubUser,
+    @Param('id') id: string,
+  ) {
+    const data = await this.driversService.findOne(user.hubId, id);
+    return { success: true, message: 'Driver fetched', data };
+  }
+
   @Post()
   @HubPermission('drivers')
   @ApiOperation({ summary: 'Create hub driver' })
@@ -60,7 +71,11 @@ export class HubDriversController {
     @CurrentHubUser() user: AuthenticatedHubUser,
     @Body() dto: HubDriverCreateDto,
   ) {
-    const data = await this.driversService.create(user.hubId, dto);
+    const data = await this.driversService.create(
+      user.hubId,
+      dto,
+      user.fullName,
+    );
     return { success: true, message: 'Driver created', data };
   }
 
@@ -72,7 +87,12 @@ export class HubDriversController {
     @Param('id') id: string,
     @Body() dto: HubDriverUpdateDto,
   ) {
-    const data = await this.driversService.update(user.hubId, id, dto);
+    const data = await this.driversService.update(
+      user.hubId,
+      id,
+      dto,
+      user.fullName,
+    );
     return { success: true, message: 'Driver updated', data };
   }
 
@@ -83,7 +103,7 @@ export class HubDriversController {
     @CurrentHubUser() user: AuthenticatedHubUser,
     @Param('id') id: string,
   ) {
-    const data = await this.driversService.remove(user.hubId, id);
+    const data = await this.driversService.remove(user.hubId, id, user.fullName);
     return { success: true, message: 'Driver deleted', data };
   }
 }

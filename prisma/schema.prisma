@@ -363,16 +363,59 @@ enum VehicleType {
 
 enum VehicleStatus {
   AVAILABLE
-  IN_USE
+  ASSIGNED
+  LOADING
+  OUT_FOR_DELIVERY
+  REACHED
+  RETURNING
   MAINTENANCE
   INACTIVE
+  BLOCKED
+  DOCUMENT_EXPIRED
+}
+
+enum VehicleDocumentType {
+  RC
+  INSURANCE
+  FITNESS
+  PUC
+  PERMIT
+  OTHER
 }
 
 enum DriverAvailability {
   AVAILABLE
+  ASSIGNED
   ON_DELIVERY
+  ON_LEAVE
   OFF_DUTY
   INACTIVE
+  SUSPENDED
+  BLOCKED
+}
+
+enum DriverDocumentType {
+  DRIVER_PHOTO
+  DRIVING_LICENSE
+  AADHAAR
+  PAN
+  OTHER
+}
+
+enum DriverEmploymentType {
+  PERMANENT
+  CONTRACT
+  TEMPORARY
+}
+
+enum DriverLicenseType {
+  LMV
+  LMV_TR
+  HMV
+  HGMV
+  HPMV
+  TRANSPORT
+  OTHER
 }
 
 enum HubOperationStatus {
@@ -1142,7 +1185,9 @@ model Hub {
   orders            Order[]
   users             HubUser[]
   drivers           Driver[]
-  vehicles          Vehicle[]
+  warehouseDrivers  Driver[]            @relation("DriverWarehouseHub")
+  vehicles          Vehicle[]           @relation("VehicleAssignedHub")
+  warehouseVehicles Vehicle[]           @relation("VehicleWarehouseHub")
   loadingRecords    HubLoadingRecord[]
   unloadingRecords  HubUnloadingRecord[]
   dispatches        HubDispatch[]
@@ -1158,6 +1203,7 @@ model Hub {
   @@index([pincode])
   @@index([latitude, longitude])
   @@index([deletedAt])
+  @@index([hubType])
   @@map("hubs")
 }
 
@@ -1820,48 +1866,231 @@ model HubRefreshToken {
 model Driver {
   id           String             @id @default(uuid()) @db.Uuid
   hubId        String             @map("hub_id") @db.Uuid
+  warehouseHubId String?          @map("warehouse_hub_id") @db.Uuid
   name         String             @db.VarChar(200)
+  employeeId   String?            @unique @map("employee_id") @db.VarChar(40)
   phone        String             @db.VarChar(15)
+  alternatePhone String?          @map("alternate_phone") @db.VarChar(15)
+  email        String?            @db.VarChar(255)
+  gender       String?            @db.VarChar(20)
+  dateOfBirth  DateTime?          @map("date_of_birth") @db.Date
+  bloodGroup   String?            @map("blood_group") @db.VarChar(10)
+  photoUrl     String?            @map("photo_url") @db.VarChar(500)
+
+  emergencyContactName         String? @map("emergency_contact_name") @db.VarChar(200)
+  emergencyContactNumber       String? @map("emergency_contact_number") @db.VarChar(15)
+  emergencyContactRelationship String? @map("emergency_contact_relationship") @db.VarChar(50)
+
+  address  String? @db.VarChar(500)
+  city     String? @db.VarChar(100)
+  state    String? @db.VarChar(100)
+  pinCode  String? @map("pin_code") @db.VarChar(10)
+
+  licenseNumber       String?            @map("license_number") @db.VarChar(50)
+  licenseIssueDate    DateTime?          @map("license_issue_date") @db.Date
+  licenseExpiry       DateTime?          @map("license_expiry") @db.Date
+  licenseType         DriverLicenseType? @map("license_type")
+  licenseIssuingState String?            @map("license_issuing_state") @db.VarChar(100)
+
+  joiningDate     DateTime?             @map("joining_date") @db.Date
+  employmentType  DriverEmploymentType? @map("employment_type")
+  shift           String?               @db.VarChar(30)
+  onLeave         Boolean               @default(false) @map("on_leave")
+
+  aadhaarNumber String? @map("aadhaar_number") @db.VarChar(12)
+  panNumber     String? @map("pan_number") @db.VarChar(10)
+
+  bankAccountHolder String? @map("bank_account_holder") @db.VarChar(200)
+  bankName          String? @map("bank_name") @db.VarChar(200)
+  bankAccountNumber String? @map("bank_account_number") @db.VarChar(50)
+  bankIfscCode      String? @map("bank_ifsc_code") @db.VarChar(20)
+  upiId             String? @map("upi_id") @db.VarChar(100)
+  remarks           String? @db.Text
+
   vehicleId    String?            @unique @map("vehicle_id") @db.Uuid
   availability DriverAvailability @default(AVAILABLE)
   isActive     Boolean            @default(true) @map("is_active")
+  rating       Decimal?           @db.Decimal(3, 2)
+  createdBy    String?            @map("created_by") @db.VarChar(100)
+  updatedBy    String?            @map("updated_by") @db.VarChar(100)
   deletedAt    DateTime?          @map("deleted_at")
   createdAt    DateTime           @default(now()) @map("created_at")
   updatedAt    DateTime           @updatedAt @map("updated_at")
 
-  hub      Hub       @relation(fields: [hubId], references: [id], onDelete: Cascade)
-  vehicle  Vehicle?  @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
-  orders   Order[]   @relation("OrderAssignedDriver")
-  dispatches HubDispatch[]
+  hub          Hub       @relation(fields: [hubId], references: [id], onDelete: Cascade)
+  warehouseHub Hub?      @relation("DriverWarehouseHub", fields: [warehouseHubId], references: [id], onDelete: SetNull)
+  vehicle      Vehicle?  @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  orders       Order[]   @relation("OrderAssignedDriver")
+  dispatches   HubDispatch[]
   requisitions Requisition[]
+  documents    DriverDocument[]
 
   @@index([hubId, availability, isActive])
+  @@index([warehouseHubId])
   @@index([phone])
+  @@index([licenseNumber])
+  @@index([licenseExpiry])
   @@index([deletedAt])
   @@map("drivers")
 }
 
-model Vehicle {
-  id           String        @id @default(uuid()) @db.Uuid
-  hubId        String        @map("hub_id") @db.Uuid
-  registration String        @unique @db.VarChar(30)
-  capacity     Decimal       @default(0) @db.Decimal(10, 2)
-  vehicleType  VehicleType   @default(TRUCK) @map("vehicle_type")
-  status       VehicleStatus @default(AVAILABLE)
-  isActive     Boolean       @default(true) @map("is_active")
-  deletedAt    DateTime?     @map("deleted_at")
-  createdAt    DateTime      @default(now()) @map("created_at")
-  updatedAt    DateTime      @updatedAt @map("updated_at")
+model DriverDocument {
+  id             String             @id @default(uuid()) @db.Uuid
+  driverId       String             @map("driver_id") @db.Uuid
+  documentType   DriverDocumentType @map("document_type")
+  fileName       String             @map("file_name") @db.VarChar(255)
+  storageKey     String             @map("storage_key") @db.VarChar(500)
+  mimeType       String             @map("mime_type") @db.VarChar(100)
+  fileSize       Int                @map("file_size")
+  documentNumber String?            @map("document_number") @db.VarChar(100)
+  issueDate      DateTime?          @map("issue_date") @db.Date
+  expiryDate     DateTime?          @map("expiry_date") @db.Date
+  uploadedBy     String?            @map("uploaded_by") @db.VarChar(100)
+  createdAt      DateTime           @default(now()) @map("created_at")
+  updatedAt      DateTime           @updatedAt @map("updated_at")
 
-  hub      Hub      @relation(fields: [hubId], references: [id], onDelete: Cascade)
-  driver   Driver?
-  orders   Order[]  @relation("OrderAssignedVehicle")
-  dispatches HubDispatch[]
+  driver Driver @relation(fields: [driverId], references: [id], onDelete: Cascade)
+
+  @@index([driverId, documentType])
+  @@map("driver_documents")
+}
+
+model Vehicle {
+  id               String        @id @default(uuid()) @db.Uuid
+  hubId            String        @map("hub_id") @db.Uuid
+  warehouseHubId   String?       @map("warehouse_hub_id") @db.Uuid
+  registration     String        @unique @db.VarChar(30)
+  capacity         Decimal       @default(0) @db.Decimal(10, 2)
+  payloadKg        Decimal?      @map("payload_kg") @db.Decimal(12, 2)
+  vehicleType      VehicleType   @default(TRUCK) @map("vehicle_type")
+  vehicleCategory  String?       @map("vehicle_category") @db.VarChar(50)
+  fuelType         String?       @map("fuel_type") @db.VarChar(30)
+  manufacturer     String?       @db.VarChar(100)
+  model            String?       @db.VarChar(100)
+  manufactureYear  Int?          @map("manufacture_year")
+  vehicleColor     String?       @map("vehicle_color") @db.VarChar(50)
+  fastagNumber     String?       @map("fastag_number") @db.VarChar(50)
+  odometerKm       Decimal?      @map("odometer_km") @db.Decimal(12, 2)
+  emergencyContact String?       @map("emergency_contact") @db.VarChar(20)
+  remarks          String?       @db.Text
+  status           VehicleStatus @default(AVAILABLE)
+  isActive         Boolean       @default(true) @map("is_active")
+
+  registrationDate DateTime? @map("registration_date") @db.Date
+
+  insuranceNumber String?   @map("insurance_number") @db.VarChar(100)
+  insuranceExpiry DateTime? @map("insurance_expiry") @db.Date
+
+  fitnessCertificateNumber String?   @map("fitness_certificate_number") @db.VarChar(100)
+  fitnessExpiry            DateTime? @map("fitness_expiry") @db.Date
+
+  pucNumber String?   @map("puc_number") @db.VarChar(100)
+  pucExpiry DateTime? @map("puc_expiry") @db.Date
+
+  permitType   String?   @map("permit_type") @db.VarChar(50)
+  permitNumber String?   @map("permit_number") @db.VarChar(100)
+  permitExpiry DateTime? @map("permit_expiry") @db.Date
+
+  roadTaxStatus String?   @map("road_tax_status") @db.VarChar(50)
+  roadTaxExpiry DateTime? @map("road_tax_expiry") @db.Date
+
+  gpsEnabled     Boolean   @default(false) @map("gps_enabled")
+  gpsDeviceId    String?   @map("gps_device_id") @db.VarChar(100)
+  currentLatitude  Decimal?  @map("current_latitude") @db.Decimal(10, 7)
+  currentLongitude Decimal?  @map("current_longitude") @db.Decimal(10, 7)
+  lastLocationAt DateTime? @map("last_location_at")
+
+  currentOrderId    String? @map("current_order_id") @db.Uuid
+  currentDispatchId String? @map("current_dispatch_id") @db.Uuid
+
+  maintenanceReason   String?   @map("maintenance_reason") @db.Text
+  maintenanceStartedAt DateTime? @map("maintenance_started_at")
+  maintenanceExpectedAt DateTime? @map("maintenance_expected_at")
+  maintenanceCompletedAt DateTime? @map("maintenance_completed_at")
+
+  createdBy String? @map("created_by") @db.VarChar(100)
+  updatedBy String? @map("updated_by") @db.VarChar(100)
+
+  deletedAt DateTime? @map("deleted_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  hub          Hub      @relation("VehicleAssignedHub", fields: [hubId], references: [id], onDelete: Cascade)
+  warehouseHub Hub?     @relation("VehicleWarehouseHub", fields: [warehouseHubId], references: [id], onDelete: SetNull)
+  driver       Driver?
+  orders       Order[]  @relation("OrderAssignedVehicle")
+  dispatches   HubDispatch[]
   requisitions Requisition[]
+  documents    VehicleDocument[]
+  assignmentHistory VehicleAssignmentHistory[]
+  statusHistory     VehicleStatusHistory[]
 
   @@index([hubId, status, isActive])
+  @@index([warehouseHubId])
+  @@index([status, isActive])
+  @@index([insuranceExpiry])
+  @@index([fitnessExpiry])
   @@index([deletedAt])
   @@map("vehicles")
+}
+
+model VehicleDocument {
+  id             String              @id @default(uuid()) @db.Uuid
+  vehicleId      String              @map("vehicle_id") @db.Uuid
+  documentType   VehicleDocumentType @map("document_type")
+  fileName       String              @map("file_name") @db.VarChar(255)
+  storageKey     String              @map("storage_key") @db.VarChar(500)
+  mimeType       String              @map("mime_type") @db.VarChar(100)
+  fileSize       Int                 @map("file_size")
+  documentNumber String?             @map("document_number") @db.VarChar(100)
+  issueDate      DateTime?           @map("issue_date") @db.Date
+  expiryDate     DateTime?           @map("expiry_date") @db.Date
+  uploadedBy     String?             @map("uploaded_by") @db.VarChar(100)
+  createdAt      DateTime            @default(now()) @map("created_at")
+  updatedAt      DateTime            @updatedAt @map("updated_at")
+
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@index([vehicleId, documentType])
+  @@index([expiryDate])
+  @@map("vehicle_documents")
+}
+
+model VehicleAssignmentHistory {
+  id                 String    @id @default(uuid()) @db.Uuid
+  vehicleId          String    @map("vehicle_id") @db.Uuid
+  previousHubId      String?   @map("previous_hub_id") @db.Uuid
+  newHubId           String?   @map("new_hub_id") @db.Uuid
+  previousWarehouseHubId String? @map("previous_warehouse_hub_id") @db.Uuid
+  newWarehouseHubId  String?   @map("new_warehouse_hub_id") @db.Uuid
+  previousDriverId   String?   @map("previous_driver_id") @db.Uuid
+  newDriverId        String?   @map("new_driver_id") @db.Uuid
+  assignedBy         String?   @map("assigned_by") @db.VarChar(100)
+  assignedAt         DateTime  @default(now()) @map("assigned_at")
+  unassignedAt       DateTime? @map("unassigned_at")
+  remarks            String?   @db.Text
+
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@index([vehicleId, assignedAt(sort: Desc)])
+  @@map("vehicle_assignment_history")
+}
+
+model VehicleStatusHistory {
+  id         String         @id @default(uuid()) @db.Uuid
+  vehicleId  String         @map("vehicle_id") @db.Uuid
+  fromStatus VehicleStatus? @map("from_status")
+  toStatus   VehicleStatus  @map("to_status")
+  changedBy  String?        @map("changed_by") @db.VarChar(100)
+  reason     String?        @db.Text
+  orderId    String?        @map("order_id") @db.Uuid
+  dispatchId String?        @map("dispatch_id") @db.Uuid
+  createdAt  DateTime       @default(now()) @map("created_at")
+
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@index([vehicleId, createdAt(sort: Desc)])
+  @@map("vehicle_status_history")
 }
 
 model HubLoadingRecord {

@@ -17,6 +17,8 @@ export const MEDIA_FOLDERS = {
   DOCUMENTS: 'documents',
   HUB_RECEIPTS_PHOTOS: 'hub-receipts/photos',
   HUB_RECEIPTS_DOCUMENTS: 'hub-receipts/documents',
+  VEHICLE_DOCUMENTS: 'vehicles/documents',
+  DRIVER_DOCUMENTS: 'drivers/documents',
 } as const;
 
 export type MediaFolder = (typeof MEDIA_FOLDERS)[keyof typeof MEDIA_FOLDERS];
@@ -48,6 +50,10 @@ export const MEDIA_FOLDER_ALIASES: Record<string, MediaFolder> = {
   'receiving/photos': MEDIA_FOLDERS.HUB_RECEIPTS_PHOTOS,
   'receiving/documents': MEDIA_FOLDERS.HUB_RECEIPTS_DOCUMENTS,
   receiving: MEDIA_FOLDERS.HUB_RECEIPTS_PHOTOS,
+  'vehicles/documents': MEDIA_FOLDERS.VEHICLE_DOCUMENTS,
+  vehicles: MEDIA_FOLDERS.VEHICLE_DOCUMENTS,
+  'drivers/documents': MEDIA_FOLDERS.DRIVER_DOCUMENTS,
+  drivers: MEDIA_FOLDERS.DRIVER_DOCUMENTS,
 };
 
 export function resolveMediaFolder(folder?: string | null): MediaFolder {

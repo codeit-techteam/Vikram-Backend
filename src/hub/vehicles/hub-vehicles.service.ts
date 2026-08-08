@@ -1,81 +1,155 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../../common/database/prisma.service';
+import { Injectable } from '@nestjs/common';
 import type {
   HubVehicleCreateDto,
   HubVehiclesQueryDto,
   HubVehicleUpdateDto,
 } from '../dto/hub.dto';
+import { VehiclesService } from '../../modules/vehicles/vehicles.service';
+import type { VehicleStatus } from '../../../generated/prisma/client';
+import {
+  VehicleDocumentConfirmDto,
+  VehicleDocumentUploadUrlDto,
+} from '../../admin/vehicles/dto/admin-vehicles.dto';
 
 @Injectable()
 export class HubVehiclesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly vehiclesService: VehiclesService) {}
 
   async findAll(hubId: string, query: HubVehiclesQueryDto) {
-    const page = query.page ?? 1;
-    const limit = query.limit ?? 20;
-    const skip = (page - 1) * limit;
-
-    const where: Record<string, unknown> = { hubId, deletedAt: null };
-    if (query.status) where['status'] = query.status;
-    if (query.search) {
-      where['registration'] = { contains: query.search, mode: 'insensitive' };
-    }
-
-    const [data, total] = await Promise.all([
-      this.prisma.vehicle.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: { registration: 'asc' },
-        include: {
-          driver: { select: { id: true, name: true, phone: true, availability: true } },
-        },
-      }),
-      this.prisma.vehicle.count({ where }),
-    ]);
-
-    return { data, meta: { page, limit, total, totalPages: Math.ceil(total / limit) } };
+    return this.vehiclesService.findAll({
+      hubId,
+      page: query.page,
+      limit: query.limit,
+      search: query.search,
+      status: query.status,
+      includeInactive: true,
+    });
   }
 
-  async create(hubId: string, dto: HubVehicleCreateDto) {
-    return this.prisma.vehicle.create({
-      data: {
+  async findOne(hubId: string, id: string) {
+    return this.vehiclesService.findById(id, hubId);
+  }
+
+  async create(hubId: string, dto: HubVehicleCreateDto, actor?: string) {
+    return this.vehiclesService.create(
+      {
+        registration: dto.registration,
         hubId,
-        registration: dto.registration.toUpperCase(),
         capacity: dto.capacity,
-        vehicleType: (dto.vehicleType as any) ?? 'TRUCK',
+        payloadKg: dto.payloadKg,
+        vehicleType: dto.vehicleType,
+        vehicleCategory: dto.vehicleCategory,
+        fuelType: dto.fuelType,
+        manufacturer: dto.manufacturer,
+        model: dto.model,
+        manufactureYear: dto.manufactureYear,
+        vehicleColor: dto.vehicleColor,
+        fastagNumber: dto.fastagNumber,
+        odometerKm: dto.odometerKm,
+        emergencyContact: dto.emergencyContact,
+        remarks: dto.remarks,
+        registrationDate: dto.registrationDate,
+        insuranceNumber: dto.insuranceNumber,
+        insuranceExpiry: dto.insuranceExpiry,
+        fitnessCertificateNumber: dto.fitnessCertificateNumber,
+        fitnessExpiry: dto.fitnessExpiry,
+        pucNumber: dto.pucNumber,
+        pucExpiry: dto.pucExpiry,
+        permitType: dto.permitType,
+        permitNumber: dto.permitNumber,
+        permitExpiry: dto.permitExpiry,
+        roadTaxStatus: dto.roadTaxStatus,
+        roadTaxExpiry: dto.roadTaxExpiry,
+        gpsEnabled: dto.gpsEnabled,
+        gpsDeviceId: dto.gpsDeviceId,
+        assignedDriverId: dto.assignedDriverId,
+        warehouseHubId: dto.warehouseHubId,
+        createdBy: actor,
       },
-    });
+      { forceHubId: hubId },
+    );
   }
 
-  async update(hubId: string, id: string, dto: HubVehicleUpdateDto) {
-    const vehicle = await this.prisma.vehicle.findFirst({
-      where: { id, hubId, deletedAt: null },
-    });
-    if (!vehicle) throw new NotFoundException('Vehicle not found');
-
-    return this.prisma.vehicle.update({
-      where: { id },
-      data: {
-        ...(dto.registration && { registration: dto.registration.toUpperCase() }),
-        ...(dto.capacity !== undefined && { capacity: dto.capacity }),
-        ...(dto.vehicleType && { vehicleType: dto.vehicleType as any }),
-        ...(dto.status && { status: dto.status as any }),
-        ...(dto.isActive !== undefined && { isActive: dto.isActive }),
+  async update(
+    hubId: string,
+    id: string,
+    dto: HubVehicleUpdateDto,
+    actor?: string,
+  ) {
+    return this.vehiclesService.update(
+      id,
+      {
+        registration: dto.registration,
+        capacity: dto.capacity,
+        payloadKg: dto.payloadKg,
+        vehicleType: dto.vehicleType,
+        vehicleCategory: dto.vehicleCategory,
+        fuelType: dto.fuelType,
+        manufacturer: dto.manufacturer,
+        model: dto.model,
+        manufactureYear: dto.manufactureYear,
+        vehicleColor: dto.vehicleColor,
+        fastagNumber: dto.fastagNumber,
+        odometerKm: dto.odometerKm,
+        emergencyContact: dto.emergencyContact,
+        remarks: dto.remarks,
+        registrationDate: dto.registrationDate,
+        insuranceNumber: dto.insuranceNumber,
+        insuranceExpiry: dto.insuranceExpiry,
+        fitnessCertificateNumber: dto.fitnessCertificateNumber,
+        fitnessExpiry: dto.fitnessExpiry,
+        pucNumber: dto.pucNumber,
+        pucExpiry: dto.pucExpiry,
+        permitType: dto.permitType,
+        permitNumber: dto.permitNumber,
+        permitExpiry: dto.permitExpiry,
+        roadTaxStatus: dto.roadTaxStatus,
+        roadTaxExpiry: dto.roadTaxExpiry,
+        gpsEnabled: dto.gpsEnabled,
+        gpsDeviceId: dto.gpsDeviceId,
+        assignedDriverId: dto.assignedDriverId,
+        status: dto.status as VehicleStatus | undefined,
+        isActive: dto.isActive,
+        updatedBy: actor,
       },
-      include: { driver: true },
-    });
+      { hubScope: hubId, allowHubChange: false },
+    );
   }
 
-  async remove(hubId: string, id: string) {
-    const vehicle = await this.prisma.vehicle.findFirst({
-      where: { id, hubId, deletedAt: null },
-    });
-    if (!vehicle) throw new NotFoundException('Vehicle not found');
+  async remove(hubId: string, id: string, actor?: string) {
+    return this.vehiclesService.softDelete(id, { hubScope: hubId, actor });
+  }
 
-    return this.prisma.vehicle.update({
-      where: { id },
-      data: { deletedAt: new Date(), isActive: false, status: 'INACTIVE' },
-    });
+  async stats(hubId: string) {
+    return this.vehiclesService.getStats({ hubId });
+  }
+
+  async dispatchHistory(hubId: string, id: string) {
+    return this.vehiclesService.getDispatchHistory(id, hubId);
+  }
+
+  async createDocumentUploadUrl(
+    hubId: string,
+    id: string,
+    dto: VehicleDocumentUploadUrlDto,
+  ) {
+    return this.vehiclesService.createDocumentUploadUrl(id, dto, hubId);
+  }
+
+  async confirmDocument(
+    hubId: string,
+    id: string,
+    dto: VehicleDocumentConfirmDto,
+    actor?: string,
+  ) {
+    return this.vehiclesService.confirmDocument(id, dto, actor, hubId);
+  }
+
+  async listDocuments(hubId: string, id: string) {
+    return this.vehiclesService.listDocuments(id, hubId);
+  }
+
+  async deleteDocument(hubId: string, vehicleId: string, documentId: string) {
+    return this.vehiclesService.deleteDocument(vehicleId, documentId, hubId);
   }
 }

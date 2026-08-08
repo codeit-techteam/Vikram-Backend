@@ -89,12 +89,16 @@ import { HubRequisitionTrackingController } from '../modules/requisitions/requis
 import { HubSearchController } from './search/hub-search.controller';
 import { HubSearchService } from './search/hub-search.service';
 import { RequisitionsModule } from '../modules/requisitions/requisitions.module';
+import { VehiclesModule } from '../modules/vehicles/vehicles.module';
+import { DriversModule } from '../modules/drivers/drivers.module';
 
 @Module({
   imports: [
     LoyaltyModule,
     InvoiceModule,
     RequisitionsModule,
+    VehiclesModule,
+    DriversModule,
     PassportModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],

@@ -28,7 +28,17 @@ export class HubAuthService {
     const normalizedId = employeeId.trim().toLowerCase();
     const user = await this.prisma.hubUser.findFirst({
       where: { employeeId: normalizedId, deletedAt: null },
-      include: { hub: { select: { id: true, name: true, isActive: true } } },
+      include: {
+        hub: {
+          select: {
+            id: true,
+            name: true,
+            code: true,
+            warehouseCode: true,
+            isActive: true,
+          },
+        },
+      },
     });
 
     if (!user) {
@@ -61,7 +71,11 @@ export class HubAuthService {
       data: { lastLoginAt: new Date() },
     });
 
-    const manager = this.mapHubManager(user, user.hub.name);
+    const manager = this.mapHubManager(user, {
+      name: user.hub.name,
+      code: user.hub.code,
+      warehouseCode: user.hub.warehouseCode,
+    });
     const tokens = await this.generateTokens(
       user.id,
       user.employeeId,
@@ -119,14 +133,22 @@ export class HubAuthService {
   async getMe(hubUserId: string): Promise<HubManagerProfileDto> {
     const user = await this.prisma.hubUser.findFirst({
       where: { id: hubUserId, deletedAt: null, isActive: true },
-      include: { hub: { select: { name: true, isActive: true } } },
+      include: {
+        hub: {
+          select: { name: true, code: true, warehouseCode: true, isActive: true },
+        },
+      },
     });
 
     if (!user) {
       throw new NotFoundException('Hub user not found');
     }
 
-    return this.mapHubManager(user, user.hub.name);
+    return this.mapHubManager(user, {
+      name: user.hub.name,
+      code: user.hub.code,
+      warehouseCode: user.hub.warehouseCode,
+    });
   }
 
   async requestPasswordReset(employeeId: string): Promise<{ requested: boolean }> {
@@ -199,7 +221,7 @@ export class HubAuthService {
       hubId: string;
       lastLoginAt: Date | null;
     },
-    hubName: string,
+    hub: { name: string; code: string; warehouseCode?: string | null },
   ): HubManagerProfileDto {
     return {
       id: user.id,
@@ -211,7 +233,9 @@ export class HubAuthService {
       phone: user.phone,
       role: user.role,
       hubId: user.hubId,
-      hubName,
+      hubName: hub.name,
+      hubCode: hub.code,
+      warehouseCode: hub.warehouseCode ?? null,
       lastLoginAt: user.lastLoginAt,
     };
   }

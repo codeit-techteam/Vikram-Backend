@@ -9,6 +9,10 @@ import type { HubOperationStatus, OrderStatus, Prisma } from '../../../generated
 import { PrismaService } from '../../common/database/prisma.service';
 import { getOrderStatusLabel } from '../../modules/orders/order-lifecycle.constants';
 import { OrderEventsService } from '../../modules/orders/order-events.service';
+import {
+  evaluateVehicleCompliance,
+  RUNNING_VEHICLE_STATUSES,
+} from '../../modules/vehicles/vehicle-compliance.util';
 import { generateDispatchNo } from '../common/hub-date.util';
 import { HubOrderRepository } from '../repositories/hub-order.repository';
 import type {
@@ -20,6 +24,34 @@ import type {
   HubVerifyDeliveryOtpDto,
 } from '../dto/hub.dto';
 import { HubOrdersService } from '../orders/hub-orders.service';
+
+/** Estimate order weight in tons from line items (kg → tons, ton/t as-is). */
+function estimateOrderWeightTons(
+  items: Array<{ quantity: number; unit: string }>,
+): number | null {
+  if (!items?.length) return null;
+  let tons = 0;
+  let hasWeight = false;
+  for (const item of items) {
+    const unit = (item.unit || '').toLowerCase().trim();
+    const qty = Number(item.quantity) || 0;
+    if (unit === 'kg' || unit === 'kgs' || unit === 'kilogram' || unit === 'kilograms') {
+      tons += qty / 1000;
+      hasWeight = true;
+    } else if (
+      unit === 't' ||
+      unit === 'ton' ||
+      unit === 'tons' ||
+      unit === 'tonne' ||
+      unit === 'tonnes' ||
+      unit === 'mt'
+    ) {
+      tons += qty;
+      hasWeight = true;
+    }
+  }
+  return hasWeight ? tons : null;
+}
 
 const PENDING_DISPATCH_STATUSES: OrderStatus[] = [
   'PACKED',
@@ -249,8 +281,10 @@ export class HubDispatchService {
 
     return vehicles
       .filter((v) => !busy.has(v.id))
+      .filter((v) => evaluateVehicleCompliance(v).isCompliant)
       .map((v) => {
         const capacity = Number(v.capacity);
+        const compliance = evaluateVehicleCompliance(v);
         return {
           id: v.id,
           registrationNo: v.registration,
@@ -268,6 +302,9 @@ export class HubDispatchService {
           currentHub: hub?.name ?? null,
           hubId,
           rating: null,
+          compliance,
+          insuranceExpiry: v.insuranceExpiry,
+          fitnessExpiry: v.fitnessExpiry,
         };
       });
   }
@@ -386,7 +423,12 @@ export class HubDispatchService {
           where: { hubId, isActive: true, deletedAt: null, status: 'AVAILABLE' },
         }),
         this.prisma.vehicle.count({
-          where: { hubId, isActive: true, deletedAt: null, status: 'IN_USE' },
+          where: {
+            hubId,
+            isActive: true,
+            deletedAt: null,
+            status: { in: [...RUNNING_VEHICLE_STATUSES] },
+          },
         }),
         this.prisma.vehicle.count({
           where: { hubId, isActive: true, deletedAt: null, status: 'MAINTENANCE' },
@@ -417,7 +459,12 @@ export class HubDispatchService {
       _sum: { capacity: true },
     });
     const usedCapacityAgg = await this.prisma.vehicle.aggregate({
-      where: { hubId, isActive: true, deletedAt: null, status: 'IN_USE' },
+      where: {
+        hubId,
+        isActive: true,
+        deletedAt: null,
+        status: { in: [...RUNNING_VEHICLE_STATUSES] },
+      },
       _sum: { capacity: true },
     });
 
@@ -721,7 +768,26 @@ export class HubDispatchService {
       });
       if (!vehicle) throw new BadRequestException('Vehicle not found at this hub');
       if (vehicle.status !== 'AVAILABLE') {
-        throw new ConflictException('Vehicle is not available');
+        throw new ConflictException(
+          vehicle.status === 'OUT_FOR_DELIVERY'
+            ? 'Vehicle is currently out for delivery.'
+            : 'Vehicle is not available.',
+        );
+      }
+
+      const compliance = evaluateVehicleCompliance(vehicle);
+      if (!compliance.isCompliant) {
+        throw new ConflictException(compliance.blockReasons[0]);
+      }
+
+      const orderWeightTons = estimateOrderWeightTons(order.items ?? []);
+      if (orderWeightTons != null && orderWeightTons > 0) {
+        const capacity = Number(vehicle.capacity ?? 0);
+        if (capacity > 0 && orderWeightTons > capacity) {
+          throw new BadRequestException(
+            'Vehicle capacity is insufficient for this order.',
+          );
+        }
       }
 
       const activeDriverDispatch = await tx.hubDispatch.findFirst({
@@ -813,7 +879,23 @@ export class HubDispatchService {
 
       await tx.vehicle.update({
         where: { id: dto.vehicleId },
-        data: { status: 'IN_USE' },
+        data: {
+          status: 'OUT_FOR_DELIVERY',
+          currentOrderId: dto.orderId,
+          currentDispatchId: dispatch.id,
+        },
+      });
+
+      await tx.vehicleStatusHistory.create({
+        data: {
+          vehicleId: dto.vehicleId,
+          fromStatus: vehicle.status,
+          toStatus: 'OUT_FOR_DELIVERY',
+          changedBy: updatedBy,
+          reason: `Dispatched ${dispatch.dispatchNo}`,
+          orderId: dto.orderId,
+          dispatchId: dispatch.id,
+        },
       });
 
       const updatedOrder = await tx.order.update({
@@ -957,6 +1039,23 @@ export class HubDispatchService {
 
   async markReached(hubId: string, id: string, updatedBy: string, dto?: HubOrderActionDto) {
     const dispatch = await this.requireDispatch(hubId, id);
+    if (dispatch.vehicleId) {
+      await this.prisma.vehicle.update({
+        where: { id: dispatch.vehicleId },
+        data: { status: 'REACHED' },
+      });
+      await this.prisma.vehicleStatusHistory.create({
+        data: {
+          vehicleId: dispatch.vehicleId,
+          fromStatus: 'OUT_FOR_DELIVERY',
+          toStatus: 'REACHED',
+          changedBy: updatedBy,
+          reason: 'Driver reached customer',
+          orderId: dispatch.orderId,
+          dispatchId: dispatch.id,
+        },
+      });
+    }
     return this.ordersService.markDriverReached(
       hubId,
       dispatch.orderId,

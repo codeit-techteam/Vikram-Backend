@@ -29,6 +29,7 @@ import type {
   HubUpdateStatusDto,
   HubVerifyDeliveryOtpDto,
 } from '../dto/hub.dto';
+import { DriversService } from '../../modules/drivers/drivers.service';
 
 @Injectable()
 export class HubOrdersService {
@@ -40,6 +41,7 @@ export class HubOrdersService {
     private readonly loyaltyTransactionService: LoyaltyTransactionService,
     private readonly orderEvents: OrderEventsService,
     private readonly configService: ConfigService,
+    private readonly driversService: DriversService,
   ) {}
 
   async findAll(hubId: string, query: HubOrderQueryDto) {
@@ -520,7 +522,10 @@ export class HubOrdersService {
     if (order.assignedVehicleId) {
       await this.prisma.vehicle.update({
         where: { id: order.assignedVehicleId },
-        data: { status: 'IN_USE' },
+        data: {
+          status: 'OUT_FOR_DELIVERY',
+          currentOrderId: orderId,
+        },
       });
     }
 
@@ -571,6 +576,23 @@ export class HubOrdersService {
       where: { id: orderId },
       data: { driverReachedAt: now },
     });
+
+    if (order.assignedVehicleId) {
+      await this.prisma.vehicle.update({
+        where: { id: order.assignedVehicleId },
+        data: { status: 'REACHED' },
+      });
+      await this.prisma.vehicleStatusHistory.create({
+        data: {
+          vehicleId: order.assignedVehicleId,
+          fromStatus: 'OUT_FOR_DELIVERY',
+          toStatus: 'REACHED',
+          changedBy: updatedBy,
+          reason: dto.remarks ?? 'Driver reached customer',
+          orderId,
+        },
+      });
+    }
 
     await this.orderRepo.addTimeline(
       orderId,
@@ -752,7 +774,21 @@ export class HubOrdersService {
     if (order.assignedVehicleId) {
       await this.prisma.vehicle.update({
         where: { id: order.assignedVehicleId },
-        data: { status: 'AVAILABLE' },
+        data: {
+          status: 'AVAILABLE',
+          currentOrderId: null,
+          currentDispatchId: null,
+        },
+      });
+      await this.prisma.vehicleStatusHistory.create({
+        data: {
+          vehicleId: order.assignedVehicleId,
+          fromStatus: 'REACHED',
+          toStatus: 'AVAILABLE',
+          changedBy: updatedBy,
+          reason: 'Delivery completed',
+          orderId,
+        },
       });
     }
 
@@ -835,10 +871,7 @@ export class HubOrdersService {
     updatedBy: string,
   ) {
     await this.orderRepo.findHubOrder(orderId, hubId);
-    const driver = await this.prisma.driver.findFirst({
-      where: { id: dto.driverId, hubId, isActive: true, deletedAt: null },
-    });
-    if (!driver) throw new BadRequestException('Driver not found at this hub');
+    const driver = await this.driversService.assertAssignable(dto.driverId, hubId);
 
     const vehicleId = dto.vehicleId;
     if (vehicleId) {
@@ -852,7 +885,7 @@ export class HubOrdersService {
       ? new Date(dto.expectedDeliveryAt)
       : undefined;
 
-    return this.transitionOrder(
+    const result = await this.transitionOrder(
       hubId,
       orderId,
       'DRIVER_ASSIGNED',
@@ -864,6 +897,9 @@ export class HubOrdersService {
       },
       `Driver Assigned: ${driver.name}`,
     );
+
+    await this.driversService.syncAvailabilityFromOrders(dto.driverId);
+    return result;
   }
 
   async assignVehicle(hubId: string, orderId: string, dto: HubAssignVehicleDto, updatedBy: string) {

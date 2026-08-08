@@ -138,6 +138,10 @@ import { WarehouseRequisitionsController } from './requisitions/warehouse-requis
 import { AdminHubReceivingController } from './hub-receiving/admin-hub-receiving.controller';
 import { RequisitionTrackingController } from '../modules/requisitions/requisition-tracking.controller';
 import { RequisitionsModule } from '../modules/requisitions/requisitions.module';
+import { VehiclesModule } from '../modules/vehicles/vehicles.module';
+import { AdminVehiclesController } from './vehicles/admin-vehicles.controller';
+import { DriversModule } from '../modules/drivers/drivers.module';
+import { AdminDriversController } from './drivers/admin-drivers.controller';
 
 // Shared modules
 import { OrdersModule } from '../modules/orders/orders.module';
@@ -157,6 +161,8 @@ import { LoyaltyModule } from '../modules/loyalty/loyalty.module';
     HubModule,
     LoyaltyModule,
     RequisitionsModule,
+    VehiclesModule,
+    DriversModule,
     CustomerSitesModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
@@ -203,6 +209,8 @@ import { LoyaltyModule } from '../modules/loyalty/loyalty.module';
     WarehouseRequisitionsController,
     AdminHubReceivingController,
     RequisitionTrackingController,
+    AdminVehiclesController,
+    AdminDriversController,
   ],
   providers: [
     AdminJwtStrategy,

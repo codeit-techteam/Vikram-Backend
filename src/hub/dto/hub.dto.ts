@@ -3,6 +3,7 @@ import { Type } from 'class-transformer';
 import {
   IsArray,
   IsBoolean,
+  IsDateString,
   IsEnum,
   IsInt,
   IsNotEmpty,
@@ -444,6 +445,51 @@ export class HubDriverCreateDto {
   @IsOptional()
   @IsUUID()
   vehicleId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  licenseNumber?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  licenseExpiry?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  alternatePhone?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  email?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  bloodGroup?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  joiningDate?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  address?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  emergencyContactName?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  emergencyContactNumber?: string;
 }
 
 export class HubDriverUpdateDto {
@@ -471,6 +517,51 @@ export class HubDriverUpdateDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  licenseNumber?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  licenseExpiry?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  alternatePhone?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  email?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  bloodGroup?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  joiningDate?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  address?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  emergencyContactName?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  emergencyContactNumber?: string;
 }
 
 export class HubVehicleCreateDto {
@@ -489,6 +580,145 @@ export class HubVehicleCreateDto {
   @IsOptional()
   @IsString()
   vehicleType?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  payloadKg?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  vehicleCategory?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  fuelType?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  manufacturer?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  model?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  manufactureYear?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  vehicleColor?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  fastagNumber?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  odometerKm?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  emergencyContact?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  remarks?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  registrationDate?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  insuranceNumber?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  insuranceExpiry?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  fitnessCertificateNumber?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  fitnessExpiry?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  pucNumber?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  pucExpiry?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  permitType?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  permitNumber?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  permitExpiry?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  roadTaxStatus?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  roadTaxExpiry?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  gpsEnabled?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  gpsDeviceId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  assignedDriverId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  warehouseHubId?: string;
 }
 
 export class HubVehicleUpdateDto {
@@ -506,8 +736,142 @@ export class HubVehicleUpdateDto {
 
   @ApiPropertyOptional()
   @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  payloadKg?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsString()
   vehicleType?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  vehicleCategory?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  fuelType?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  manufacturer?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  model?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  manufactureYear?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  vehicleColor?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  fastagNumber?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  odometerKm?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  emergencyContact?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  remarks?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  registrationDate?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  insuranceNumber?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  insuranceExpiry?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  fitnessCertificateNumber?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  fitnessExpiry?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  pucNumber?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  pucExpiry?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  permitType?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  permitNumber?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  permitExpiry?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  roadTaxStatus?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  roadTaxExpiry?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  gpsEnabled?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  gpsDeviceId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  assignedDriverId?: string | null;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -534,27 +898,66 @@ export class HubNotificationReadDto {
 }
 
 export class HubSearchQueryDto extends HubPaginationQueryDto {
-  @ApiProperty({ enum: ['orders', 'products', 'drivers', 'vehicles', 'inventory'] })
+  @ApiPropertyOptional({
+    enum: [
+      'all',
+      'orders',
+      'products',
+      'drivers',
+      'vehicles',
+      'inventory',
+      'dispatches',
+      'requisitions',
+    ],
+    default: 'all',
+  })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  type!: string;
+  type?: string;
 
-  @ApiProperty()
+  @ApiProperty({ description: 'Search query (order no, SKU, truck, driver…)' })
   @IsString()
   @IsNotEmpty()
   q!: string;
 }
 
 export class HubReportsQueryDto {
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({
+    enum: [
+      'today',
+      'last_7_days',
+      'last_30_days',
+      'last_90_days',
+      'this_month',
+      'last_month',
+      'custom',
+    ],
+  })
+  @IsOptional()
+  @IsString()
+  period?: string;
+
+  @ApiPropertyOptional({ description: 'ISO date / datetime (range start)' })
   @IsOptional()
   @IsString()
   fromDate?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: 'ISO date / datetime (range end)' })
   @IsOptional()
   @IsString()
   toDate?: string;
+
+  /** Alias for fromDate */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  from?: string;
+
+  /** Alias for toDate */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  to?: string;
 }
 
 export class HubInventoryQueryDto extends HubPaginationQueryDto {

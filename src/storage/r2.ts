@@ -139,6 +139,24 @@ export async function getSignedObjectUrl(
   );
 }
 
+export async function getSignedUploadUrl(
+  client: S3Client,
+  bucket: string,
+  key: string,
+  contentType: string,
+  expiresInSeconds = 60 * 15,
+): Promise<string> {
+  return getSignedUrl(
+    client,
+    new PutObjectCommand({
+      Bucket: bucket,
+      Key: key,
+      ContentType: contentType,
+    }),
+    { expiresIn: expiresInSeconds },
+  );
+}
+
 export async function uploadBuffer(
   client: S3Client,
   config: R2Config,
