@@ -124,14 +124,29 @@ export class CmsEmergencyBannerDto {
   dismissible!: boolean;
 }
 
+export class CmsCategoryDto {
+  id!: string;
+  slug!: string;
+  name!: string;
+  nameHi!: string | null;
+  description!: string | null;
+  imageUrl!: string | null;
+  iconUrl!: string | null;
+  displayOrder!: number;
+  isFeatured!: boolean;
+}
+
 export class CmsHomeResponseDto {
   sections!: CmsHomeSectionDto[];
   banners!: CmsBannerDto[];
   /** Alias for image hero carousel — same as banners filtered to HOME_HERO */
   heroBanners!: CmsBannerDto[];
   ads!: CmsAdvertisementDto[];
-  /** Alias for brand ads */
+  /** Alias for brand ads / shop-from-catalogs cards */
   brandAdvertisements!: CmsAdvertisementDto[];
+  /** Alias used by clients expecting catalogs[] */
+  catalogs!: CmsAdvertisementDto[];
+  categories!: CmsCategoryDto[];
   testimonials!: CmsTestimonialDto[];
   promotions!: CmsPromotionDto[];
   videoBanners!: CmsBannerDto[];

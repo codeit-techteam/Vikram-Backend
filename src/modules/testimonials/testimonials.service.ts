@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../common/database/prisma.service';
 import { CacheService } from '../../common/cache/cache.service';
 import { CACHE_KEYS, CACHE_TTL } from '../../common/cache/cache.constants';
+import { normalizeMediaUrl } from '../../common/utils/media-url';
 import { TestimonialResponseDto } from './dto/testimonials.dto';
 
 @Injectable()
@@ -46,10 +47,10 @@ export class TestimonialsService {
     return {
       id: item.id,
       type: item.type,
-      videoUrl: item.videoUrl,
-      thumbnail: item.thumbnail,
-      imageUrl: item.imageUrl,
-      profileImage: item.profileImage,
+      videoUrl: normalizeMediaUrl(item.videoUrl),
+      thumbnail: normalizeMediaUrl(item.thumbnail),
+      imageUrl: normalizeMediaUrl(item.imageUrl),
+      profileImage: normalizeMediaUrl(item.profileImage),
       customerName: item.customerName,
       designation: item.designation,
       location: item.location,

@@ -766,7 +766,56 @@ async function main() {
     }
   }
 
-  console.log(`Seeded ${hubs.length} hubs with inventory for ${allProducts.length} products.`);
+  // Central / Mother Warehouse — master stock source
+  const centralWarehouse = await prisma.hub.upsert({
+    where: { code: 'WH-GURUGRAM' },
+    update: {
+      name: 'Main Warehouse Gurugram',
+      hubType: 'CENTRAL_WAREHOUSE',
+      warehouseId: 'wh-main-gurugram',
+      warehouseCode: 'Main Warehouse Gurugram',
+      isActive: true,
+    },
+    create: {
+      code: 'WH-GURUGRAM',
+      name: 'Main Warehouse Gurugram',
+      addressLine1: 'Sector 18, Gurugram',
+      city: 'Gurugram',
+      state: 'Haryana',
+      pincode: '122015',
+      latitude: 28.4595,
+      longitude: 77.0266,
+      hubType: 'CENTRAL_WAREHOUSE',
+      warehouseId: 'wh-main-gurugram',
+      warehouseCode: 'Main Warehouse Gurugram',
+      isActive: true,
+    },
+  });
+
+  for (const product of allProducts) {
+    await prisma.hubInventory.upsert({
+      where: {
+        hubId_productId: {
+          hubId: centralWarehouse.id,
+          productId: product.id,
+        },
+      },
+      update: {},
+      create: {
+        hubId: centralWarehouse.id,
+        productId: product.id,
+        availableQty: 3500,
+        reservedQty: 0,
+        lowStockThreshold: 100,
+        minimumStock: 100,
+        maximumStock: 20000,
+      },
+    });
+  }
+
+  console.log(
+    `Seeded ${hubs.length} hubs + central warehouse with inventory for ${allProducts.length} products.`,
+  );
 
   // ─── Hub Panel Users, Drivers & Vehicles ────────────────────────────────────
 
@@ -1148,10 +1197,12 @@ async function main() {
       designation: 'Site Engineer',
       company: 'Sharma Infra',
       location: 'Mumbai',
+      city: 'Mumbai',
       rating: 5,
       review: 'Bajriwala delivered 200 bags of cement within 90 minutes. Lifesaver for our project timeline.',
-      videoUrl: '/assets/testimonials/amit-sharma.mp4',
-      thumbnail: 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=400',
+      // Absolute CDN URL — replace via Admin upload to store permanently in R2
+      videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
+      thumbnail: 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=800',
       sortOrder: 1,
       isPublished: true,
     },
@@ -1161,9 +1212,10 @@ async function main() {
       designation: 'Interior Designer',
       company: 'Desai Studios',
       location: 'Pune',
+      city: 'Pune',
       rating: 5,
       review: 'Membership pricing and bulk quotes saved us over ₹40,000 on our last project.',
-      imageUrl: 'https://images.unsplash.com/photo-1581094794329-cd11a4e4b8a8?w=400',
+      imageUrl: 'https://images.unsplash.com/photo-1581094794329-cd11a4e4b8a8?w=800',
       sortOrder: 2,
       isPublished: true,
     },
@@ -1173,9 +1225,10 @@ async function main() {
       designation: 'Builder',
       company: 'Patel Builders',
       location: 'Ahmedabad',
+      city: 'Ahmedabad',
       rating: 4,
       review: 'Reliable material quality and transparent invoicing. Our go-to marketplace for construction supplies.',
-      imageUrl: 'https://images.unsplash.com/photo-1541888946425-d81bb19240f5?w=400',
+      imageUrl: 'https://images.unsplash.com/photo-1541888946425-d81bb19240f5?w=800',
       sortOrder: 3,
       isPublished: true,
     },
@@ -1187,6 +1240,21 @@ async function main() {
     });
     if (!existing) {
       await prisma.testimonial.create({ data: testimonial });
+    } else {
+      // Repair legacy /assets media paths so Admin + Customer App stay in sync
+      await prisma.testimonial.update({
+        where: { id: existing.id },
+        data: {
+          city: testimonial.city,
+          location: testimonial.location,
+          videoUrl: testimonial.videoUrl ?? existing.videoUrl,
+          thumbnail: testimonial.thumbnail ?? existing.thumbnail,
+          imageUrl: testimonial.imageUrl ?? existing.imageUrl,
+          review: testimonial.review,
+          rating: testimonial.rating,
+          isPublished: true,
+        },
+      });
     }
   }
 

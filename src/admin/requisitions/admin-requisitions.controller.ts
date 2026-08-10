@@ -23,6 +23,7 @@ import { RequisitionsService } from '../../modules/requisitions/requisitions.ser
 import {
   AllocateRequisitionDto,
   ApproveRequisitionDto,
+  AssignLogisticsDto,
   DispatchRequisitionDto,
   RejectRequisitionDto,
   RequisitionCommentDto,
@@ -50,8 +51,8 @@ export class AdminRequisitionsController {
   @Get('stats')
   @AdminRoles(...ROLE_GROUPS.WAREHOUSE)
   @ApiOperation({ summary: 'Warehouse requisition dashboard stats' })
-  async stats() {
-    const data = await this.requisitionsService.getStats();
+  async stats(@Query('hubId') hubId?: string) {
+    const data = await this.requisitionsService.getStats(hubId);
     return { success: true, message: 'Requisition stats fetched', data };
   }
 
@@ -59,7 +60,11 @@ export class AdminRequisitionsController {
   @AdminRoles(...ROLE_GROUPS.WAREHOUSE)
   @ApiOperation({ summary: 'List all requisitions' })
   async findAll(@Query() query: RequisitionPaginationQueryDto) {
-    const data = await this.requisitionsService.findAll(query, undefined, 'admin');
+    const data = await this.requisitionsService.findAll(
+      query,
+      query.hubId,
+      'admin',
+    );
     return { success: true, message: 'Requisitions fetched', data };
   }
 
@@ -141,6 +146,33 @@ export class AdminRequisitionsController {
       newValue: { status: 'ALLOCATED' },
     });
     return { success: true, message: 'Requisition allocated', data };
+  }
+
+  @Patch(':id/assign-logistics')
+  @AdminRoles(...ROLE_GROUPS.WAREHOUSE)
+  @ApiOperation({ summary: 'Assign vehicle/driver to allocated transfer' })
+  async assignLogistics(
+    @Param('id') id: string,
+    @Body() dto: AssignLogisticsDto,
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+  ) {
+    const data = await this.requisitionsService.assignLogistics(
+      id,
+      this.actor(admin),
+      dto,
+    );
+    await this.auditService.log({
+      adminUserId: admin.id,
+      adminEmail: admin.email,
+      action: 'UPDATE',
+      resource: 'requisition',
+      resourceId: id,
+      newValue: {
+        vehicleId: dto.vehicleId,
+        driverId: dto.driverId,
+      },
+    });
+    return { success: true, message: 'Logistics assigned', data };
   }
 
   @Patch(':id/dispatch')

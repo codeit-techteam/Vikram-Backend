@@ -71,6 +71,8 @@ export class CacheService {
 
   async invalidateCms(): Promise<void> {
     await this.invalidatePattern(CACHE_PATTERNS.CMS);
+    // Standalone GET /testimonials uses testimonials:published (not cms:*)
+    await this.invalidatePattern(CACHE_PATTERNS.TESTIMONIALS);
   }
 
   async invalidateCategories(): Promise<void> {

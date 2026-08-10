@@ -28,6 +28,7 @@
     "prisma:seed:catalog": "tsx prisma/seedCatalog.ts",
     "media:migrate-hero-video": "tsx --env-file=.env prisma/scripts/migrate-hero-video-to-r2.ts",
     "media:migrate-catalog-images": "tsx --env-file=.env prisma/scripts/migrate-catalog-images-to-r2.ts",
+    "media:migrate-testimonials": "tsx --env-file=.env prisma/scripts/migrate-testimonials-to-r2.ts",
     "postinstall": "prisma generate"
   },
   "prisma": {

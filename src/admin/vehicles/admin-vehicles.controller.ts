@@ -167,7 +167,7 @@ export class AdminVehiclesController {
   }
 
   @Patch(':id/status')
-  @AdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
+  @AdminRoles(...ROLE_GROUPS.WAREHOUSE)
   @ApiOperation({ summary: 'Change vehicle status (maintenance/inactive/etc.)' })
   async status(
     @Param('id') id: string,

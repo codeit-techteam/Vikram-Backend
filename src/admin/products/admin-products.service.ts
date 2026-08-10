@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/database/prisma.service';
 import { CacheService } from '../../common/cache/cache.service';
 import type {
@@ -8,12 +8,42 @@ import type {
   ProductQueryDto,
 } from './dto/admin-products.dto';
 
+const MAIN_WAREHOUSE_CODE = 'WH-GURUGRAM';
+
 @Injectable()
 export class AdminProductsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly cache: CacheService,
   ) {}
+
+  private async resolveCentralWarehouse() {
+    let warehouse = await this.prisma.hub.findFirst({
+      where: {
+        deletedAt: null,
+        OR: [{ code: MAIN_WAREHOUSE_CODE }, { hubType: 'CENTRAL_WAREHOUSE' }],
+      },
+    });
+    if (!warehouse) {
+      warehouse = await this.prisma.hub.create({
+        data: {
+          code: MAIN_WAREHOUSE_CODE,
+          name: 'Main Warehouse Gurugram',
+          addressLine1: 'Sector 18, Gurugram',
+          city: 'Gurugram',
+          state: 'Haryana',
+          pincode: '122015',
+          latitude: 28.4595,
+          longitude: 77.0266,
+          hubType: 'CENTRAL_WAREHOUSE',
+          warehouseId: 'wh-main-gurugram',
+          warehouseCode: 'Main Warehouse Gurugram',
+          isActive: true,
+        },
+      });
+    }
+    return warehouse;
+  }
 
   async findAll(query: ProductQueryDto) {
     const page = query.page ?? 1;
@@ -84,42 +114,104 @@ export class AdminProductsService {
   }
 
   async create(dto: CreateProductDto & { imageUrls?: string[]; isVisible?: boolean }) {
-    const product = await this.prisma.product.create({
-      data: {
-        name: dto.name,
-        nameHi: dto.nameHi,
-        slug: dto.slug,
-        sku: dto.sku,
-        categoryId: dto.categoryId,
-        brand: dto.brand,
-        description: dto.description,
-        grade: dto.grade,
-        retailPrice: dto.retailPrice,
-        mrp: dto.mrp,
-        bulkPrice: dto.bulkPrice,
-        membershipPrice: dto.membershipPrice,
-        bulkThreshold: dto.bulkThreshold ?? 50,
-        unit: dto.unit ?? 'Bag',
-        minOrder: dto.minOrder ?? 1,
-        maxOrder: dto.maxOrder,
-        gst: dto.gst ?? 18,
-        isFeatured: dto.isFeatured ?? false,
-        isBestSelling: dto.isBestSelling ?? false,
-        listingType: (dto.listingType as any) ?? 'STANDARD',
-        displayOrder: dto.displayOrder ?? 0,
-        isVisible: dto.isVisible ?? true,
-        images: dto.imageUrls?.length
-          ? {
-              create: dto.imageUrls.map((url, index) => ({
-                url,
-                displayOrder: index,
-                isPrimary: index === 0,
-              })),
-            }
-          : undefined,
-      },
-      include: { images: true, category: true },
+    if (dto.sku) {
+      const existingSku = await this.prisma.product.findFirst({
+        where: { sku: dto.sku, deletedAt: null },
+      });
+      if (existingSku) {
+        throw new BadRequestException('SKU already exists');
+      }
+    }
+
+    const warehouse =
+      dto.initialStock !== undefined || dto.lowStockThreshold !== undefined
+        ? await this.resolveCentralWarehouse()
+        : null;
+
+    const product = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.product.create({
+        data: {
+          name: dto.name,
+          nameHi: dto.nameHi,
+          slug: dto.slug,
+          sku: dto.sku,
+          categoryId: dto.categoryId,
+          brand: dto.brand,
+          description: dto.description,
+          grade: dto.grade,
+          retailPrice: dto.retailPrice,
+          mrp: dto.mrp,
+          bulkPrice: dto.bulkPrice,
+          membershipPrice: dto.membershipPrice,
+          bulkThreshold: dto.bulkThreshold ?? 50,
+          unit: dto.unit ?? 'Bag',
+          minOrder: dto.minOrder ?? 1,
+          maxOrder: dto.maxOrder,
+          gst: dto.gst ?? 18,
+          isFeatured: dto.isFeatured ?? false,
+          isBestSelling: dto.isBestSelling ?? false,
+          listingType: (dto.listingType as any) ?? 'STANDARD',
+          displayOrder: dto.displayOrder ?? 0,
+          isVisible: dto.isVisible ?? true,
+          stockLeft: dto.initialStock ?? 0,
+          images: dto.imageUrls?.length
+            ? {
+                create: dto.imageUrls.map((url, index) => ({
+                  url,
+                  displayOrder: index,
+                  isPrimary: index === 0,
+                })),
+              }
+            : undefined,
+        },
+        include: { images: true, category: true },
+      });
+
+      if (warehouse) {
+        const initial = dto.initialStock ?? 0;
+        await tx.hubInventory.upsert({
+          where: {
+            hubId_productId: { hubId: warehouse.id, productId: created.id },
+          },
+          create: {
+            hubId: warehouse.id,
+            productId: created.id,
+            availableQty: initial,
+            reservedQty: 0,
+            lowStockThreshold: dto.lowStockThreshold ?? 10,
+            minimumStock: dto.minimumStock ?? dto.lowStockThreshold ?? 0,
+            maximumStock: dto.maximumStock,
+          },
+          update: {
+            availableQty: initial,
+            lowStockThreshold: dto.lowStockThreshold ?? 10,
+            minimumStock: dto.minimumStock ?? dto.lowStockThreshold ?? 0,
+            ...(dto.maximumStock !== undefined && {
+              maximumStock: dto.maximumStock,
+            }),
+          },
+        });
+
+        if (initial > 0) {
+          await tx.inventoryLedgerEntry.create({
+            data: {
+              hubId: warehouse.id,
+              productId: created.id,
+              type: 'ADJUSTMENT',
+              quantity: initial,
+              openingQty: 0,
+              closingQty: initial,
+              referenceNo: `INIT-${created.sku ?? created.id.slice(0, 8)}`,
+              remarks: 'INITIAL_STOCK',
+              createdBy: 'system',
+            },
+          });
+        }
+      }
+
+      return created;
     });
+
     await this.cache.invalidateProducts();
     return product;
   }

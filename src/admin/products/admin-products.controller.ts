@@ -38,7 +38,7 @@ export class AdminProductsController {
   }
 
   @Post()
-  @AdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
+  @AdminRoles(...ROLE_GROUPS.WAREHOUSE)
   @ApiOperation({ summary: 'Create a product' })
   async create(@Body() dto: CreateProductDto, @CurrentAdmin() admin: AuthenticatedAdmin) {
     const data = await this.productsService.create(dto);

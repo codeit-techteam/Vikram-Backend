@@ -71,8 +71,12 @@ export class AdminHubsService {
 
     const where: Prisma.HubWhereInput = {
       deletedAt: null,
-      // Hide consolidated duplicate hubs from Admin network views
-      NOT: { name: { contains: '(merged)', mode: 'insensitive' } },
+      AND: [
+        // Hide consolidated duplicate hubs from Admin network views
+        { NOT: { name: { contains: '(merged)', mode: 'insensitive' } } },
+        // Sub-Hub Network excludes the central warehouse node
+        { NOT: { hubType: 'CENTRAL_WAREHOUSE' } },
+      ],
     };
 
     if (query.search) {
@@ -167,9 +171,15 @@ export class AdminHubsService {
       pendingCounts.map((row) => [row.hubId, row._count._all]),
     );
 
+    const metricsByHub = await this.getNetworkMetricsByHub(hubIds);
+
     return {
       data: hubs.map((hub) =>
-        this.mapHubListItem(hub, pendingByHub.get(hub.id) ?? 0),
+        this.mapHubListItem(
+          hub,
+          pendingByHub.get(hub.id) ?? 0,
+          metricsByHub.get(hub.id),
+        ),
       ),
       meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
     };
@@ -239,7 +249,10 @@ export class AdminHubsService {
   }
 
   async create(dto: CreateAdminHubDto, adminId: string, adminEmail: string) {
-    const code = dto.code.trim().toUpperCase();
+    const code = (
+      dto.code?.trim() ||
+      (await this.generateHubCode(dto.city, dto.state, dto.name))
+    ).toUpperCase();
 
     const existing = await this.prisma.hub.findFirst({
       where: { code, deletedAt: null },
@@ -286,7 +299,10 @@ export class AdminHubsService {
   } as const;
 
   async provision(dto: ProvisionHubDto, adminId: string, adminEmail: string) {
-    const code = dto.code.trim().toUpperCase();
+    const code = (
+      dto.code?.trim() ||
+      (await this.generateHubCode(dto.city, dto.state, dto.name))
+    ).toUpperCase();
 
     const existing = await this.prisma.hub.findFirst({
       where: { code, deletedAt: null },
@@ -957,20 +973,59 @@ export class AdminHubsService {
   async remove(id: string, adminId: string, adminEmail: string) {
     await this.getHubOrThrow(id);
 
+    const [inventoryCount, orderCount, requisitionCount, dispatchCount] =
+      await Promise.all([
+        this.prisma.hubInventory.count({ where: { hubId: id } }),
+        this.prisma.order.count({ where: { hubId: id, deletedAt: null } }),
+        this.prisma.requisition.count({ where: { hubId: id } }),
+        this.prisma.hubDispatch.count({ where: { hubId: id } }),
+      ]);
+
+    const hasOperationalHistory =
+      inventoryCount > 0 ||
+      orderCount > 0 ||
+      requisitionCount > 0 ||
+      dispatchCount > 0;
+
+    // Never hard-delete hubs with history — deactivate / soft-delete only.
     const updated = await this.prisma.hub.update({
       where: { id },
-      data: { deletedAt: new Date(), isActive: false, status: EntityStatus.INACTIVE },
+      data: hasOperationalHistory
+        ? {
+            isActive: false,
+            status: EntityStatus.INACTIVE,
+          }
+        : {
+            deletedAt: new Date(),
+            isActive: false,
+            status: EntityStatus.INACTIVE,
+          },
     });
 
     await this.auditService.log({
       adminUserId: adminId,
       adminEmail,
-      action: 'DELETE',
+      action: 'UPDATE',
       resource: 'Hub',
       resourceId: id,
+      newValue: {
+        hasOperationalHistory,
+        inventoryCount,
+        orderCount,
+        requisitionCount,
+        dispatchCount,
+        softDeleted: !hasOperationalHistory,
+        deactivated: hasOperationalHistory,
+      },
     });
 
-    return this.mapHub(updated);
+    return {
+      ...this.mapHub(updated),
+      deactivatedOnly: hasOperationalHistory,
+      message: hasOperationalHistory
+        ? 'Hub has operational history and was deactivated instead of deleted'
+        : 'Hub soft-deleted',
+    };
   }
 
   async assignManager(
@@ -1052,35 +1107,458 @@ export class AdminHubsService {
     let lowStock = 0;
     let outOfStock = 0;
     let stockValue = 0;
+    let totalStock = 0;
+    let totalReserved = 0;
+    let totalFree = 0;
     const items = [];
 
     for (const row of rows) {
       const mapped = this.inventoryRepo.mapInventoryRow(row);
+      const onHand = mapped.currentStock;
+      const reserved = mapped.reservedStock;
+      const free = mapped.availableStock;
       totalProducts += 1;
+      totalStock += onHand;
+      totalReserved += reserved;
+      totalFree += free;
 
-      if (mapped.availableStock <= 0) {
+      if (free <= 0) {
         outOfStock += 1;
       } else if (mapped.lowStock) {
         lowStock += 1;
       }
 
       const price = Number(row.product.retailPrice ?? 0);
-      stockValue += mapped.currentStock * price;
-      items.push(mapped);
+      stockValue += onHand * price;
+      items.push({
+        ...mapped,
+        availableQty: onHand,
+        reservedQty: reserved,
+        freeQty: free,
+        reorderLevel: mapped.lowStockThreshold,
+        unit: row.product.unit,
+        category: row.product.category?.name ?? null,
+        imageUrl: mapped.imageUrl,
+        status:
+          free <= 0
+            ? 'OUT_OF_STOCK'
+            : mapped.lowStock
+              ? 'LOW_STOCK'
+              : 'IN_STOCK',
+      });
     }
 
     const inventoryHealth =
       totalProducts === 0
         ? 100
-        : Math.round(((totalProducts - outOfStock - lowStock * 0.5) / totalProducts) * 100);
+        : Math.round(
+            ((totalProducts - outOfStock - lowStock * 0.5) / totalProducts) *
+              100,
+          );
 
     return {
       totalProducts,
+      totalStock,
+      totalReserved,
+      totalFree,
       stockValue: Math.round(stockValue * 100) / 100,
       lowStock,
       outOfStock,
       inventoryHealth,
       items,
+    };
+  }
+
+  async getSummary(hubId: string) {
+    const hub = await this.getHubOrThrow(hubId);
+    const metrics = (await this.getNetworkMetricsByHub([hubId])).get(hubId);
+    const manager = await this.getActiveManager(hubId);
+    const inventorySummary = await this.getInventorySummary(hubId);
+
+    const pendingOrders = await this.prisma.order.count({
+      where: {
+        hubId,
+        deletedAt: null,
+        orderStatus: { in: PENDING_STATUSES },
+      },
+    });
+
+    const healthStatus = this.deriveDisplayHealth(
+      hub.isActive,
+      hub.status,
+      inventorySummary.inventoryHealth,
+      inventorySummary.outOfStock,
+      inventorySummary.lowStock,
+    );
+
+    return {
+      hub: this.mapHub(hub),
+      manager,
+      inventoryHealth: inventorySummary.inventoryHealth,
+      healthStatus,
+      totalStock: inventorySummary.totalStock,
+      totalReserved: inventorySummary.totalReserved,
+      totalFree: inventorySummary.totalFree,
+      stockValue: inventorySummary.stockValue,
+      pendingOrders,
+      requisitions: metrics?.pendingRequisitions ?? 0,
+      incomingTransfers: metrics?.incomingTransfers ?? 0,
+      outgoingTransfers: metrics?.outgoingTransfers ?? 0,
+      activeDrivers: metrics?.activeDrivers ?? 0,
+      inventorySummary,
+    };
+  }
+
+  async listInventory(
+    hubId: string,
+    query: { page?: number; limit?: number; search?: string; category?: string },
+  ) {
+    return this.listNetworkInventory({ ...query, hubId });
+  }
+
+  async listNetworkInventory(query: {
+    hubId?: string;
+    page?: number;
+    limit?: number;
+    search?: string;
+    category?: string;
+  }) {
+    if (query.hubId) {
+      await this.getHubOrThrow(query.hubId);
+    }
+
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 50;
+    const skip = (page - 1) * limit;
+
+    const where: Prisma.HubInventoryWhereInput = {
+      ...(query.hubId ? { hubId: query.hubId } : {}),
+      hub: {
+        deletedAt: null,
+        NOT: { hubType: 'CENTRAL_WAREHOUSE' },
+      },
+      ...(query.search
+        ? {
+            OR: [
+              {
+                product: {
+                  name: { contains: query.search, mode: 'insensitive' },
+                },
+              },
+              {
+                product: {
+                  sku: { contains: query.search, mode: 'insensitive' },
+                },
+              },
+            ],
+          }
+        : {}),
+      ...(query.category && query.category !== 'all'
+        ? {
+            product: {
+              category: {
+                name: { equals: query.category, mode: 'insensitive' },
+              },
+            },
+          }
+        : {}),
+    };
+
+    const [rows, total, aggregateRows] = await Promise.all([
+      this.prisma.hubInventory.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { updatedAt: 'desc' },
+        include: {
+          ...this.inventoryRepo.inventoryInclude(),
+          hub: { select: { id: true, name: true, code: true } },
+        },
+      }),
+      this.prisma.hubInventory.count({ where }),
+      this.prisma.hubInventory.findMany({
+        where,
+        select: {
+          availableQty: true,
+          reservedQty: true,
+          lowStockThreshold: true,
+          minimumStock: true,
+          product: { select: { retailPrice: true } },
+        },
+      }),
+    ]);
+
+    const items = rows.map((row) => {
+      const mapped = this.inventoryRepo.mapInventoryRow(row);
+      const onHand = mapped.currentStock;
+      const reserved = mapped.reservedStock;
+      const free = mapped.availableStock;
+      const unitPrice = Number(row.product.retailPrice ?? 0);
+      return {
+        id: mapped.id,
+        hubId: row.hubId,
+        hubName: row.hub.name,
+        hubCode: row.hub.code,
+        productId: mapped.productId,
+        productName: row.product.name,
+        sku: row.product.sku,
+        category: row.product.category?.name ?? null,
+        unit: row.product.unit,
+        imageUrl: mapped.imageUrl,
+        availableQty: onHand,
+        reservedQty: reserved,
+        freeQty: free,
+        unitPrice,
+        inventoryValue: Math.round(onHand * unitPrice * 100) / 100,
+        reorderLevel: mapped.lowStockThreshold,
+        minimumStock: row.minimumStock,
+        maximumStock: row.maximumStock,
+        status:
+          free <= 0
+            ? 'OUT_OF_STOCK'
+            : mapped.lowStock
+              ? 'LOW_STOCK'
+              : 'IN_STOCK',
+        lastUpdated: mapped.lastUpdated,
+      };
+    });
+
+    let totalInventoryUnits = 0;
+    let reservedInventory = 0;
+    let lowStockItems = 0;
+    let inventoryValue = 0;
+    for (const row of aggregateRows) {
+      const onHand = Number(row.availableQty ?? 0) + Number(row.reservedQty ?? 0);
+      const reserved = Number(row.reservedQty ?? 0);
+      const free = Number(row.availableQty ?? 0);
+      const reorder = Number(row.lowStockThreshold ?? row.minimumStock ?? 0);
+      const unitPrice = Number(row.product.retailPrice ?? 0);
+      totalInventoryUnits += onHand;
+      reservedInventory += reserved;
+      inventoryValue += onHand * unitPrice;
+      if (free <= reorder) lowStockItems += 1;
+    }
+
+    const stats = {
+      totalInventoryUnits,
+      reservedInventory,
+      lowStockItems,
+      inventoryValue: Math.round(inventoryValue * 100) / 100,
+    };
+
+    return {
+      data: items,
+      stats,
+      meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    };
+  }
+
+  async listDispatchLogs(
+    hubId: string,
+    query: {
+      page?: number;
+      limit?: number;
+      search?: string;
+      status?: string;
+      date?: string;
+    },
+  ) {
+    return this.listNetworkDispatchLogs({ ...query, hubId });
+  }
+
+  async listNetworkDispatchLogs(query: {
+    hubId?: string;
+    page?: number;
+    limit?: number;
+    search?: string;
+    status?: string;
+    date?: string;
+  }) {
+    if (query.hubId) {
+      await this.getHubOrThrow(query.hubId);
+    }
+
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
+    const skip = (page - 1) * limit;
+
+    const orderWhere: Prisma.OrderWhereInput = {
+      ...(query.hubId ? { hubId: query.hubId } : { hubId: { not: null } }),
+      deletedAt: null,
+      orderStatus: {
+        in: [
+          OrderStatus.PACKED,
+          OrderStatus.READY_FOR_DISPATCH,
+          OrderStatus.DRIVER_ASSIGNED,
+          OrderStatus.OUT_FOR_DELIVERY,
+          OrderStatus.DISPATCHED,
+          OrderStatus.DELIVERED,
+        ],
+      },
+      hub: {
+        deletedAt: null,
+        NOT: { hubType: 'CENTRAL_WAREHOUSE' },
+      },
+    };
+
+    if (query.search) {
+      orderWhere.OR = [
+        { orderNumber: { contains: query.search, mode: 'insensitive' } },
+        {
+          customer: {
+            fullName: { contains: query.search, mode: 'insensitive' },
+          },
+        },
+        {
+          customer: {
+            phone: { contains: query.search, mode: 'insensitive' },
+          },
+        },
+        {
+          dispatch: {
+            dispatchNo: { contains: query.search, mode: 'insensitive' },
+          },
+        },
+      ];
+    }
+
+    if (query.date) {
+      const dayStart = new Date(query.date);
+      dayStart.setHours(0, 0, 0, 0);
+      const dayEnd = new Date(dayStart);
+      dayEnd.setDate(dayEnd.getDate() + 1);
+      orderWhere.createdAt = { gte: dayStart, lt: dayEnd };
+    }
+
+    const [orders, total] = await Promise.all([
+      this.prisma.order.findMany({
+        where: orderWhere,
+        skip,
+        take: limit,
+        orderBy: { updatedAt: 'desc' },
+        include: {
+          customer: {
+            select: { id: true, fullName: true, phone: true },
+          },
+          hub: { select: { id: true, name: true, code: true } },
+          assignedDriver: {
+            select: { id: true, name: true, phone: true },
+          },
+          assignedVehicle: {
+            select: { id: true, registration: true, vehicleType: true },
+          },
+          dispatch: {
+            include: {
+              driver: { select: { id: true, name: true, phone: true } },
+              vehicle: {
+                select: { id: true, registration: true, vehicleType: true },
+              },
+            },
+          },
+          items: {
+            select: {
+              productId: true,
+              name: true,
+              sku: true,
+              quantity: true,
+              unit: true,
+            },
+          },
+        },
+      }),
+      this.prisma.order.count({ where: orderWhere }),
+    ]);
+
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const hubScope = query.hubId
+      ? { hubId: query.hubId }
+      : { hubId: { not: null } };
+
+    const [todaysDispatch, inProgress, delivered, delayed] = await Promise.all([
+      this.prisma.order.count({
+        where: {
+          ...hubScope,
+          deletedAt: null,
+          OR: [
+            { dispatchedAt: { gte: todayStart } },
+            { dispatch: { dispatchedAt: { gte: todayStart } } },
+          ],
+        },
+      }),
+      this.prisma.order.count({
+        where: {
+          ...hubScope,
+          deletedAt: null,
+          orderStatus: {
+            in: [
+              OrderStatus.DRIVER_ASSIGNED,
+              OrderStatus.OUT_FOR_DELIVERY,
+              OrderStatus.DISPATCHED,
+            ],
+          },
+        },
+      }),
+      this.prisma.order.count({
+        where: {
+          ...hubScope,
+          deletedAt: null,
+          orderStatus: OrderStatus.DELIVERED,
+          deliveredAt: { gte: todayStart },
+        },
+      }),
+      this.prisma.order.count({
+        where: {
+          ...hubScope,
+          deletedAt: null,
+          orderStatus: {
+            in: [
+              OrderStatus.DRIVER_ASSIGNED,
+              OrderStatus.OUT_FOR_DELIVERY,
+              OrderStatus.DISPATCHED,
+            ],
+          },
+          expectedDeliveryAt: { lt: new Date() },
+        },
+      }),
+    ]);
+
+    const data = orders
+      .filter((order) => {
+        if (!query.status || query.status === 'all') return true;
+        const mapped = this.mapOrderToDispatchStatus(order.orderStatus);
+        const status = query.status.toUpperCase();
+        if (status === 'PENDING-DISPATCH' || status === 'READY') {
+          return (
+            mapped === 'READY_FOR_DISPATCH' ||
+            order.orderStatus === OrderStatus.PACKED ||
+            order.orderStatus === OrderStatus.READY_FOR_DISPATCH
+          );
+        }
+        if (status === 'ASSIGNED') {
+          return (
+            mapped === 'ASSIGNED' ||
+            order.orderStatus === OrderStatus.DRIVER_ASSIGNED
+          );
+        }
+        return mapped === status || order.orderStatus === status;
+      })
+      .map((order) => this.mapDispatchLog(order));
+
+    return {
+      data,
+      stats: {
+        todaysDispatch,
+        inProgress,
+        delivered,
+        delayed,
+      },
+      meta: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
     };
   }
 
@@ -1399,6 +1877,7 @@ export class AdminHubsService {
       isActive: boolean;
       status: EntityStatus;
       createdAt: Date;
+      updatedAt?: Date;
       users: {
         id: string;
         fullName: string;
@@ -1409,8 +1888,28 @@ export class AdminHubsService {
       _count: { orders: number; drivers: number; vehicles: number };
     },
     pendingOrders = 0,
+    metrics?: {
+      inventoryHealth: number;
+      totalStock: number;
+      stockValue: number;
+      pendingRequisitions: number;
+      incomingTransfers: number;
+      outgoingTransfers: number;
+      activeDrivers: number;
+      healthStatus: 'HEALTHY' | 'ATTENTION' | 'CRITICAL';
+    },
   ) {
     const manager = hub.users[0] ?? null;
+    const inventoryHealth = metrics?.inventoryHealth ?? 100;
+    const healthStatus =
+      metrics?.healthStatus ??
+      this.deriveDisplayHealth(
+        hub.isActive,
+        hub.status,
+        inventoryHealth,
+        0,
+        0,
+      );
 
     return {
       id: hub.id,
@@ -1426,6 +1925,14 @@ export class AdminHubsService {
       isActive: hub.isActive,
       status: hub.status,
       operationalStatus: this.deriveOperationalStatus(hub.isActive, hub.status),
+      healthStatus,
+      inventoryHealth,
+      totalStock: metrics?.totalStock ?? 0,
+      stockValue: metrics?.stockValue ?? 0,
+      pendingRequisitions: metrics?.pendingRequisitions ?? 0,
+      incomingTransfers: metrics?.incomingTransfers ?? 0,
+      outgoingTransfers: metrics?.outgoingTransfers ?? 0,
+      activeDrivers: metrics?.activeDrivers ?? hub._count.drivers,
       manager: manager
         ? {
             id: manager.id,
@@ -1441,6 +1948,340 @@ export class AdminHubsService {
       driverCount: hub._count.drivers,
       vehicleCount: hub._count.vehicles,
       createdAt: hub.createdAt,
+      updatedAt: hub.updatedAt ?? hub.createdAt,
+    };
+  }
+
+  private async getNetworkMetricsByHub(hubIds: string[]) {
+    const result = new Map<
+      string,
+      {
+        inventoryHealth: number;
+        totalStock: number;
+        stockValue: number;
+        pendingRequisitions: number;
+        incomingTransfers: number;
+        outgoingTransfers: number;
+        activeDrivers: number;
+        healthStatus: 'HEALTHY' | 'ATTENTION' | 'CRITICAL';
+      }
+    >();
+
+    if (hubIds.length === 0) return result;
+
+    const [
+      inventoryRows,
+      pendingRequisitions,
+      incomingTransfers,
+      outgoingDispatches,
+      activeDrivers,
+      hubs,
+    ] = await Promise.all([
+      this.prisma.hubInventory.findMany({
+        where: { hubId: { in: hubIds } },
+        select: {
+          hubId: true,
+          availableQty: true,
+          reservedQty: true,
+          lowStockThreshold: true,
+          product: { select: { retailPrice: true } },
+        },
+      }),
+      this.prisma.requisition.groupBy({
+        by: ['hubId'],
+        where: {
+          hubId: { in: hubIds },
+          status: {
+            in: [
+              'DRAFT',
+              'SUBMITTED',
+              'PENDING_APPROVAL',
+              'APPROVED',
+              'ALLOCATED',
+            ],
+          },
+        },
+        _count: { _all: true },
+      }),
+      this.prisma.requisition.groupBy({
+        by: ['hubId'],
+        where: {
+          hubId: { in: hubIds },
+          status: { in: ['DISPATCHED', 'IN_TRANSIT'] },
+        },
+        _count: { _all: true },
+      }),
+      this.prisma.order.groupBy({
+        by: ['hubId'],
+        where: {
+          hubId: { in: hubIds },
+          deletedAt: null,
+          orderStatus: {
+            in: [
+              OrderStatus.DRIVER_ASSIGNED,
+              OrderStatus.OUT_FOR_DELIVERY,
+              OrderStatus.DISPATCHED,
+            ],
+          },
+        },
+        _count: { _all: true },
+      }),
+      this.prisma.driver.groupBy({
+        by: ['hubId'],
+        where: {
+          hubId: { in: hubIds },
+          deletedAt: null,
+          isActive: true,
+        },
+        _count: { _all: true },
+      }),
+      this.prisma.hub.findMany({
+        where: { id: { in: hubIds } },
+        select: { id: true, isActive: true, status: true },
+      }),
+    ]);
+
+    const invByHub = new Map<
+      string,
+      { total: number; low: number; oos: number; stock: number; value: number }
+    >();
+    for (const row of inventoryRows) {
+      const current = invByHub.get(row.hubId) ?? {
+        total: 0,
+        low: 0,
+        oos: 0,
+        stock: 0,
+        value: 0,
+      };
+      const free = row.availableQty;
+      const onHand = row.availableQty + row.reservedQty;
+      current.total += 1;
+      current.stock += onHand;
+      current.value += onHand * Number(row.product.retailPrice ?? 0);
+      if (free <= 0) current.oos += 1;
+      else if (free <= row.lowStockThreshold) current.low += 1;
+      invByHub.set(row.hubId, current);
+    }
+
+    const pendingReq = new Map(
+      pendingRequisitions.map((r) => [r.hubId, r._count._all]),
+    );
+    const incoming = new Map(
+      incomingTransfers.map((r) => [r.hubId, r._count._all]),
+    );
+    const outgoing = new Map(
+      outgoingDispatches
+        .filter((r): r is typeof r & { hubId: string } => !!r.hubId)
+        .map((r) => [r.hubId, r._count._all]),
+    );
+    const drivers = new Map(
+      activeDrivers
+        .filter((r): r is typeof r & { hubId: string } => !!r.hubId)
+        .map((r) => [r.hubId, r._count._all]),
+    );
+    const hubMeta = new Map(hubs.map((h) => [h.id, h]));
+
+    for (const hubId of hubIds) {
+      const inv = invByHub.get(hubId) ?? {
+        total: 0,
+        low: 0,
+        oos: 0,
+        stock: 0,
+        value: 0,
+      };
+      const inventoryHealth =
+        inv.total === 0
+          ? 100
+          : Math.round(((inv.total - inv.oos - inv.low * 0.5) / inv.total) * 100);
+      const hub = hubMeta.get(hubId);
+      result.set(hubId, {
+        inventoryHealth,
+        totalStock: inv.stock,
+        stockValue: Math.round(inv.value * 100) / 100,
+        pendingRequisitions: pendingReq.get(hubId) ?? 0,
+        incomingTransfers: incoming.get(hubId) ?? 0,
+        outgoingTransfers: outgoing.get(hubId) ?? 0,
+        activeDrivers: drivers.get(hubId) ?? 0,
+        healthStatus: this.deriveDisplayHealth(
+          hub?.isActive ?? true,
+          hub?.status ?? EntityStatus.ACTIVE,
+          inventoryHealth,
+          inv.oos,
+          inv.low,
+        ),
+      });
+    }
+
+    return result;
+  }
+
+  private deriveDisplayHealth(
+    isActive: boolean,
+    status: EntityStatus,
+    inventoryHealth: number,
+    outOfStock: number,
+    lowStock: number,
+  ): 'HEALTHY' | 'ATTENTION' | 'CRITICAL' {
+    if (!isActive || status === EntityStatus.INACTIVE) {
+      return 'CRITICAL';
+    }
+    if (outOfStock > 0 || inventoryHealth < 50) return 'CRITICAL';
+    if (lowStock > 0 || inventoryHealth < 80) return 'ATTENTION';
+    return 'HEALTHY';
+  }
+
+  private async generateHubCode(city: string, state: string, name: string) {
+    const source = (city || name || state || 'HUB').trim();
+    const letters = source.replace(/[^a-zA-Z]/g, '').toUpperCase();
+    const cityCode =
+      letters.length >= 3 ? letters.slice(0, 3) : (letters || 'HUB').padEnd(3, 'X');
+    const prefix = `HUB-${cityCode}-`;
+
+    const existing = await this.prisma.hub.findMany({
+      where: { code: { startsWith: prefix } },
+      select: { code: true },
+    });
+    const used = new Set(
+      existing.map((row) => Number(row.code.replace(prefix, '')) || 0),
+    );
+    let seq = 1;
+    while (used.has(seq)) seq += 1;
+    return `${prefix}${String(seq).padStart(3, '0')}`;
+  }
+
+  private mapOrderToDispatchStatus(status: OrderStatus): string {
+    switch (status) {
+      case OrderStatus.PACKED:
+      case OrderStatus.READY_FOR_DISPATCH:
+        return 'READY_FOR_DISPATCH';
+      case OrderStatus.DRIVER_ASSIGNED:
+        return 'ASSIGNED';
+      case OrderStatus.OUT_FOR_DELIVERY:
+      case OrderStatus.DISPATCHED:
+        return 'DISPATCHED';
+      case OrderStatus.DELIVERED:
+        return 'DELIVERED';
+      default:
+        return status;
+    }
+  }
+
+  private formatDeliveryAddress(deliveryAddress: unknown): string {
+    if (!deliveryAddress || typeof deliveryAddress !== 'object') return '—';
+    const addr = deliveryAddress as Record<string, unknown>;
+    const parts = [
+      addr.line1,
+      addr.line2,
+      addr.addressLine1,
+      addr.address,
+      addr.landmark,
+      addr.city,
+      addr.pincode,
+    ]
+      .map((v) => (typeof v === 'string' ? v.trim() : ''))
+      .filter(Boolean);
+    return parts.length ? Array.from(new Set(parts)).join(', ') : '—';
+  }
+
+  private mapDispatchLog(order: {
+    id: string;
+    orderNumber: string;
+    orderStatus: OrderStatus;
+    grandTotal: unknown;
+    deliveryAddress: unknown;
+    expectedDeliveryAt: Date | null;
+    dispatchedAt: Date | null;
+    deliveredAt: Date | null;
+    createdAt: Date;
+    updatedAt: Date;
+    customer: { id: string; fullName: string | null; phone: string | null } | null;
+    hub: { id: string; name: string; code: string } | null;
+    assignedDriver: { id: string; name: string; phone: string } | null;
+    assignedVehicle: {
+      id: string;
+      registration: string;
+      vehicleType: unknown;
+    } | null;
+    dispatch: {
+      id: string;
+      dispatchNo: string;
+      status: string;
+      dispatchedAt: Date | null;
+      estimatedEtaAt: Date | null;
+      driver: { id: string; name: string; phone: string } | null;
+      vehicle: {
+        id: string;
+        registration: string;
+        vehicleType: unknown;
+      } | null;
+    } | null;
+    items: Array<{
+      productId: string;
+      name: string;
+      sku: string | null;
+      quantity: number;
+      unit: string;
+    }>;
+  }) {
+    const status = this.mapOrderToDispatchStatus(order.orderStatus);
+    const driver = order.dispatch?.driver ?? order.assignedDriver;
+    const vehicle = order.dispatch?.vehicle ?? order.assignedVehicle;
+    const expected =
+      order.dispatch?.estimatedEtaAt?.toISOString() ??
+      order.expectedDeliveryAt?.toISOString() ??
+      order.createdAt.toISOString();
+    const dispatchTime =
+      order.dispatch?.dispatchedAt?.toISOString() ??
+      order.dispatchedAt?.toISOString() ??
+      null;
+    const isDelayed =
+      status !== 'DELIVERED' &&
+      !!order.expectedDeliveryAt &&
+      order.expectedDeliveryAt.getTime() < Date.now();
+
+    const pincode =
+      order.deliveryAddress &&
+      typeof order.deliveryAddress === 'object' &&
+      'pincode' in order.deliveryAddress
+        ? String(
+            (order.deliveryAddress as { pincode?: string }).pincode ?? '',
+          )
+        : '';
+
+    return {
+      id: order.dispatch?.id ?? order.id,
+      dispatchId: order.dispatch?.dispatchNo ?? `DSP-${order.orderNumber}`,
+      orderId: order.orderNumber,
+      orderUuid: order.id,
+      customerId: order.customer?.id ?? '',
+      customerName: order.customer?.fullName ?? 'Customer',
+      customerMobile: order.customer?.phone ?? '',
+      deliveryAddress: this.formatDeliveryAddress(order.deliveryAddress),
+      pincode,
+      hubId: order.hub?.id ?? '',
+      hubName: order.hub?.name ?? '',
+      vehicleId: vehicle?.id ?? null,
+      vehicleNumber: vehicle?.registration ?? null,
+      vehicleType: vehicle ? String(vehicle.vehicleType) : null,
+      driverId: driver?.id ?? null,
+      driverName: driver?.name ?? null,
+      driverMobile: driver?.phone ?? null,
+      dispatchTime,
+      expectedDelivery: expected,
+      status,
+      isDelayed,
+      lastUpdated: order.updatedAt.toISOString(),
+      deliveryNotes: '',
+      orderLines: order.items.map((item) => ({
+        productId: item.productId,
+        name: item.name,
+        sku: item.sku ?? '',
+        quantity: item.quantity,
+        unit: item.unit,
+      })),
+      orderValue: Number(order.grandTotal ?? 0),
+      timeline: [],
+      createdAt: order.createdAt.toISOString(),
     };
   }
 }

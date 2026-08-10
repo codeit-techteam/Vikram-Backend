@@ -122,10 +122,11 @@ export class CreateAdminHubDto {
   name: string;
 
   @ApiProperty({ example: 'HUB-MUM-01' })
+  @IsOptional()
   @IsString()
   @MinLength(2)
   @MaxLength(40)
-  code: string;
+  code?: string;
 
   @ApiProperty({ example: 'Plot 12, Industrial Estate, Andheri East' })
   @IsString()
@@ -553,10 +554,11 @@ export class ProvisionHubDto {
   name: string;
 
   @ApiProperty({ example: 'HUB-WB-001' })
+  @IsOptional()
   @IsString()
   @MinLength(2)
   @MaxLength(40)
-  code: string;
+  code?: string;
 
   @ApiProperty({ example: 'Plot 4, Industrial Area, Kalyani' })
   @IsString()

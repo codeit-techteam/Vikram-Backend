@@ -101,16 +101,121 @@ export class AdminHubsController {
     return { success: true, message: 'Hub provisioned', data };
   }
 
+  @Get('inventory')
+  @AdminRoles(...ROLE_GROUPS.WAREHOUSE)
+  @ApiOperation({
+    summary: 'Network hub inventory',
+    description:
+      'Paginated inventory across hubs. Pass hubId to scope to one hub.',
+  })
+  async listNetworkInventory(
+    @Query('hubId') hubId?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
+    @Query('category') category?: string,
+  ) {
+    const data = await this.hubsService.listNetworkInventory({
+      hubId: hubId || undefined,
+      page: page ? Number(page) : 1,
+      limit: limit ? Number(limit) : 50,
+      search,
+      category,
+    });
+    return { success: true, message: 'Hub inventory fetched', data };
+  }
+
+  @Get('dispatch-logs')
+  @AdminRoles(...ROLE_GROUPS.WAREHOUSE)
+  @ApiOperation({
+    summary: 'Network hub → customer dispatch logs',
+    description: 'Last-mile dispatches. Pass hubId to scope to one hub.',
+  })
+  async listNetworkDispatchLogs(
+    @Query('hubId') hubId?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
+    @Query('status') status?: string,
+    @Query('date') date?: string,
+  ) {
+    const data = await this.hubsService.listNetworkDispatchLogs({
+      hubId: hubId || undefined,
+      page: page ? Number(page) : 1,
+      limit: limit ? Number(limit) : 20,
+      search,
+      status,
+      date,
+    });
+    return { success: true, message: 'Hub dispatch logs fetched', data };
+  }
+
   @Get(':id/inventory')
   @AdminRoles(...ROLE_GROUPS.WAREHOUSE)
   @ApiOperation({
     summary: 'Hub inventory summary',
-    description: 'Returns total products, stock value, low stock and out-of-stock counts.',
+    description:
+      'Returns total products, stock value, low stock and out-of-stock counts. Pass paginated=true for item listing.',
   })
   @ApiParam({ name: 'id', description: 'Hub UUID' })
-  async getInventory(@Param('id') id: string) {
+  async getInventory(
+    @Param('id') id: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
+    @Query('category') category?: string,
+    @Query('paginated') paginated?: string,
+  ) {
+    if (paginated === 'true' || page || search || category) {
+      const data = await this.hubsService.listInventory(id, {
+        page: page ? Number(page) : 1,
+        limit: limit ? Number(limit) : 50,
+        search,
+        category,
+      });
+      return { success: true, message: 'Hub inventory fetched', data };
+    }
     const data = await this.hubsService.getInventorySummary(id);
     return { success: true, message: 'Hub inventory summary fetched', data };
+  }
+
+  @Get(':id/summary')
+  @AdminRoles(...ROLE_GROUPS.WAREHOUSE)
+  @ApiOperation({
+    summary: 'Hub operational summary for network cards',
+    description:
+      'Returns hub, inventory health, stock, pending orders, requisitions, and transfer counters.',
+  })
+  @ApiParam({ name: 'id', description: 'Hub UUID' })
+  async getSummary(@Param('id') id: string) {
+    const data = await this.hubsService.getSummary(id);
+    return { success: true, message: 'Hub summary fetched', data };
+  }
+
+  @Get(':id/dispatch-logs')
+  @AdminRoles(...ROLE_GROUPS.WAREHOUSE)
+  @ApiOperation({
+    summary: 'Hub → customer dispatch logs',
+    description:
+      'Last-mile dispatches for the selected hub (orders + hub dispatch records).',
+  })
+  @ApiParam({ name: 'id', description: 'Hub UUID' })
+  async getDispatchLogs(
+    @Param('id') id: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
+    @Query('status') status?: string,
+    @Query('date') date?: string,
+  ) {
+    const data = await this.hubsService.listDispatchLogs(id, {
+      page: page ? Number(page) : 1,
+      limit: limit ? Number(limit) : 20,
+      search,
+      status,
+      date,
+    });
+    return { success: true, message: 'Hub dispatch logs fetched', data };
   }
 
   @Get(':id/orders/dashboard')

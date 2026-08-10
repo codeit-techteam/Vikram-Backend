@@ -32,6 +32,27 @@ export class CreateProductDto {
   @IsString({ each: true })
   imageUrls?: string[];
   @ApiPropertyOptional() @IsOptional() @IsBoolean() isVisible?: boolean;
+  /** Initial stock to place in Central Warehouse on publish */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  initialStock?: number;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  lowStockThreshold?: number;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  minimumStock?: number;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  maximumStock?: number;
 }
 
 export class UpdateProductDto {

@@ -66,6 +66,11 @@ export class RequisitionPaginationQueryDto {
   @IsOptional()
   @IsString()
   sortOrder?: 'asc' | 'desc';
+
+  @ApiPropertyOptional({ description: 'Filter by destination hub UUID' })
+  @IsOptional()
+  @IsUUID()
+  hubId?: string;
 }
 
 export class RequisitionItemInputDto {
@@ -217,6 +222,28 @@ export class AllocateRequisitionDto {
   @IsOptional()
   @IsDateString()
   expectedDispatchDate?: string;
+}
+
+export class AssignLogisticsDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  vehicleId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  driverId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  expectedDispatchDate?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  comment?: string;
 }
 
 export class DispatchRequisitionDto {

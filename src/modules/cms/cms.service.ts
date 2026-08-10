@@ -13,6 +13,7 @@ import { normalizeMediaUrl } from '../../common/utils/media-url';
 import {
   CmsAdvertisementDto,
   CmsBannerDto,
+  CmsCategoryDto,
   CmsEmergencyBannerDto,
   CmsHomeResponseDto,
   CmsHomeSectionDto,
@@ -61,6 +62,7 @@ export class CmsService {
       offers,
       quickActions,
       emergencyBanner,
+      categories,
     ] = await Promise.all([
       this.getHomeSections(),
       this.getBanners(),
@@ -71,6 +73,7 @@ export class CmsService {
       this.getOffersForYou(),
       this.getQuickActions(),
       this.getEmergencyBanner(),
+      this.getCategories(),
     ]);
 
     const result: CmsHomeResponseDto = {
@@ -79,6 +82,8 @@ export class CmsService {
       heroBanners: banners.filter((b) => b.placement === 'HOME_HERO'),
       ads,
       brandAdvertisements: ads,
+      catalogs: ads,
+      categories,
       testimonials,
       promotions,
       videoBanners,
@@ -264,12 +269,33 @@ export class CmsService {
     return result;
   }
 
+  async getCategories(): Promise<CmsCategoryDto[]> {
+    const categories = await this.prisma.category.findMany({
+      where: {
+        ...VISIBLE_WHERE,
+        parentId: null,
+      },
+      orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }],
+    });
+
+    return categories.map((c) => ({
+      id: c.id,
+      slug: c.slug,
+      name: c.name,
+      nameHi: c.nameHi,
+      description: c.description,
+      imageUrl: media(c.imageUrl),
+      iconUrl: media(c.iconUrl),
+      displayOrder: c.displayOrder,
+      isFeatured: c.isFeatured,
+    }));
+  }
+
   async getOffersForYou(): Promise<CmsOfferDto[]> {
     const now = new Date();
     const offers = await this.prisma.offer.findMany({
       where: {
         ...VISIBLE_WHERE,
-        isFeatured: true,
         ...scheduleFilter(now),
       },
       orderBy: [{ displayOrder: 'asc' }, { priority: 'desc' }],

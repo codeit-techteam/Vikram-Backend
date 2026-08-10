@@ -63,7 +63,7 @@ export async function seedCmsHome(prisma: PrismaClient): Promise<void> {
     },
     {
       sectionType: HomeSectionType.ADVERTISEMENTS,
-      title: 'Brand Advertisements',
+      title: 'Shop from Catalogs',
       displayOrder: 6,
       apiSource: 'cms.ads',
       layoutType: 'horizontal',
@@ -563,7 +563,20 @@ export async function seedCmsHome(prisma: PrismaClient): Promise<void> {
     },
   });
 
-  // ─── Testimonials (from frontend testimonialData.ts) ───────────────────────
+  // ─── Testimonials (HTTPS / CDN URLs only — never local /assets paths) ───────
+  // Thumbnails and videos use absolute URLs so Admin + Customer App share the
+  // same playable media. Replace with R2 public URLs after Admin uploads.
+  const THUMB_CEMENT =
+    'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=800';
+  const THUMB_BRICKS =
+    'https://images.unsplash.com/photo-1541888946425-d81bb19240f5?w=800';
+  const THUMB_STEEL =
+    'https://images.unsplash.com/photo-1503387762-592deb58ef4e?w=800';
+  const THUMB_SAND =
+    'https://images.unsplash.com/photo-1590496793929-36417d95d741?w=800';
+  const THUMB_AGGREGATES =
+    'https://images.unsplash.com/photo-1581094794329-cd11a4e4b8a8?w=800';
+
   const videoTestimonials = [
     {
       type: TestimonialType.VIDEO,
@@ -575,7 +588,7 @@ export async function seedCmsHome(prisma: PrismaClient): Promise<void> {
       review:
         'Cement delivered to our site within 2 hours. Quality was exactly as promised.',
       videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
-      thumbnail: 'assets/category-cement.png',
+      thumbnail: THUMB_CEMENT,
       sortOrder: 1,
       featured: true,
       isPublished: true,
@@ -590,7 +603,7 @@ export async function seedCmsHome(prisma: PrismaClient): Promise<void> {
       review:
         'Bulk brick order handled professionally. Saved us two days of procurement.',
       videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4',
-      thumbnail: 'assets/category-bricks.png',
+      thumbnail: THUMB_BRICKS,
       sortOrder: 2,
       featured: true,
       isPublished: true,
@@ -605,7 +618,7 @@ export async function seedCmsHome(prisma: PrismaClient): Promise<void> {
       review:
         'Reliable partner for every project. Materials always arrive on schedule.',
       videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4',
-      thumbnail: 'assets/category-steel.png',
+      thumbnail: THUMB_STEEL,
       sortOrder: 3,
       featured: true,
       isPublished: true,
@@ -620,7 +633,7 @@ export async function seedCmsHome(prisma: PrismaClient): Promise<void> {
       review:
         'Premium river sand delivered in bulk — fine grain, zero debris. Our plaster finish turned out flawless.',
       videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
-      thumbnail: 'assets/category-sand.png',
+      thumbnail: THUMB_SAND,
       sortOrder: 4,
       featured: false,
       isPublished: true,
@@ -634,8 +647,8 @@ export async function seedCmsHome(prisma: PrismaClient): Promise<void> {
       rating: 5,
       review:
         'Bajriwala has transformed how we manage site logistics. Highly recommended.',
-      videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
-      thumbnail: 'assets/category-aggregates.png',
+      videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
+      thumbnail: THUMB_AGGREGATES,
       sortOrder: 5,
       featured: false,
       isPublished: true,

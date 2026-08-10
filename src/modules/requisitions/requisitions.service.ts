@@ -901,25 +901,39 @@ export class RequisitionsService {
     });
   }
 
-  private async writeLedger(params: {
-    hubId: string;
-    productId: string;
-    requisitionId: string;
-    type: InventoryLedgerType;
-    quantity: number;
-    referenceNo: string;
-    remarks?: string;
-    createdBy?: string;
-  }) {
-    const inventory = await this.prisma.hubInventory.findUnique({
-      where: {
-        hubId_productId: { hubId: params.hubId, productId: params.productId },
-      },
-    });
-    const openingQty = inventory?.availableQty ?? 0;
-    const closingQty = openingQty + params.quantity;
+  private async writeLedger(
+    params: {
+      hubId: string;
+      productId: string;
+      requisitionId: string;
+      type: InventoryLedgerType;
+      quantity: number;
+      referenceNo: string;
+      remarks?: string;
+      createdBy?: string;
+      openingQty?: number;
+      closingQty?: number;
+    },
+    tx?: Prisma.TransactionClient,
+  ) {
+    const db = tx ?? this.prisma;
+    let openingQty = params.openingQty;
+    let closingQty = params.closingQty;
 
-    await this.prisma.inventoryLedgerEntry.create({
+    if (openingQty === undefined || closingQty === undefined) {
+      const inventory = await db.hubInventory.findUnique({
+        where: {
+          hubId_productId: {
+            hubId: params.hubId,
+            productId: params.productId,
+          },
+        },
+      });
+      openingQty = inventory?.availableQty ?? 0;
+      closingQty = openingQty + params.quantity;
+    }
+
+    await db.inventoryLedgerEntry.create({
       data: {
         hubId: params.hubId,
         productId: params.productId,
@@ -1252,7 +1266,7 @@ export class RequisitionsService {
 
   async approve(id: string, actor: ActorContext, dto: ApproveRequisitionDto) {
     const existing = await this.findOneRaw(id);
-    if (existing.status !== 'PENDING_APPROVAL') {
+    if (!['PENDING_APPROVAL', 'SUBMITTED'].includes(existing.status)) {
       throw new BadRequestException('Only pending requisitions can be approved');
     }
 
@@ -1342,31 +1356,46 @@ export class RequisitionsService {
         const row = existing.items.find((i) => i.id === item.itemId);
         if (!row) continue;
 
-        const inventory = await tx.hubInventory.findUnique({
-          where: {
-            hubId_productId: {
-              hubId: warehouseHub.id,
-              productId: row.productId,
-            },
-          },
-        });
+        if (item.allocatedQty < 0) {
+          throw new BadRequestException('Allocated quantity cannot be negative');
+        }
 
-        const available = inventory?.availableQty ?? 0;
-        if (available < item.allocatedQty) {
+        const maxAllowed = Number(row.approvedQty ?? row.requestedQty);
+        if (item.allocatedQty > maxAllowed) {
           throw new BadRequestException(
-            `Insufficient warehouse stock for ${row.productName}`,
+            `Cannot allocate more than approved quantity for ${row.productName}`,
           );
         }
 
-        if (inventory) {
-          await tx.hubInventory.update({
-            where: { id: inventory.id },
-            data: {
-              availableQty: { decrement: item.allocatedQty },
-              reservedQty: { increment: item.allocatedQty },
-            },
-          });
+        // Concurrency-safe reservation: atomic decrement only if enough available
+        const locked = await tx.$queryRaw<
+          Array<{ id: string; available_qty: number; reserved_qty: number }>
+        >`
+          SELECT id, available_qty, reserved_qty
+          FROM hub_inventory
+          WHERE hub_id = ${warehouseHub.id}::uuid
+            AND product_id = ${row.productId}::uuid
+          FOR UPDATE
+        `;
+
+        const inventory = locked[0];
+        const available = inventory?.available_qty ?? 0;
+        if (!inventory || available < item.allocatedQty) {
+          throw new BadRequestException(
+            `Insufficient warehouse stock for ${row.productName}. Available: ${available}, Requested: ${item.allocatedQty}`,
+          );
         }
+
+        const openingQty = available;
+        const closingQty = available - item.allocatedQty;
+
+        await tx.hubInventory.update({
+          where: { id: inventory.id },
+          data: {
+            availableQty: { decrement: item.allocatedQty },
+            reservedQty: { increment: item.allocatedQty },
+          },
+        });
 
         await tx.requisitionItem.update({
           where: { id: item.itemId },
@@ -1376,25 +1405,40 @@ export class RequisitionsService {
           },
         });
 
-        await this.writeLedger({
-          hubId: warehouseHub.id,
-          productId: row.productId,
-          requisitionId: id,
-          type: 'REQUISITION_ALLOCATE',
-          quantity: -item.allocatedQty,
-          referenceNo: existing.requestNo,
-          remarks: `Allocated to ${existing.hub.name}`,
-          createdBy: actor.name,
-        });
+        await this.writeLedger(
+          {
+            hubId: warehouseHub.id,
+            productId: row.productId,
+            requisitionId: id,
+            type: 'REQUISITION_ALLOCATE',
+            quantity: -item.allocatedQty,
+            openingQty,
+            closingQty,
+            referenceNo: existing.requestNo,
+            remarks: `Allocated to ${existing.hub.name}`,
+            createdBy: actor.name,
+          },
+          tx,
+        );
       }
+
+      const allItems = await tx.requisitionItem.findMany({
+        where: { requisitionId: id },
+      });
+      const fullyAllocated = allItems.every((item) => {
+        const approved = Number(item.approvedQty ?? item.requestedQty);
+        return Number(item.allocatedQty ?? 0) >= approved;
+      });
 
       return tx.requisition.update({
         where: { id },
         data: {
-          status: 'ALLOCATED',
+          status: fullyAllocated ? 'ALLOCATED' : 'ALLOCATED',
           allocatedBy: actor.id,
           allocatedByName: actor.name,
           allocatedAt: new Date(),
+          warehouseHubId: warehouseHub.id,
+          warehouseId: warehouseHub.code ?? MAIN_WAREHOUSE.id,
           warehouseBin: dto.warehouseBin,
           vehicleId: dto.vehicleId,
           driverId: dto.driverId,
@@ -1411,6 +1455,99 @@ export class RequisitionsService {
       await this.activateTimelineStep(id, 'Vehicle Assigned');
     }
     await this.writeAudit(id, actor, 'ALLOCATE', existing.status, 'ALLOCATED');
+    await this.notifyHub(
+      existing.hubId,
+      'Stock Allocated',
+      `${existing.requestNo}: stock has been allocated at central warehouse.`,
+      `/requisitions/${existing.id}`,
+    );
+
+    return this.mapDetail(updated);
+  }
+
+  async assignLogistics(
+    id: string,
+    actor: ActorContext,
+    dto: {
+      vehicleId?: string;
+      driverId?: string;
+      expectedDispatchDate?: string;
+      comment?: string;
+    },
+  ) {
+    const existing = await this.findOneRaw(id);
+    if (existing.status !== 'ALLOCATED') {
+      throw new BadRequestException(
+        'Logistics can only be assigned on allocated transfers',
+      );
+    }
+
+    if (!dto.vehicleId && !dto.driverId && !dto.expectedDispatchDate) {
+      throw new BadRequestException('No logistics fields provided');
+    }
+
+    let vehicleRegistration = existing.vehicleRegistration;
+    let driverName = existing.driverName;
+
+    if (dto.vehicleId) {
+      const vehicle = await this.prisma.vehicle.findUnique({
+        where: { id: dto.vehicleId },
+      });
+      if (!vehicle || !vehicle.isActive) {
+        throw new BadRequestException('Invalid or inactive vehicle');
+      }
+      vehicleRegistration = vehicle.registration;
+    }
+
+    if (dto.driverId) {
+      const driver = await this.prisma.driver.findUnique({
+        where: { id: dto.driverId },
+      });
+      if (!driver || !driver.isActive) {
+        throw new BadRequestException('Invalid or inactive driver');
+      }
+      driverName = driver.name;
+    }
+
+    const updated = await this.prisma.requisition.update({
+      where: { id },
+      data: {
+        ...(dto.vehicleId
+          ? {
+              vehicleId: dto.vehicleId,
+              vehicleRegistration,
+            }
+          : {}),
+        ...(dto.driverId
+          ? {
+              driverId: dto.driverId,
+              driverName,
+            }
+          : {}),
+        ...(dto.expectedDispatchDate
+          ? { expectedDispatchDate: new Date(dto.expectedDispatchDate) }
+          : {}),
+      },
+      include: this.requisitionInclude(),
+    });
+
+    if (dto.vehicleId) {
+      await this.activateTimelineStep(id, 'Vehicle Assigned', actor.name);
+    }
+    if (dto.driverId) {
+      await this.activateTimelineStep(id, 'Driver Assigned', actor.name);
+    }
+    if (dto.comment?.trim()) {
+      await this.addComment(id, actor, { message: dto.comment.trim() });
+    }
+
+    await this.writeAudit(
+      id,
+      actor,
+      'ASSIGN_LOGISTICS',
+      existing.status,
+      existing.status,
+    );
 
     return this.mapDetail(updated);
   }
@@ -1424,56 +1561,99 @@ export class RequisitionsService {
     const warehouseHub = await this.resolveWarehouseHub();
     let vehicleRegistration = existing.vehicleRegistration;
     let driverName = existing.driverName;
+    const vehicleId = dto.vehicleId ?? existing.vehicleId;
+    const driverId = dto.driverId ?? existing.driverId;
 
-    if (dto.vehicleId) {
-      const vehicle = await this.prisma.vehicle.findUnique({
-        where: { id: dto.vehicleId },
-      });
-      vehicleRegistration = vehicle?.registration ?? vehicleRegistration;
+    if (!vehicleId) {
+      throw new BadRequestException('Vehicle assignment is required before dispatch');
     }
-    if (dto.driverId) {
-      const driver = await this.prisma.driver.findUnique({
-        where: { id: dto.driverId },
-      });
-      driverName = driver?.name ?? driverName;
+    if (!driverId) {
+      throw new BadRequestException('Driver assignment is required before dispatch');
     }
+
+    const vehicle = await this.prisma.vehicle.findUnique({
+      where: { id: vehicleId },
+    });
+    if (!vehicle || !vehicle.isActive) {
+      throw new BadRequestException('Invalid or inactive vehicle');
+    }
+    vehicleRegistration = vehicle.registration;
+
+    const totalAllocatedBags = existing.items.reduce(
+      (sum, item) =>
+        sum + Number(item.allocatedQty ?? item.approvedQty ?? item.requestedQty),
+      0,
+    );
+    const capacity = Number(vehicle.capacity ?? 0);
+    // capacity is stored in tons for some vehicles; if capacity looks like bag count (>50) treat as bags
+    const capacityBags =
+      capacity > 0 && capacity <= 50 ? Math.floor(capacity * 1000) : Math.floor(capacity);
+    if (capacityBags > 0 && totalAllocatedBags > capacityBags) {
+      throw new BadRequestException(
+        `Vehicle capacity insufficient. Capacity: ${capacityBags} bags, Material: ${totalAllocatedBags} bags`,
+      );
+    }
+
+    const driver = await this.prisma.driver.findUnique({
+      where: { id: driverId },
+    });
+    if (!driver || !driver.isActive) {
+      throw new BadRequestException('Invalid or inactive driver');
+    }
+    driverName = driver.name;
 
     const updated = await this.prisma.$transaction(async (tx) => {
       for (const item of existing.items) {
         const qty = item.allocatedQty ?? item.approvedQty ?? item.requestedQty;
         if (!qty) continue;
 
-        const inventory = await tx.hubInventory.findUnique({
-          where: {
-            hubId_productId: {
-              hubId: warehouseHub.id,
-              productId: item.productId,
-            },
-          },
-        });
-
-        if (inventory) {
-          await tx.hubInventory.update({
-            where: { id: inventory.id },
-            data: { reservedQty: { decrement: qty } },
-          });
+        const locked = await tx.$queryRaw<
+          Array<{ id: string; available_qty: number; reserved_qty: number }>
+        >`
+          SELECT id, available_qty, reserved_qty
+          FROM hub_inventory
+          WHERE hub_id = ${warehouseHub.id}::uuid
+            AND product_id = ${item.productId}::uuid
+          FOR UPDATE
+        `;
+        const inventory = locked[0];
+        if (!inventory) {
+          throw new BadRequestException(
+            `Warehouse inventory missing for ${item.productName}`,
+          );
         }
+        if (inventory.reserved_qty < qty) {
+          throw new BadRequestException(
+            `Reserved stock mismatch for ${item.productName}`,
+          );
+        }
+
+        // Physical leave: reserved decreases; available already reduced at allocation
+        await tx.hubInventory.update({
+          where: { id: inventory.id },
+          data: { reservedQty: { decrement: qty } },
+        });
 
         await tx.requisitionItem.update({
           where: { id: item.id },
           data: { status: 'DISPATCHED' },
         });
 
-        await this.writeLedger({
-          hubId: warehouseHub.id,
-          productId: item.productId,
-          requisitionId: id,
-          type: 'REQUISITION_DISPATCH',
-          quantity: -qty,
-          referenceNo: existing.requestNo,
-          remarks: `Dispatched to ${existing.hub.name}`,
-          createdBy: actor.name,
-        });
+        await this.writeLedger(
+          {
+            hubId: warehouseHub.id,
+            productId: item.productId,
+            requisitionId: id,
+            type: 'REQUISITION_DISPATCH',
+            quantity: -qty,
+            openingQty: inventory.available_qty,
+            closingQty: inventory.available_qty,
+            referenceNo: existing.requestNo,
+            remarks: `Dispatched to ${existing.hub.name}`,
+            createdBy: actor.name,
+          },
+          tx,
+        );
       }
 
       return tx.requisition.update({
@@ -1481,8 +1661,8 @@ export class RequisitionsService {
         data: {
           status: 'IN_TRANSIT',
           dispatchedAt: dto.dispatchDate ? new Date(dto.dispatchDate) : new Date(),
-          vehicleId: dto.vehicleId ?? existing.vehicleId,
-          driverId: dto.driverId ?? existing.driverId,
+          vehicleId,
+          driverId,
           vehicleRegistration,
           driverName,
           lrNumber: dto.lrNumber,
@@ -1543,6 +1723,15 @@ export class RequisitionsService {
     }
 
     const updated = await this.prisma.$transaction(async (tx) => {
+      const year = new Date().getFullYear();
+      const receiptCount = await tx.requisition.count({
+        where: {
+          status: { in: ['RECEIVED', 'COMPLETED'] },
+          receivedAt: { not: null },
+        },
+      });
+      const grnNumber = `GRN-${year}-${String(receiptCount + 1).padStart(5, '0')}`;
+
       for (const item of dto.items) {
         const row = existing.items.find((i) => i.id === item.itemId);
         if (!row) continue;
@@ -1566,6 +1755,11 @@ export class RequisitionsService {
         });
 
         if (item.receivedQty > 0) {
+          const existingInv = await tx.hubInventory.findUnique({
+            where: { hubId_productId: { hubId, productId: row.productId } },
+          });
+          const openingQty = existingInv?.availableQty ?? 0;
+
           await tx.hubInventory.upsert({
             where: {
               hubId_productId: { hubId, productId: row.productId },
@@ -1579,27 +1773,63 @@ export class RequisitionsService {
             },
           });
 
-          await this.writeLedger({
-            hubId,
-            productId: row.productId,
-            requisitionId: id,
-            type: 'REQUISITION_RECEIVE',
-            quantity: item.receivedQty,
-            referenceNo: existing.requestNo,
-            remarks: item.remarks ?? 'Requisition received',
-            createdBy: actor.name,
-          });
+          await this.writeLedger(
+            {
+              hubId,
+              productId: row.productId,
+              requisitionId: id,
+              type: 'REQUISITION_RECEIVE',
+              quantity: item.receivedQty,
+              openingQty,
+              closingQty: openingQty + item.receivedQty,
+              referenceNo: existing.requestNo,
+              remarks: item.remarks ?? `Received under ${grnNumber}`,
+              createdBy: actor.name,
+            },
+            tx,
+          );
         }
       }
+
+      const documents = [
+        ...(dto.documents ?? []).map((doc, index) => ({
+          id: `doc-${index}`,
+          url: doc.url,
+          name: doc.name ?? `Document ${index + 1}`,
+          type: doc.type ?? 'OTHER',
+          size: doc.size ?? '—',
+          uploadedAt: new Date().toISOString(),
+        })),
+        {
+          id: `grn-${grnNumber}`,
+          url: '',
+          name: grnNumber,
+          type: 'GRN',
+          grnNumber,
+          size: '—',
+          uploadedAt: new Date().toISOString(),
+        },
+      ];
+
+      const hasShortage = dto.items.some((item) => {
+        const row = existing.items.find((i) => i.id === item.itemId);
+        if (!row) return false;
+        const dispatched = Number(
+          row.allocatedQty ?? row.approvedQty ?? row.requestedQty,
+        );
+        const shortageQty =
+          item.shortageQty ?? Math.max(0, dispatched - item.receivedQty);
+        return shortageQty > 0 || item.receivedQty < dispatched;
+      });
 
       return tx.requisition.update({
         where: { id },
         data: {
-          status: 'COMPLETED',
+          status: hasShortage ? 'RECEIVED' : 'COMPLETED',
           receivedBy: actor.id,
           receivedByName: actor.name,
           receivedAt: new Date(),
-          completedAt: new Date(),
+          ...(hasShortage ? {} : { completedAt: new Date() }),
           ...(dto.photoUrls?.length
             ? {
                 receivingPhotos: dto.photoUrls.map((url, index) => ({
@@ -1609,36 +1839,47 @@ export class RequisitionsService {
                 })),
               }
             : {}),
-          ...(dto.documents?.length
-            ? {
-                receivingDocuments: dto.documents.map((doc, index) => ({
-                  id: `doc-${index}`,
-                  url: doc.url,
-                  name: doc.name ?? `Document ${index + 1}`,
-                  type: doc.type ?? 'OTHER',
-                  size: doc.size ?? '—',
-                  uploadedAt: new Date().toISOString(),
-                })),
-              }
-            : {}),
+          receivingDocuments: documents,
         },
         include: this.requisitionInclude(),
       });
     });
 
+    const finalStatus = updated.status;
     await this.activateTimelineStep(id, 'Hub Received', actor.name);
-    await this.activateTimelineStep(id, 'Completed');
-    await this.writeAudit(id, actor, 'RECEIVE', existing.status, 'COMPLETED');
+    if (finalStatus === 'COMPLETED') {
+      await this.activateTimelineStep(id, 'Completed');
+    }
+    await this.writeAudit(id, actor, 'RECEIVE', existing.status, finalStatus);
+
+    const shortageLines = dto.items
+      .map((item) => {
+        const row = existing.items.find((i) => i.id === item.itemId);
+        if (!row) return null;
+        const dispatched = Number(
+          row.allocatedQty ?? row.approvedQty ?? row.requestedQty,
+        );
+        const shortage = Math.max(0, dispatched - item.receivedQty);
+        if (shortage <= 0) return null;
+        return `${row.productName}: shortage ${shortage} ${row.unit}`;
+      })
+      .filter(Boolean);
+
+    // Notify central warehouse admins via hub notification is hub-scoped;
+    // still notify destination hub and include shortage in message for ops.
+    await this.notifyHub(
+      existing.hubId,
+      finalStatus === 'COMPLETED'
+        ? 'Delivery Received'
+        : 'Partial Delivery Received',
+      finalStatus === 'COMPLETED'
+        ? `${existing.requestNo} received and completed. Inventory updated.`
+        : `${existing.requestNo} partially received. ${shortageLines.join('; ')}`,
+      `/transfers`,
+    );
     if (dto.comment) {
       await this.addComment(id, actor, { message: dto.comment });
     }
-
-    await this.notifyHub(
-      hubId,
-      'Receipt Submitted Successfully',
-      `${existing.requestNo} material receipt accepted. Inventory updated.`,
-      `/transfers`,
-    );
 
     return this.mapDetail(updated);
   }

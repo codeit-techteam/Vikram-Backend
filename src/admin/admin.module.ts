@@ -138,10 +138,14 @@ import { WarehouseRequisitionsController } from './requisitions/warehouse-requis
 import { AdminHubReceivingController } from './hub-receiving/admin-hub-receiving.controller';
 import { RequisitionTrackingController } from '../modules/requisitions/requisition-tracking.controller';
 import { RequisitionsModule } from '../modules/requisitions/requisitions.module';
+import { AdminWarehouseController } from './warehouse/admin-warehouse.controller';
+import { AdminWarehouseService } from './warehouse/admin-warehouse.service';
 import { VehiclesModule } from '../modules/vehicles/vehicles.module';
 import { AdminVehiclesController } from './vehicles/admin-vehicles.controller';
 import { DriversModule } from '../modules/drivers/drivers.module';
 import { AdminDriversController } from './drivers/admin-drivers.controller';
+import { AdminLogisticsController } from './logistics/admin-logistics.controller';
+import { AdminLogisticsService } from './logistics/admin-logistics.service';
 
 // Shared modules
 import { OrdersModule } from '../modules/orders/orders.module';
@@ -208,9 +212,11 @@ import { LoyaltyModule } from '../modules/loyalty/loyalty.module';
     AdminRequisitionsController,
     WarehouseRequisitionsController,
     AdminHubReceivingController,
+    AdminWarehouseController,
     RequisitionTrackingController,
     AdminVehiclesController,
     AdminDriversController,
+    AdminLogisticsController,
   ],
   providers: [
     AdminJwtStrategy,
@@ -247,6 +253,8 @@ import { LoyaltyModule } from '../modules/loyalty/loyalty.module';
     AdminReportsService,
     AdminFinanceService,
     AdminSupportService,
+    AdminWarehouseService,
+    AdminLogisticsService,
   ],
   exports: [AuditService],
 })
