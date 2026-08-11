@@ -25,4 +25,10 @@ export class LoyaltyQueryDto {
   @IsOptional()
   @IsString()
   tier?: string;
+  @ApiPropertyOptional({
+    description: 'Search by customer name, phone, customer ID, company, or city',
+  })
+  @IsOptional()
+  @IsString()
+  search?: string;
 }

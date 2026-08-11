@@ -3,6 +3,7 @@ import { PassportModule } from '@nestjs/passport';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { LoyaltyModule } from '../modules/loyalty/loyalty.module';
+import { DeliveryModule } from '../modules/delivery/delivery.module';
 import { InvoiceModule } from '../modules/invoice/invoice.module';
 
 // Auth
@@ -88,6 +89,7 @@ import { HubRequisitionTrackingController } from '../modules/requisitions/requis
 // Search
 import { HubSearchController } from './search/hub-search.controller';
 import { HubSearchService } from './search/hub-search.service';
+import { HubDeliveryPricingController } from './delivery-pricing/hub-delivery-pricing.controller';
 import { RequisitionsModule } from '../modules/requisitions/requisitions.module';
 import { VehiclesModule } from '../modules/vehicles/vehicles.module';
 import { DriversModule } from '../modules/drivers/drivers.module';
@@ -95,6 +97,7 @@ import { DriversModule } from '../modules/drivers/drivers.module';
 @Module({
   imports: [
     LoyaltyModule,
+    DeliveryModule,
     InvoiceModule,
     RequisitionsModule,
     VehiclesModule,
@@ -132,6 +135,7 @@ import { DriversModule } from '../modules/drivers/drivers.module';
     HubMediaController,
     HubMaterialReceiptsController,
     HubRequisitionTrackingController,
+    HubDeliveryPricingController,
   ],
   providers: [
     HubJwtStrategy,

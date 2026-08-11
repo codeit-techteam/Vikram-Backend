@@ -3,11 +3,14 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { DevicePlatform } from '../../../generated/prisma/client';
+import { DevicePlatform, NotificationType } from '../../../generated/prisma/client';
 import { PrismaService } from '../../common/database/prisma.service';
 import { normalizePhone } from '../../common/utils/phone.util';
 import { JwtTokenService } from '../jwt/jwt-token.service';
 import { OtpService } from '../otp/otp.service';
+import { LoyaltyTransactionService } from '../../modules/loyalty/loyalty-transaction.service';
+import { DeliveryBenefitService } from '../../modules/delivery/delivery-benefit.service';
+import { NotificationService } from '../../modules/notification/notification.service';
 import {
   AuthResponseDto,
   CustomerMeDto,
@@ -27,6 +30,9 @@ export class CustomerAuthService {
     private readonly prisma: PrismaService,
     private readonly otpService: OtpService,
     private readonly jwtTokenService: JwtTokenService,
+    private readonly loyaltyTransactionService: LoyaltyTransactionService,
+    private readonly deliveryBenefitService: DeliveryBenefitService,
+    private readonly notificationService: NotificationService,
   ) {}
 
   async sendOtp(mobile: string): Promise<SendOtpResponseDto> {
@@ -100,6 +106,25 @@ export class CustomerAuthService {
           loyaltyAccount: true,
         },
       });
+
+      await this.loyaltyTransactionService.creditWelcomeBonus(customer.id);
+      await this.deliveryBenefitService.ensureBenefit(customer.id);
+
+      try {
+        await this.notificationService.createForCustomer({
+          customerId: customer.id,
+          type: NotificationType.LOYALTY,
+          label: 'LOYALTY',
+          title: 'Welcome bonus credited',
+          body: '50 loyalty points have been added to your account.',
+          actionLabel: 'View Loyalty',
+          actionRoute: '/account/loyalty',
+          actionVariant: 'outline',
+          priority: 5,
+        });
+      } catch {
+        // Non-blocking
+      }
     } else {
       if (customer.status !== 'ACTIVE') {
         throw new UnauthorizedException('Account is inactive or suspended');

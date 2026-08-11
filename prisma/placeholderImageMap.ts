@@ -6,7 +6,8 @@
 
 export const CATEGORY_PLACEHOLDER_MAP: Record<string, string> = {
   cement: '/assets/category-cement.png',
-  steel: '/assets/category-steel.png',
+  rmc: '/assets/category-rmc.png',
+  steel: '/assets/category-rmc.png', // legacy slug alias → RMC visual
   hardware: '/assets/category-aggregates.png',
   sand: '/assets/category-sand.png',
   bricks: '/assets/category-bricks.png',
@@ -27,10 +28,17 @@ export const PRODUCT_PLACEHOLDER_MAP: Record<string, string> = {
   'cement-opc-53': '/assets/product-ultratech-bags.png',
   'tata-tiscon-tmt-500d': '/assets/product-tata-tiscon-500d.png',
   'jsw-neo-steel-bars': '/assets/product-jsw-neosteel.png',
+  'rmc-m25': '/assets/category-rmc.png',
+  'rmc-m30': '/assets/category-rmc.png',
   'sand-dust': '/assets/product-dust.png',
   'river-sand': '/assets/product-river-sand.png',
   'red-bricks': '/assets/product-red-bricks.png',
+  'red-bricks-a-plus': '/assets/product-red-bricks.png',
+  'red-bricks-b-plus': '/assets/product-red-bricks.png',
   'grey-flash-cement-bricks': '/assets/product-grey-flash-cement-bricks.png',
+  'grey-ash-bricks-a': '/assets/product-grey-flash-cement-bricks.png',
+  'grey-ash-bricks-a-plus': '/assets/product-grey-flash-cement-bricks.png',
+  'grey-ash-bricks-b-plus': '/assets/product-grey-flash-cement-bricks.png',
   'grey-fill-sand-grade-1': '/assets/category-grey-fill-sand.png',
   '20mm-stone-aggregate': '/assets/product-crushed-stone-aggregate.png',
   '40mm-crushed-stone': '/assets/product-40mm-crushed-stone.png',

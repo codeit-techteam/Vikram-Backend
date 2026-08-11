@@ -7,6 +7,7 @@ import { ConfigService } from '@nestjs/config';
 import type { OrderStatus, Prisma } from '../../../generated/prisma/client';
 import { PrismaService } from '../../common/database/prisma.service';
 import { LoyaltyTransactionService } from '../../modules/loyalty/loyalty-transaction.service';
+import { DeliveryBenefitService } from '../../modules/delivery/delivery-benefit.service';
 import {
   getOrderStatusLabel,
   ORDER_STATUS_TRANSITIONS,
@@ -39,6 +40,7 @@ export class HubOrdersService {
     private readonly prisma: PrismaService,
     private readonly orderRepo: HubOrderRepository,
     private readonly loyaltyTransactionService: LoyaltyTransactionService,
+    private readonly deliveryBenefitService: DeliveryBenefitService,
     private readonly orderEvents: OrderEventsService,
     private readonly configService: ConfigService,
     private readonly driversService: DriversService,
@@ -831,7 +833,7 @@ export class HubOrdersService {
 
   async cancel(hubId: string, orderId: string, dto: HubCancelOrderDto, updatedBy: string) {
     await this.releaseReservedStock(hubId, orderId);
-    return this.transitionOrder(
+    const cancelled = await this.transitionOrder(
       hubId,
       orderId,
       'CANCELLED',
@@ -839,6 +841,11 @@ export class HubOrdersService {
       { cancelReason: dto.reason, cancelledAt: new Date() },
       dto.reason,
     );
+
+    await this.loyaltyTransactionService.refundRedemptionForCancelledOrder(orderId);
+    await this.deliveryBenefitService.restoreFreeBikeDelivery({ orderId });
+
+    return cancelled;
   }
 
   async getTimeline(hubId: string, orderId: string) {

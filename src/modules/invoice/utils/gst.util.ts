@@ -62,7 +62,7 @@ export function buildFinancialSnapshot(order: {
     ? toMoney(Math.max(0, discountAmount - membershipDiscount))
     : 0;
   const loyaltyPointsUsed = order.loyaltyPointsUsed ?? 0;
-  const pointValue = order.loyaltyPointValue ?? 1;
+  const pointValue = order.loyaltyPointValue ?? 0.01;
 
   return {
     loyaltyPointsUsed,

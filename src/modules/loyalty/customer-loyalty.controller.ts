@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiHeader,
@@ -19,6 +19,7 @@ import { LoyaltyService } from './loyalty.service';
 import {
   LoyaltyEarnDto,
   LoyaltyEarnResponseDto,
+  LoyaltyHistoryQueryDto,
   LoyaltyHistoryResponseDto,
   LoyaltyRedeemDto,
   LoyaltyRedeemResponseDto,
@@ -49,13 +50,18 @@ export class CustomerLoyaltyController {
   }
 
   @Get('history')
-  @ApiOperation({ summary: 'Get loyalty transaction history' })
+  @ApiOperation({ summary: 'Get loyalty transaction history (paginated)' })
   @ApiResponse({ status: 200, type: LoyaltyHistoryResponseDto })
   @ApiResponse({ status: 401, type: ApiErrorResponseDto })
   async getHistory(
     @CurrentUser() user: AuthenticatedCustomer,
+    @Query() query: LoyaltyHistoryQueryDto,
   ): Promise<{ success: boolean; message: string; data: LoyaltyHistoryResponseDto }> {
-    const data = await this.loyaltyService.getLoyaltyHistory(user.id);
+    const data = await this.loyaltyService.getLoyaltyHistory(
+      user.id,
+      query.page ?? 1,
+      query.limit ?? 20,
+    );
     return {
       success: true,
       message: 'Loyalty history fetched successfully',
@@ -67,7 +73,7 @@ export class CustomerLoyaltyController {
   @ApiOperation({
     summary: 'Redeem loyalty points against an order',
     description:
-      'Minimum 500 points. 1 point = ₹1. Maximum 30% of order value. Cannot exceed non-expired balance.',
+      'Requires order value ≥ ₹500. 1 point = ₹0.01. Maximum 30% of order value. Cannot exceed non-expired balance.',
   })
   @ApiResponse({ status: 201, type: LoyaltyRedeemResponseDto })
   @ApiResponse({ status: 400, type: ApiErrorResponseDto })
@@ -90,7 +96,8 @@ export class CustomerLoyaltyController {
   @ApiHeader({ name: 'x-internal-api-key', required: true })
   @ApiOperation({
     summary: 'Credit loyalty points after order delivery (internal)',
-    description: 'Requires x-internal-api-key. Awards 1 point per ₹100 subtotal.',
+    description:
+      'Requires x-internal-api-key. Awards 1 point per ₹100 eligible spend + first-order bonus when applicable.',
   })
   @ApiResponse({ status: 201, type: LoyaltyEarnResponseDto })
   async earn(

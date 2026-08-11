@@ -53,7 +53,7 @@ export class CartController {
           itemCount: 1,
           subtotal: 850,
           gstAmount: 153,
-          deliveryCharge: 150,
+          deliveryCharge: 0,
           grandTotal: 1153,
           items: [],
         },

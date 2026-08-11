@@ -82,6 +82,12 @@ export class CartProductDto {
   category?: string | null;
 
   @ApiPropertyOptional()
+  productType?: string | null;
+
+  @ApiPropertyOptional()
+  grade?: string | null;
+
+  @ApiPropertyOptional()
   variant?: string | null;
 
   @ApiPropertyOptional()

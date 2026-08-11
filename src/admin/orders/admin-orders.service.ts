@@ -7,6 +7,8 @@ import {
   resolveStatusInput,
 } from '../../modules/orders/order-lifecycle.constants';
 import { OrderEventsService } from '../../modules/orders/order-events.service';
+import { LoyaltyTransactionService } from '../../modules/loyalty/loyalty-transaction.service';
+import { DeliveryBenefitService } from '../../modules/delivery/delivery-benefit.service';
 import type { AdminOrderQueryDto, UpdateOrderStatusDto, CancelOrderDto } from './dto/admin-orders.dto';
 import type { OrderStatus } from '../../../generated/prisma/client';
 
@@ -15,6 +17,8 @@ export class AdminOrdersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly orderEvents: OrderEventsService,
+    private readonly loyaltyTransactionService: LoyaltyTransactionService,
+    private readonly deliveryBenefitService: DeliveryBenefitService,
   ) {}
 
   async findAll(query: AdminOrderQueryDto) {
@@ -353,6 +357,9 @@ export class AdminOrdersService {
         },
       }),
     ]);
+
+    await this.loyaltyTransactionService.refundRedemptionForCancelledOrder(id);
+    await this.deliveryBenefitService.restoreFreeBikeDelivery({ orderId: id });
 
     this.orderEvents.emitOrderUpdated({
       orderId: updated.id,

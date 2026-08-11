@@ -914,15 +914,15 @@ export class AdminLogisticsService {
       ];
     }
 
-    const [warehouseRows, orderRows, driversWaiting, vehiclesWaiting] =
+    const [warehouseRows, orderRows, driversWaiting, vehiclesWaiting, centralWarehouse] =
       await Promise.all([
         this.prisma.requisition.findMany({
           where: warehouseWhere,
           orderBy: { updatedAt: 'desc' },
           take: 200,
           include: {
-            hub: { select: { id: true, name: true } },
-            warehouseHub: { select: { id: true, name: true } },
+            hub: { select: { id: true, name: true, hubType: true } },
+            warehouseHub: { select: { id: true, name: true, hubType: true } },
             vehicle: { select: { id: true, registration: true } },
             driver: { select: { id: true, name: true } },
           },
@@ -933,7 +933,7 @@ export class AdminLogisticsService {
           take: 200,
           include: {
             customer: { select: { fullName: true } },
-            hub: { select: { id: true, name: true } },
+            hub: { select: { id: true, name: true, hubType: true } },
             assignedDriver: { select: { id: true, name: true } },
             assignedVehicle: { select: { id: true, registration: true } },
             dispatch: {
@@ -958,32 +958,72 @@ export class AdminLogisticsService {
             status: 'AVAILABLE',
           },
         }),
+        this.prisma.hub.findFirst({
+          where: { hubType: 'CENTRAL_WAREHOUSE', isActive: true },
+          select: { id: true, name: true },
+          orderBy: { createdAt: 'asc' },
+        }),
       ]);
 
+    const centralName = centralWarehouse?.name ?? 'Central Warehouse';
+    const centralId = centralWarehouse?.id ?? null;
+
     let records = [
-      ...warehouseRows.map((row) => ({
-        id: row.id,
-        dispatchId: row.requestNo.replace(/^REQ-/, 'TRN-'),
-        source: row.warehouseHub?.name ?? 'Central Warehouse',
-        destination: row.hub.name,
-        vehicleId: row.vehicleId ?? row.vehicle?.id ?? null,
-        vehicleNumber:
-          row.vehicleRegistration ?? row.vehicle?.registration ?? null,
-        driverId: row.driverId ?? row.driver?.id ?? null,
-        driverName: row.driverName ?? row.driver?.name ?? null,
-        route: `${row.warehouseHub?.name ?? 'Warehouse'} → ${row.hub.name}`,
-        eta: row.estimatedArrival?.toISOString() ?? '',
-        status: (row.status === 'ALLOCATED'
-          ? row.vehicleId
-            ? 'assigned'
-            : 'pending'
-          : row.status === 'IN_TRANSIT'
-            ? 'in_transit'
-            : 'dispatched') as UiDispatchStatus,
-        createdAt: row.createdAt.toISOString(),
-        kind: 'warehouse' as const,
-      })),
-      ...orderRows.map((row) => {
+      ...warehouseRows
+        .filter((row) => {
+          // Warehouse→Hub only. Never show same-hub (Hub→Hub) routes.
+          const sourceId = row.warehouseHubId ?? centralId;
+          const destId = row.hubId;
+          if (!destId) return false;
+          if (sourceId && destId && sourceId === destId) return false;
+          // Destination must be a sub-hub, not the central warehouse itself.
+          if (row.hub.hubType === 'CENTRAL_WAREHOUSE') return false;
+          return true;
+        })
+        .map((row) => {
+          const sourceName =
+            row.warehouseHub?.hubType === 'CENTRAL_WAREHOUSE'
+              ? row.warehouseHub.name
+              : centralName;
+          return {
+            id: row.id,
+            dispatchId: row.requestNo.replace(/^REQ-/, 'TRN-'),
+            source: sourceName,
+            destination: row.hub.name,
+            vehicleId: row.vehicleId ?? row.vehicle?.id ?? null,
+            vehicleNumber:
+              row.vehicleRegistration ?? row.vehicle?.registration ?? null,
+            driverId: row.driverId ?? row.driver?.id ?? null,
+            driverName: row.driverName ?? row.driver?.name ?? null,
+            route: `${sourceName} → ${row.hub.name}`,
+            eta: row.estimatedArrival?.toISOString() ?? '',
+            status: (row.status === 'ALLOCATED'
+              ? row.vehicleId
+                ? 'assigned'
+                : 'pending'
+              : row.status === 'IN_TRANSIT'
+                ? 'in_transit'
+                : 'dispatched') as UiDispatchStatus,
+            createdAt: row.createdAt.toISOString(),
+            kind: 'warehouse' as const,
+          };
+        }),
+      ...orderRows
+        .filter((row) => {
+          // Hub→Customer only. Reject missing hub or central-warehouse-as-source misuse.
+          if (!row.hubId || !row.hub) return false;
+          if (row.hub.hubType === 'CENTRAL_WAREHOUSE') return false;
+          const customerName = row.customer?.fullName?.trim() ?? '';
+          // Block hub-to-same-hub style mislabels (destination equals source hub name).
+          if (
+            customerName &&
+            customerName.toLowerCase() === row.hub.name.toLowerCase()
+          ) {
+            return false;
+          }
+          return true;
+        })
+        .map((row) => {
         const driver = row.dispatch?.driver ?? row.assignedDriver;
         const vehicle = row.dispatch?.vehicle ?? row.assignedVehicle;
         return {
@@ -1416,9 +1456,10 @@ export class AdminLogisticsService {
     ];
 
     let currentIdx = stages.findIndex((s) => !s.completedAt);
-    if (currentIdx < 0) currentIdx = stages.length - 1;
-    else if (currentIdx > 0 && stages[currentIdx - 1]?.completedAt) {
-      // current is first incomplete
+    // When every stage is complete, do not keep the last stage as "current"
+    // so the UI can show a green check on Delivered/Received.
+    if (currentIdx < 0) {
+      return stages.map((s) => ({ ...s, isCurrent: false }));
     }
 
     return stages.map((s, i) => ({
@@ -1499,7 +1540,9 @@ export class AdminLogisticsService {
     ];
 
     let currentIdx = stages.findIndex((s) => !s.completedAt);
-    if (currentIdx < 0) currentIdx = stages.length - 1;
+    if (currentIdx < 0) {
+      return stages.map((s) => ({ ...s, isCurrent: false }));
+    }
 
     return stages.map((s, i) => ({
       ...s,

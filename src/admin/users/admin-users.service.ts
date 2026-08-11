@@ -67,19 +67,30 @@ export class AdminUsersService {
         skip,
         take: limit,
         orderBy: { createdAt: 'desc' },
+        include: {
+          _count: { select: { assignedCustomers: true } },
+        },
       }),
       this.prisma.adminUser.count({ where }),
     ]);
 
     return {
-      data: rows.map((row) => this.mapUser(row)),
+      data: rows.map((row) =>
+        this.mapUser(row, row._count?.assignedCustomers ?? 0),
+      ),
       meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
     };
   }
 
   async findOne(id: string) {
-    const user = await this.getUserOrThrow(id);
-    return this.mapUser(user);
+    const user = await this.prisma.adminUser.findFirst({
+      where: { id, deletedAt: null },
+      include: {
+        _count: { select: { assignedCustomers: true } },
+      },
+    });
+    if (!user) throw new NotFoundException('Admin user not found');
+    return this.mapUser(user, user._count.assignedCustomers);
   }
 
   async create(dto: CreateAdminUserDto, actorId: string, actorEmail: string) {
@@ -358,17 +369,20 @@ export class AdminUsersService {
     };
   }
 
-  private mapUser(user: {
-    id: string;
-    fullName: string;
-    email: string;
-    phone: string | null;
-    role: AdminRole;
-    isActive: boolean;
-    lastLoginAt: Date | null;
-    createdAt: Date;
-    updatedAt: Date;
-  }) {
+  private mapUser(
+    user: {
+      id: string;
+      fullName: string;
+      email: string;
+      phone: string | null;
+      role: AdminRole;
+      isActive: boolean;
+      lastLoginAt: Date | null;
+      createdAt: Date;
+      updatedAt: Date;
+    },
+    assignedCustomers = 0,
+  ) {
     return {
       id: user.id,
       name: user.fullName,
@@ -383,6 +397,7 @@ export class AdminUsersService {
       lastLoginAt: user.lastLoginAt,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
+      assignedCustomers,
     };
   }
 }

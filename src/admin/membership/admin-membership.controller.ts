@@ -29,6 +29,14 @@ export class AdminMembershipController {
     return { success: true, message: 'Plans fetched', data };
   }
 
+  @Get('stats')
+  @AdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
+  @ApiOperation({ summary: 'Membership dashboard statistics' })
+  async stats() {
+    const data = await this.membershipService.getStats();
+    return { success: true, message: 'Membership stats fetched', data };
+  }
+
   @Post('plans')
   @AdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
   @ApiOperation({ summary: 'Create a membership plan' })

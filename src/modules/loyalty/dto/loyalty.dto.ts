@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsInt, IsUUID, Min } from 'class-validator';
+import { IsInt, IsOptional, IsUUID, Max, Min } from 'class-validator';
+import { Type } from 'class-transformer';
 import {
   LoyaltyTier,
   LoyaltyTransactionType,
@@ -12,19 +13,28 @@ export class LoyaltySummaryDto {
   @ApiProperty()
   customerId!: string;
 
-  @ApiProperty()
+  @ApiProperty({ description: 'Lifetime earned points' })
   currentPoints!: number;
+
+  @ApiProperty({ description: 'Alias of currentPoints (lifetime earned)' })
+  lifetimeEarned!: number;
 
   @ApiProperty()
   redeemedPoints!: number;
 
+  @ApiProperty({ description: 'Alias of redeemedPoints' })
+  lifetimeRedeemed!: number;
+
   @ApiProperty()
   availablePoints!: number;
+
+  @ApiProperty({ example: 22.57, description: 'availablePoints × pointValueInr' })
+  availableValue!: number;
 
   @ApiProperty({ enum: LoyaltyTier })
   tier!: LoyaltyTier;
 
-  @ApiProperty({ description: 'Non-expired points redeemable at checkout (1 point = ₹1)' })
+  @ApiProperty({ description: 'Non-expired points redeemable at checkout' })
   redeemablePoints!: number;
 
   @ApiPropertyOptional({ enum: LoyaltyTier, nullable: true })
@@ -42,14 +52,38 @@ export class LoyaltySummaryDto {
   })
   nextExpiry?: string | null;
 
-  @ApiProperty({ example: 500 })
+  @ApiProperty({
+    example: 500,
+    description: 'Minimum order value (INR) required to redeem',
+  })
   minRedeemPoints!: number;
 
-  @ApiProperty({ example: 1 })
+  @ApiProperty({ example: 500 })
+  minRedeemOrderValue!: number;
+
+  @ApiProperty({ example: 0.01, description: 'INR value of 1 loyalty point' })
   pointValueInr!: number;
 
   @ApiProperty({ example: 30 })
   maxOrderRedeemPercent!: number;
+
+  @ApiProperty({ example: 50 })
+  welcomeBonus!: number;
+
+  @ApiProperty({ example: 50 })
+  firstOrderBonus!: number;
+
+  @ApiProperty({ example: 1 })
+  earnPointsPer100Inr!: number;
+
+  @ApiProperty({ example: 3, description: 'Total free bike deliveries allowed' })
+  freeBikeDeliveriesAllowed!: number;
+
+  @ApiProperty({ example: 1, description: 'Free bike deliveries already used' })
+  freeBikeDeliveriesUsed!: number;
+
+  @ApiProperty({ example: 2, description: 'Free bike deliveries remaining' })
+  freeBikeDeliveriesRemaining!: number;
 }
 
 export class LoyaltyTransactionResponseDto {
@@ -84,12 +118,46 @@ export class LoyaltyTransactionResponseDto {
   createdAt!: string;
 }
 
+export class LoyaltyHistoryMetaDto {
+  @ApiProperty()
+  page!: number;
+
+  @ApiProperty()
+  limit!: number;
+
+  @ApiProperty()
+  total!: number;
+
+  @ApiProperty()
+  totalPages!: number;
+}
+
 export class LoyaltyHistoryResponseDto {
   @ApiProperty({ type: LoyaltySummaryDto })
   account!: LoyaltySummaryDto;
 
   @ApiProperty({ type: [LoyaltyTransactionResponseDto] })
   transactions!: LoyaltyTransactionResponseDto[];
+
+  @ApiPropertyOptional({ type: LoyaltyHistoryMetaDto })
+  meta?: LoyaltyHistoryMetaDto;
+}
+
+export class LoyaltyHistoryQueryDto {
+  @ApiPropertyOptional({ default: 1 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number = 1;
+
+  @ApiPropertyOptional({ default: 20 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(50)
+  limit?: number = 20;
 }
 
 export class LoyaltyRedeemDto {
@@ -97,17 +165,17 @@ export class LoyaltyRedeemDto {
   @IsUUID()
   orderId!: string;
 
-  @ApiProperty({ example: 500, minimum: 500 })
+  @ApiProperty({ example: 100, minimum: 1 })
   @IsInt()
-  @Min(500)
+  @Min(1)
   points!: number;
 }
 
 export class LoyaltyRedeemResponseDto {
-  @ApiProperty({ example: 500, description: 'Discount amount in INR' })
+  @ApiProperty({ example: 1, description: 'Discount amount in INR' })
   discount!: number;
 
-  @ApiProperty({ example: 500 })
+  @ApiProperty({ example: 100 })
   pointsRedeemed!: number;
 
   @ApiProperty({ example: 1200 })
@@ -129,6 +197,12 @@ export class LoyaltyEarnResponseDto {
 
   @ApiProperty()
   points!: number;
+
+  @ApiPropertyOptional()
+  orderEarnedPoints?: number;
+
+  @ApiPropertyOptional()
+  firstOrderBonusPoints?: number;
 
   @ApiPropertyOptional()
   transactionId?: string;

@@ -13,6 +13,13 @@ export class CreateProductDto {
   @ApiPropertyOptional() @IsOptional() @IsString() brand?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() description?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() grade?: string;
+  @ApiPropertyOptional({
+    description: 'Stable product type code (e.g. RED_BRICKS, GREY_ASH_BRICKS)',
+    example: 'RED_BRICKS',
+  })
+  @IsOptional()
+  @IsString()
+  productType?: string;
   @ApiProperty() @IsNumber() retailPrice: number;
   @ApiPropertyOptional() @IsOptional() @IsNumber() mrp?: number;
   @ApiPropertyOptional() @IsOptional() @IsNumber() bulkPrice?: number;
@@ -60,6 +67,8 @@ export class UpdateProductDto {
   @ApiPropertyOptional() @IsOptional() @IsString() categoryId?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() brand?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() description?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() grade?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() productType?: string;
   @ApiPropertyOptional() @IsOptional() @IsNumber() retailPrice?: number;
   @ApiPropertyOptional() @IsOptional() @IsNumber() mrp?: number;
   @ApiPropertyOptional() @IsOptional() @IsNumber() bulkPrice?: number;
@@ -99,6 +108,8 @@ export class ProductQueryDto {
   @ApiPropertyOptional() @IsOptional() @IsString() search?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() categoryId?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() status?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() productType?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() grade?: string;
   @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsInt() @Min(1) page?: number = 1;
   @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsInt() @Min(1) limit?: number = 20;
 }

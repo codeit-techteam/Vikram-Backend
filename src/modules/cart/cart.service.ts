@@ -433,6 +433,8 @@ export class CartService {
           brand: item.product.brand,
           sku: item.product.sku,
           category: item.product.category?.name ?? null,
+          productType: item.product.productType ?? null,
+          grade: item.product.grade ?? null,
           variant: variantLabel,
           mrp,
           unit: item.product.unit,

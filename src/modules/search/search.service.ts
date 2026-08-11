@@ -230,9 +230,10 @@ export class SearchService {
     if (terms.length === 0) {
       const fallback = [
         'UltraTech Cement',
-        'TMT Steel Bars',
+        'RMC M25',
         'River Sand',
         'Red Bricks',
+        'Fly Ash Bricks',
         'Stone Chips',
       ];
       await this.cache.set(cacheKey, fallback, CACHE_TTL.SEARCH_TRENDING);
@@ -335,8 +336,19 @@ export class SearchService {
         { brand: { contains: term, mode: 'insensitive' } },
         { description: { contains: term, mode: 'insensitive' } },
         { grade: { contains: term, mode: 'insensitive' } },
+        { productType: { contains: term, mode: 'insensitive' } },
+        { metaKeywords: { contains: term, mode: 'insensitive' } },
         { sku: { contains: term, mode: 'insensitive' } },
         { category: { name: { contains: term, mode: 'insensitive' } } },
+        { category: { slug: { contains: term, mode: 'insensitive' } } },
+        ...(term.toLowerCase().includes('fly ash') ||
+        term.toLowerCase().includes('grey ash')
+          ? [{ productType: 'GREY_ASH_BRICKS' as const }]
+          : []),
+        ...(term.toLowerCase() === 'rmc' ||
+        term.toLowerCase().includes('ready mix')
+          ? [{ category: { slug: 'rmc' } }]
+          : []),
       ],
     };
 

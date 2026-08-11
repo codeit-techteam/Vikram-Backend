@@ -18,6 +18,12 @@ import {
   pickPreferredMediaUrl,
 } from '../../common/utils/media-url';
 import { CoverageService } from '../coverage/coverage.service';
+import {
+  displayBrickGrade,
+  displayBrickProductType,
+  normalizeBrickGrade,
+  normalizeBrickProductType,
+} from '../catalog/catalog.constants';
 import { ProductQueryDto } from './dto/product-query.dto';
 import {
   BulkPricingTierDto,
@@ -507,6 +513,8 @@ export class ProductService {
       !query.listingType &&
       !query.brand &&
       !query.grade &&
+      !query.productType &&
+      !query.brickType &&
       !query.status &&
       query.minPrice === undefined &&
       query.maxPrice === undefined &&
@@ -591,7 +599,12 @@ export class ProductService {
       this.mergeOrFilter(where, offerOr);
     }
     if (query.brand) where.brand = { equals: query.brand, mode: 'insensitive' };
-    if (query.grade) where.grade = query.grade;
+    const productTypeRaw = query.productType ?? query.brickType;
+    const productType =
+      normalizeBrickProductType(productTypeRaw) ?? productTypeRaw?.trim();
+    const grade = normalizeBrickGrade(query.grade) ?? query.grade?.trim();
+    if (productType) where.productType = productType;
+    if (grade) where.grade = grade;
     if (query.status) where.status = query.status;
     if (query.minPrice !== undefined || query.maxPrice !== undefined) {
       where.retailPrice = {
@@ -607,8 +620,39 @@ export class ProductService {
         { brand: { contains: term, mode: 'insensitive' } },
         { sku: { contains: term, mode: 'insensitive' } },
         { description: { contains: term, mode: 'insensitive' } },
+        { grade: { contains: term, mode: 'insensitive' } },
+        { productType: { contains: term, mode: 'insensitive' } },
+        { metaKeywords: { contains: term, mode: 'insensitive' } },
         { category: { name: { contains: term, mode: 'insensitive' } } },
+        { category: { slug: { contains: term, mode: 'insensitive' } } },
       ];
+
+      const lowered = term.toLowerCase();
+      if (
+        lowered.includes('fly ash') ||
+        lowered.includes('flyash') ||
+        lowered.includes('grey ash') ||
+        lowered.includes('gray ash')
+      ) {
+        searchOr.push({ productType: 'GREY_ASH_BRICKS' });
+      }
+      if (lowered.includes('red brick')) {
+        searchOr.push({ productType: 'RED_BRICKS' });
+      }
+      if (
+        lowered === 'rmc' ||
+        lowered.includes('ready mix') ||
+        lowered.includes('ready-mix')
+      ) {
+        searchOr.push({ category: { slug: 'rmc' } });
+      }
+      if (lowered === 'a+' || lowered === 'a plus') {
+        searchOr.push({ grade: 'A_PLUS' });
+      }
+      if (lowered === 'b+' || lowered === 'b plus') {
+        searchOr.push({ grade: 'B_PLUS' });
+      }
+
       this.mergeOrFilter(where, searchOr);
     }
 
@@ -773,6 +817,7 @@ export class ProductService {
       brandLogoUrl?: string | null;
       description: string | null;
       categoryId: string;
+      productType?: string | null;
       grade: string | null;
       badge: string | null;
       badgeColor: string | null;
@@ -898,6 +943,10 @@ export class ProductService {
         parentId: product.category.parentId ?? null,
       },
       grade: product.grade,
+      gradeLabel: displayBrickGrade(product.grade) ?? product.grade,
+      productType: product.productType ?? null,
+      productTypeLabel:
+        displayBrickProductType(product.productType) ?? product.productType ?? null,
       badge: product.badge,
       badgeColor: product.badgeColor,
       status: product.status,

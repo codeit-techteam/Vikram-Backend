@@ -3,6 +3,7 @@ import { LoyaltyTier } from '../../../generated/prisma/client';
 import { PrismaService } from '../../common/database/prisma.service';
 import { CacheService } from '../../common/cache/cache.service';
 import { CACHE_KEYS, CACHE_TTL } from '../../common/cache/cache.constants';
+import { DeliveryBenefitService } from '../delivery/delivery-benefit.service';
 import { LoyaltyTransactionService } from './loyalty-transaction.service';
 import {
   LoyaltyEarnDto,
@@ -19,6 +20,7 @@ export class LoyaltyService {
     private readonly prisma: PrismaService,
     private readonly cache: CacheService,
     private readonly loyaltyTransactionService: LoyaltyTransactionService,
+    private readonly deliveryBenefitService: DeliveryBenefitService,
   ) {}
 
   async getLoyaltySummary(customerId: string): Promise<LoyaltySummaryDto> {
@@ -38,48 +40,80 @@ export class LoyaltyService {
       update: {},
     });
 
-    const [redeemablePoints, nextExpiry] = await Promise.all([
+    const [redeemablePoints, nextExpiry, deliveryBenefit] = await Promise.all([
       this.loyaltyTransactionService.getNonExpiredBalance(account.id),
       this.loyaltyTransactionService.getNextExpiry(account.id),
+      this.deliveryBenefitService.getSummary(customerId),
     ]);
 
-    const result = this.loyaltyTransactionService.buildSummary(
-      account,
-      redeemablePoints,
-      nextExpiry,
-    );
+    const result = {
+      ...this.loyaltyTransactionService.buildSummary(
+        account,
+        redeemablePoints,
+        nextExpiry,
+      ),
+      freeBikeDeliveriesAllowed: deliveryBenefit.totalAllowed,
+      freeBikeDeliveriesUsed: deliveryBenefit.usedCount,
+      freeBikeDeliveriesRemaining: deliveryBenefit.remainingCount,
+    };
 
     await this.cache.set(cacheKey, result, CACHE_TTL.LOYALTY);
     return result;
   }
 
-  async getLoyaltyHistory(customerId: string): Promise<LoyaltyHistoryResponseDto> {
+  async getLoyaltyHistory(
+    customerId: string,
+    page = 1,
+    limit = 20,
+  ): Promise<LoyaltyHistoryResponseDto> {
+    const take = Math.min(Math.max(limit, 1), 50);
+    const skip = (Math.max(page, 1) - 1) * take;
+
     const account = await this.prisma.loyaltyAccount.findUnique({
       where: { customerId },
     });
 
     if (!account) {
       const summary = await this.getLoyaltySummary(customerId);
-      return { account: summary, transactions: [] };
+      return {
+        account: summary,
+        transactions: [],
+        meta: { page: 1, limit: take, total: 0, totalPages: 0 },
+      };
     }
 
-    const [redeemablePoints, nextExpiry, transactions] = await Promise.all([
-      this.loyaltyTransactionService.getNonExpiredBalance(account.id),
-      this.loyaltyTransactionService.getNextExpiry(account.id),
-      this.prisma.loyaltyTransaction.findMany({
-        where: { accountId: account.id },
-        orderBy: { createdAt: 'desc' },
-        take: 50,
-      }),
-    ]);
+    const [redeemablePoints, nextExpiry, total, transactions, deliveryBenefit] =
+      await Promise.all([
+        this.loyaltyTransactionService.getNonExpiredBalance(account.id),
+        this.loyaltyTransactionService.getNextExpiry(account.id),
+        this.prisma.loyaltyTransaction.count({ where: { accountId: account.id } }),
+        this.prisma.loyaltyTransaction.findMany({
+          where: { accountId: account.id },
+          orderBy: { createdAt: 'desc' },
+          skip,
+          take,
+        }),
+        this.deliveryBenefitService.getSummary(customerId),
+      ]);
 
     return {
-      account: this.loyaltyTransactionService.buildSummary(
-        account,
-        redeemablePoints,
-        nextExpiry,
-      ),
+      account: {
+        ...this.loyaltyTransactionService.buildSummary(
+          account,
+          redeemablePoints,
+          nextExpiry,
+        ),
+        freeBikeDeliveriesAllowed: deliveryBenefit.totalAllowed,
+        freeBikeDeliveriesUsed: deliveryBenefit.usedCount,
+        freeBikeDeliveriesRemaining: deliveryBenefit.remainingCount,
+      },
       transactions: transactions.map((t) => this.mapTransaction(t)),
+      meta: {
+        page: Math.max(page, 1),
+        limit: take,
+        total,
+        totalPages: Math.ceil(total / take) || 0,
+      },
     };
   }
 
@@ -112,7 +146,10 @@ export class LoyaltyService {
       dto.orderId,
     );
 
-    if (!result) {
+    const points =
+      (result.orderEarned?.points ?? 0) + (result.firstOrderBonus?.points ?? 0);
+
+    if (points <= 0) {
       return {
         earned: false,
         points: 0,
@@ -122,10 +159,16 @@ export class LoyaltyService {
 
     return {
       earned: true,
-      points: result.points,
-      transactionId: result.id,
-      message: `${result.points} points credited`,
+      points,
+      orderEarnedPoints: result.orderEarned?.points ?? 0,
+      firstOrderBonusPoints: result.firstOrderBonus?.points ?? 0,
+      transactionId: result.orderEarned?.id ?? result.firstOrderBonus?.id,
+      message: `${points} points credited`,
     };
+  }
+
+  async creditWelcomeBonus(customerId: string) {
+    return this.loyaltyTransactionService.creditWelcomeBonus(customerId);
   }
 
   private mapTransaction(tx: {

@@ -1,15 +1,75 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
-import { CustomerStatus, MembershipStatus, PaymentStatus } from '../../../generated/prisma/client';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
+import {
+  AdminRole,
+  CustomerStatus,
+  MembershipStatus,
+  PaymentStatus,
+} from '../../../generated/prisma/client';
 import { PrismaService } from '../../common/database/prisma.service';
 import type {
+  AdminAssignCustomerDto,
   AdminCustomerQueryDto,
   AdminUpdateCustomerDto,
   AdminUpgradeMembershipDto,
 } from './dto/admin-customers.dto';
 
+const assignmentInclude = {
+  assignedHub: { select: { id: true, name: true, city: true, state: true } },
+  assignedExecutive: {
+    select: { id: true, fullName: true, email: true, phone: true, role: true },
+  },
+} as const;
+
+function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value,
+  );
+}
+
 @Injectable()
 export class AdminCustomersService {
   constructor(private readonly prisma: PrismaService) {}
+
+  async getStats() {
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+
+    const [total, active, blocked, inactive, newToday] = await Promise.all([
+      this.prisma.customer.count({ where: { deletedAt: null } }),
+      this.prisma.customer.count({
+        where: { deletedAt: null, status: CustomerStatus.ACTIVE },
+      }),
+      this.prisma.customer.count({
+        where: { deletedAt: null, status: CustomerStatus.SUSPENDED },
+      }),
+      this.prisma.customer.count({
+        where: { deletedAt: null, status: CustomerStatus.INACTIVE },
+      }),
+      this.prisma.customer.count({
+        where: { deletedAt: null, createdAt: { gte: startOfToday } },
+      }),
+    ]);
+
+    return {
+      total,
+      active,
+      // UI label: pending verification — map unverified active-ish customers
+      pendingVerification: await this.prisma.customer.count({
+        where: {
+          deletedAt: null,
+          isVerified: false,
+          status: { not: CustomerStatus.SUSPENDED },
+        },
+      }),
+      blocked,
+      inactive,
+      newToday,
+    };
+  }
 
   async findAll(query: AdminCustomerQueryDto) {
     const page = query.page ?? 1;
@@ -19,13 +79,15 @@ export class AdminCustomersService {
     const where: Record<string, unknown> = { deletedAt: null };
 
     if (query.search) {
+      const term = query.search.trim();
       where['OR'] = [
-        { phone: { contains: query.search, mode: 'insensitive' } },
-        { fullName: { contains: query.search, mode: 'insensitive' } },
-        { email: { contains: query.search, mode: 'insensitive' } },
+        { phone: { contains: term, mode: 'insensitive' } },
+        { fullName: { contains: term, mode: 'insensitive' } },
+        { email: { contains: term, mode: 'insensitive' } },
+        ...(isUuid(term) ? [{ id: { equals: term } }] : []),
         {
           profile: {
-            companyName: { contains: query.search, mode: 'insensitive' },
+            companyName: { contains: term, mode: 'insensitive' },
           },
         },
       ];
@@ -39,6 +101,14 @@ export class AdminCustomersService {
       where['memberships'] = {
         some: { status: query.membership },
       };
+    }
+
+    if (query.hubId) {
+      where['assignedHubId'] = query.hubId;
+    }
+
+    if (query.executiveId) {
+      where['assignedExecutiveId'] = query.executiveId;
     }
 
     const [rows, total] = await Promise.all([
@@ -67,6 +137,7 @@ export class AdminCustomersService {
             take: 1,
             select: { lastLogin: true },
           },
+          ...assignmentInclude,
           _count: { select: { orders: true, addresses: true } },
         },
       }),
@@ -103,6 +174,16 @@ export class AdminCustomersService {
           select: { lastLogin: true, deviceId: true, platform: true },
         },
         role: true,
+        ...assignmentInclude,
+        executiveAssignmentHistory: {
+          orderBy: { createdAt: 'desc' },
+          take: 20,
+          include: {
+            executive: {
+              select: { id: true, fullName: true, email: true, phone: true },
+            },
+          },
+        },
       },
     });
 
@@ -115,6 +196,19 @@ export class AdminCustomersService {
       where: { id, deletedAt: null },
     });
     if (!customer) throw new NotFoundException('Customer not found');
+
+    if (dto.email) {
+      const existing = await this.prisma.customer.findFirst({
+        where: {
+          email: dto.email,
+          deletedAt: null,
+          NOT: { id },
+        },
+      });
+      if (existing) {
+        throw new BadRequestException('Email already in use by another customer');
+      }
+    }
 
     await this.prisma.customer.update({
       where: { id },
@@ -156,6 +250,77 @@ export class AdminCustomersService {
     return this.findOne(id);
   }
 
+  async assign(
+    id: string,
+    dto: AdminAssignCustomerDto,
+    actorId?: string,
+  ) {
+    const customer = await this.prisma.customer.findFirst({
+      where: { id, deletedAt: null },
+    });
+    if (!customer) throw new NotFoundException('Customer not found');
+
+    if (dto.hubId) {
+      const hub = await this.prisma.hub.findFirst({
+        where: { id: dto.hubId, deletedAt: null },
+      });
+      if (!hub) throw new BadRequestException('Hub not found');
+    }
+
+    if (dto.executiveId) {
+      const executive = await this.prisma.adminUser.findFirst({
+        where: {
+          id: dto.executiveId,
+          deletedAt: null,
+          isActive: true,
+          role: AdminRole.CUSTOMER_EXECUTIVE,
+        },
+      });
+      if (!executive) {
+        throw new BadRequestException(
+          'Customer executive not found or inactive',
+        );
+      }
+    }
+
+    const nextHubId =
+      dto.hubId === undefined ? customer.assignedHubId : dto.hubId;
+    const nextExecutiveId =
+      dto.executiveId === undefined
+        ? customer.assignedExecutiveId
+        : dto.executiveId;
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.customer.update({
+        where: { id },
+        data: {
+          assignedHubId: nextHubId,
+          assignedExecutiveId: nextExecutiveId,
+        },
+      });
+
+      if (
+        dto.executiveId !== undefined &&
+        dto.executiveId !== customer.assignedExecutiveId
+      ) {
+        await tx.customerExecutiveAssignmentHistory.create({
+          data: {
+            customerId: id,
+            executiveId: nextExecutiveId,
+            previousExecutiveId: customer.assignedExecutiveId,
+            hubId: nextHubId,
+            action: nextExecutiveId ? 'ASSIGNED' : 'REMOVED',
+            reason: dto.reason,
+            notes: dto.notes,
+            assignedById: actorId,
+          },
+        });
+      }
+    });
+
+    return this.findOne(id);
+  }
+
   async setStatus(id: string, status: CustomerStatus) {
     const customer = await this.prisma.customer.findFirst({
       where: { id, deletedAt: null },
@@ -178,7 +343,10 @@ export class AdminCustomersService {
 
     const plan = await this.prisma.membershipPlan.findFirst({
       where: {
-        OR: [{ id: dto.planId }, { name: { equals: dto.planName, mode: 'insensitive' } }],
+        OR: [
+          { id: dto.planId },
+          { name: { equals: dto.planName, mode: 'insensitive' } },
+        ],
         status: 'ACTIVE',
       },
     });
@@ -232,6 +400,10 @@ export class AdminCustomersService {
     fullName: string | null;
     status: string;
     createdAt: Date;
+    assignedHubId?: string | null;
+    assignedExecutiveId?: string | null;
+    assignedHub?: { id: string; name: string } | null;
+    assignedExecutive?: { id: string; fullName: string } | null;
     profile: {
       companyName: string | null;
       gstNumber: string | null;
@@ -262,6 +434,10 @@ export class AdminCustomersService {
         tier: c.loyaltyAccount?.tier ?? null,
       },
       addresses: c._count.addresses,
+      assignedHubId: c.assignedHubId ?? null,
+      assignedHubName: c.assignedHub?.name ?? null,
+      assignedExecutiveId: c.assignedExecutiveId ?? null,
+      assignedExecutiveName: c.assignedExecutive?.fullName ?? null,
     };
   }
 
@@ -276,13 +452,27 @@ export class AdminCustomersService {
     profileCompleted: boolean;
     roleSelected: boolean;
     language: string;
+    assignedHubId?: string | null;
+    assignedExecutiveId?: string | null;
+    assignedHub?: { id: string; name: string; city?: string; state?: string } | null;
+    assignedExecutive?: {
+      id: string;
+      fullName: string;
+      email?: string | null;
+      phone?: string | null;
+    } | null;
     profile: unknown;
     addresses: unknown[];
     loyaltyAccount: unknown;
     memberships: unknown[];
     orders: unknown[];
-    deviceSessions: Array<{ lastLogin: Date; deviceId: string | null; platform: string }>;
+    deviceSessions: Array<{
+      lastLogin: Date;
+      deviceId: string | null;
+      platform: string;
+    }>;
     role: unknown;
+    executiveAssignmentHistory?: unknown[];
   }) {
     return {
       id: customer.id,
@@ -296,6 +486,10 @@ export class AdminCustomersService {
       createdAt: customer.createdAt,
       updatedAt: customer.updatedAt,
       lastLogin: customer.deviceSessions[0]?.lastLogin ?? null,
+      assignedHubId: customer.assignedHubId ?? null,
+      assignedHubName: customer.assignedHub?.name ?? null,
+      assignedExecutiveId: customer.assignedExecutiveId ?? null,
+      assignedExecutiveName: customer.assignedExecutive?.fullName ?? null,
       profile: customer.profile,
       role: customer.role,
       addresses: customer.addresses,
@@ -304,6 +498,7 @@ export class AdminCustomersService {
       memberships: customer.memberships,
       orders: customer.orders,
       deviceSessions: customer.deviceSessions,
+      assignmentHistory: customer.executiveAssignmentHistory ?? [],
     };
   }
 }

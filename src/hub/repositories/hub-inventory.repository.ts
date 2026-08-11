@@ -26,6 +26,8 @@ export class HubInventoryRepository {
         slug: string;
         name: string;
       } | null;
+      productType?: string | null;
+      grade?: string | null;
     };
   }) {
     const currentStock = row.availableQty + row.reservedQty;
@@ -66,6 +68,8 @@ export class HubInventoryRepository {
           deliveryETA: true,
           retailPrice: true,
           entityStatus: true,
+          productType: true,
+          grade: true,
           category: {
             select: { id: true, slug: true, name: true },
           },

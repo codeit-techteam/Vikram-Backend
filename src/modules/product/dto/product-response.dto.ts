@@ -146,6 +146,17 @@ export class ProductResponseDto {
   @ApiPropertyOptional()
   grade?: string | null;
 
+  @ApiPropertyOptional({
+    description: 'Stable product type code (e.g. RED_BRICKS)',
+  })
+  productType?: string | null;
+
+  @ApiPropertyOptional({ description: 'Display label for product type' })
+  productTypeLabel?: string | null;
+
+  @ApiPropertyOptional({ description: 'Display label for grade (e.g. A+)' })
+  gradeLabel?: string | null;
+
   @ApiPropertyOptional()
   badge?: string | null;
 

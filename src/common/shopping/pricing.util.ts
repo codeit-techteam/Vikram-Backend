@@ -1,6 +1,7 @@
 /** Shared cart / checkout pricing helpers (MVP — no coupons, wallet, EMI). */
 
-export const DELIVERY_CHARGE = 150;
+/** @deprecated Flat fallback only — prefer DeliveryPricingService for real charges. */
+export const DELIVERY_CHARGE = 0;
 export const FREE_DELIVERY_THRESHOLD = 5000;
 
 export interface LinePricingInput {
@@ -52,8 +53,9 @@ export function calculateCartTotals(
 ): CartTotals {
   const subtotal = toMoney(lines.reduce((sum, l) => sum + l.lineSubtotal, 0));
   const gstAmount = toMoney(lines.reduce((sum, l) => sum + l.lineGstAmount, 0));
-  const deliveryCharge =
-    subtotal <= 0 ? 0 : subtotal >= FREE_DELIVERY_THRESHOLD ? 0 : DELIVERY_CHARGE;
+  // Delivery charge is resolved server-side via DeliveryPricingService at checkout.
+  // Cart totals leave delivery at 0 to avoid stale/hardcoded frontend prices.
+  const deliveryCharge = 0;
   const grandTotal = toMoney(subtotal + gstAmount + deliveryCharge);
 
   return {

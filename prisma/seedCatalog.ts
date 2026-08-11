@@ -151,6 +151,7 @@ export async function seedCatalog(
       brand: p.brand,
       description: p.description,
       categoryId: category.id,
+      productType: p.productType ?? null,
       grade: p.grade,
       badge: p.badge,
       badgeColor: p.badgeColor,
@@ -178,7 +179,7 @@ export async function seedCatalog(
       isVisible: true,
       visibility: Visibility.PUBLIC,
       entityStatus: EntityStatus.ACTIVE,
-      metaKeywords: p.legacyId,
+      metaKeywords: p.metaKeywords ?? p.legacyId,
       deletedAt: null,
     };
 

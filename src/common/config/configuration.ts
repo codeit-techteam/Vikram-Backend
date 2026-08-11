@@ -59,8 +59,18 @@ export default () => ({
     hubSearchRadiusKm: parseInt(process.env.HUB_SEARCH_RADIUS_KM ?? '50', 10),
   },
   loyalty: {
-    minRedeemPoints: parseInt(process.env.LOYALTY_MIN_REDEEM_POINTS ?? '500', 10),
-    pointValueInr: parseInt(process.env.LOYALTY_POINT_VALUE_INR ?? '1', 10),
+    minRedeemOrderValue: parseInt(
+      process.env.LOYALTY_MIN_REDEEM_ORDER_VALUE ?? '500',
+      10,
+    ),
+    /** @deprecated use minRedeemOrderValue */
+    minRedeemPoints: parseInt(
+      process.env.LOYALTY_MIN_REDEEM_ORDER_VALUE ??
+        process.env.LOYALTY_MIN_REDEEM_POINTS ??
+        '500',
+      10,
+    ),
+    pointValueInr: parseFloat(process.env.LOYALTY_POINT_VALUE_INR ?? '0.01'),
     maxOrderRedeemPercent: parseFloat(
       process.env.LOYALTY_MAX_ORDER_REDEEM_PERCENT ?? '0.3',
     ),
@@ -71,6 +81,17 @@ export default () => ({
     pointsExpiryMonths: parseInt(
       process.env.LOYALTY_POINTS_EXPIRY_MONTHS ?? '12',
       10,
+    ),
+    welcomeBonus: parseInt(process.env.LOYALTY_WELCOME_BONUS ?? '50', 10),
+    firstOrderBonus: parseInt(process.env.LOYALTY_FIRST_ORDER_BONUS ?? '50', 10),
+  },
+  deliveryBenefit: {
+    freeBikeDeliveries: parseInt(
+      process.env.FREE_BIKE_DELIVERIES ?? '3',
+      10,
+    ),
+    companyAbsorbedCost: parseFloat(
+      process.env.BIKE_DELIVERY_COMPANY_COST ?? '99',
     ),
   },
   scheduler: {
@@ -88,6 +109,15 @@ export default () => ({
   internal: {
     apiKey: process.env.INTERNAL_API_KEY,
   },
+  payment: {
+    provider: process.env.PAYMENT_PROVIDER ?? '',
+    secret: process.env.PAYMENT_SECRET ?? '',
+    webhookSecret: process.env.PAYMENT_WEBHOOK_SECRET ?? '',
+    linkBaseUrl:
+      process.env.PAYMENT_LINK_BASE_URL ??
+      process.env.FRONTEND_URL ??
+      'https://pay.bajriwala.com',
+  },
   company: {
     name: process.env.COMPANY_NAME ?? 'Bajriwala',
     gstin: process.env.COMPANY_GSTIN ?? '',
@@ -102,7 +132,11 @@ export default () => ({
   },
   invoice: {
     uploadsDir: process.env.INVOICE_UPLOADS_DIR ?? 'uploads/invoices',
-    loyaltyPointValue: parseFloat(process.env.LOYALTY_POINT_VALUE ?? '1'),
+    loyaltyPointValue: parseFloat(
+      process.env.LOYALTY_POINT_VALUE ??
+        process.env.LOYALTY_POINT_VALUE_INR ??
+        '0.01',
+    ),
     termsAndConditions:
       process.env.INVOICE_TERMS ??
       '1. Goods once sold will not be taken back.\n2. Subject to local jurisdiction.\n3. E.& O.E.',

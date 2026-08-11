@@ -11,6 +11,7 @@ import {
   PaymentMethod,
   PaymentStatus,
   Prisma,
+  DeliveryVehicleType,
 } from '../../../generated/prisma/client';
 import {
   getCustomerOrderStatusLabel,
@@ -25,6 +26,7 @@ import { hashQueryParams } from '../../common/utils/prisma.util';
 import { CheckoutService } from '../checkout/checkout.service';
 import { NotificationService } from '../notification/notification.service';
 import { LoyaltyTransactionService } from '../loyalty/loyalty-transaction.service';
+import { DeliveryBenefitService } from '../delivery/delivery-benefit.service';
 import { CancelOrderDto } from './dto/cancel-order.dto';
 import { PlaceOrderDto, OrderResponseDto } from './dto/order.dto';
 import { OrderListQueryDto } from './dto/order-query.dto';
@@ -54,6 +56,8 @@ const ORDER_ITEM_PRODUCT_SELECT = {
   brand: true,
   unit: true,
   spec: true,
+  productType: true,
+  grade: true,
   retailPrice: true,
   category: { select: { name: true } },
   images: {
@@ -135,6 +139,7 @@ export class OrdersService {
     private readonly notificationService: NotificationService,
     private readonly checkoutService: CheckoutService,
     private readonly loyaltyTransactionService: LoyaltyTransactionService,
+    private readonly deliveryBenefitService: DeliveryBenefitService,
     private readonly orderEvents: OrderEventsService,
   ) {}
 
@@ -219,6 +224,16 @@ export class OrdersService {
             membershipDiscount: checkout.membershipDiscount,
             loyaltyPointsUsed: checkout.loyaltyUsed,
             grandTotal: checkout.grandTotal,
+            bikeDeliveryFree: checkout.bikeDeliveryFree,
+            companyAbsorbedDelivery: checkout.companyAbsorbedDelivery ?? 0,
+            deliveryPricingRuleId: checkout.deliveryPricingRuleId ?? null,
+            deliveryVehicleType: (checkout.deliveryVehicleType as
+              | DeliveryVehicleType
+              | null
+              | undefined) ?? null,
+            deliveryDistanceKm: checkout.deliveryDistanceKm ?? null,
+            deliveryPricingVersion: checkout.deliveryPricingVersion ?? null,
+            freeDeliveryApplied: checkout.freeDeliveryApplied ?? false,
             notes: dto.notes ?? null,
             deliveryAddress: {
               id: checkout.address.id,
@@ -249,6 +264,11 @@ export class OrdersService {
                 sku: item.product.sku ?? null,
                 brand: item.product.brand ?? null,
                 category: item.product.category ?? null,
+                productType:
+                  (item.product as { productType?: string | null }).productType ??
+                  null,
+                grade:
+                  (item.product as { grade?: string | null }).grade ?? null,
                 variant: item.product.variant ?? null,
                 quantity: item.quantity,
                 unit: item.product.unit,
@@ -313,6 +333,25 @@ export class OrdersService {
             points: checkout.loyaltyUsed,
             tx,
           });
+        }
+
+        if (
+          (checkout.freeDeliveryApplied || checkout.bikeDeliveryFree) &&
+          (checkout.companyAbsorbedDelivery ?? 0) > 0 &&
+          checkout.deliveryVehicleType === 'BIKE'
+        ) {
+          const consumed =
+            await this.deliveryBenefitService.consumeFreeBikeDelivery({
+              customerId,
+              orderId: created.id,
+              tx,
+            });
+
+          if (!consumed) {
+            throw new BadRequestException(
+              'Free bike delivery is no longer available. Please refresh checkout and try again.',
+            );
+          }
         }
 
         return created;
@@ -590,6 +629,7 @@ export class OrdersService {
     await this.loyaltyTransactionService.refundRedemptionForCancelledOrder(
       orderId,
     );
+    await this.deliveryBenefitService.restoreFreeBikeDelivery({ orderId });
 
     await this.notificationService.createForCustomer({
       customerId,
@@ -658,6 +698,8 @@ export class OrdersService {
     sku?: string | null;
     brand?: string | null;
     category?: string | null;
+    productType?: string | null;
+    grade?: string | null;
     variant?: string | null;
     quantity: number;
     unit: string;
@@ -671,6 +713,8 @@ export class OrdersService {
       brand?: string | null;
       unit?: string | null;
       spec?: string | null;
+      productType?: string | null;
+      grade?: string | null;
       retailPrice?: unknown;
       category?: { name: string } | null;
       images?: Array<{ url: string }>;
@@ -713,6 +757,8 @@ export class OrdersService {
       sku: item.sku ?? product?.sku ?? null,
       brand: item.brand ?? product?.brand ?? null,
       category: item.category ?? product?.category?.name ?? null,
+      productType: item.productType ?? product?.productType ?? null,
+      grade: item.grade ?? product?.grade ?? null,
       variant,
       quantity: item.quantity,
       unit: item.unit || product?.unit || '',

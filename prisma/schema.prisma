@@ -204,6 +204,22 @@ enum SiteType {
   RESIDENCE
 }
 
+enum RegistrationSource {
+  CUSTOMER_APP
+  CUSTOMER_EXECUTIVE
+  SUPER_ADMIN
+}
+
+enum PaymentLinkStatus {
+  CREATED
+  SENT
+  OPENED
+  PARTIALLY_PAID
+  PAID
+  EXPIRED
+  CANCELLED
+}
+
 enum CustomerStatus {
   ACTIVE
   INACTIVE
@@ -275,10 +291,65 @@ enum LoyaltyTier {
 enum BulkEnquiryStatus {
   NEW
   ASSIGNED
+  CONTACTED
   IN_PROGRESS
+  QUOTE_PREPARED
+  QUOTE_SENT
   QUOTED
+  NEGOTIATION
+  CONVERTED
+  ORDER_CREATED
   COMPLETED
+  REJECTED
   CANCELLED
+  EXPIRED
+}
+
+enum BulkDeliveryRequirement {
+  IMMEDIATE
+  TODAY
+  TOMORROW
+  WITHIN_3_DAYS
+  WITHIN_1_WEEK
+  FLEXIBLE
+}
+
+enum BulkPreferredContact {
+  CALL
+  WHATSAPP
+  BOTH
+}
+
+enum BulkFollowUpStatus {
+  PENDING
+  COMPLETED
+  MISSED
+}
+
+enum BulkQuotationStatus {
+  DRAFT
+  SENT
+  VIEWED
+  ACCEPTED
+  REJECTED
+  EXPIRED
+}
+
+enum BulkActivityType {
+  ENQUIRY_CREATED
+  EXECUTIVE_ASSIGNED
+  STATUS_CHANGED
+  CUSTOMER_CONTACTED
+  FOLLOW_UP_ADDED
+  FOLLOW_UP_UPDATED
+  INTERNAL_NOTE_ADDED
+  QUOTE_CREATED
+  QUOTE_SENT
+  QUOTE_ACCEPTED
+  QUOTE_REJECTED
+  CONVERTED_TO_ORDER
+  CANCELLED
+  REJECTED
 }
 
 enum TestimonialType {
@@ -359,6 +430,21 @@ enum VehicleType {
   TEMPO
   BIKE
   OTHER
+}
+
+/// Customer-app delivery pricing vehicle types (Excel source of truth).
+/// Separate from fleet VehicleType (TRUCK/TEMPO/BIKE/OTHER).
+enum DeliveryVehicleType {
+  BIKE
+  E_LOADER
+  THREE_WHEELER_LOADER
+  PICK_UP_VAN
+  FULL_TRUCK
+}
+
+enum DeliveryPricingStatus {
+  ACTIVE
+  INACTIVE
 }
 
 enum VehicleStatus {
@@ -517,6 +603,7 @@ model Category {
   parent   Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
   children Category[] @relation("CategoryHierarchy")
   products Product[]
+  bulkEnquiries BulkEnquiry[]
 
   @@index([slug])
   @@index([status, isVisible, displayOrder])
@@ -539,6 +626,8 @@ model Product {
   description      String?            @db.Text
   descriptionHi    String?            @map("description_hi") @db.Text
   categoryId       String             @map("category_id") @db.Uuid
+  /// Stable product-type code (e.g. RED_BRICKS, GREY_ASH_BRICKS). Not a category.
+  productType      String?            @map("product_type") @db.VarChar(50)
   grade            String?            @db.VarChar(50)
   badge            String?            @db.VarChar(100)
   badgeColor       String?            @map("badge_color") @db.VarChar(20)
@@ -597,9 +686,13 @@ model Product {
   inventoryTransfers InventoryTransfer[]
   requisitionItems   RequisitionItem[]
   ledgerEntries      InventoryLedgerEntry[]
+  bulkQuotations     BulkEnquiryQuotation[]
 
   @@index([slug])
   @@index([categoryId, entityStatus, isVisible])
+  @@index([categoryId, productType, grade])
+  @@index([productType])
+  @@index([grade])
   @@index([listingType, entityStatus])
   @@index([isFeatured, entityStatus, isVisible])
   @@index([isBestSelling, entityStatus, isVisible])
@@ -932,6 +1025,10 @@ model Customer {
   roleSelected     Boolean        @default(false) @map("role_selected")
   profileCompleted Boolean        @default(false) @map("profile_completed")
   language         String         @default("en") @db.VarChar(10)
+  assignedHubId       String?       @map("assigned_hub_id") @db.Uuid
+  assignedExecutiveId String?       @map("assigned_executive_id") @db.Uuid
+  registeredByUserId  String?       @map("registered_by_user_id") @db.Uuid
+  registrationSource  RegistrationSource? @map("registration_source")
   deletedAt        DateTime?      @map("deleted_at")
   createdAt        DateTime       @default(now()) @map("created_at")
   updatedAt        DateTime       @updatedAt @map("updated_at")
@@ -959,6 +1056,12 @@ model Customer {
   bulkEnquiries      BulkEnquiry[]
   emergencyOrders    EmergencyOrder[]
   refunds            Refund[]
+  paymentLinks       PaymentLink[]
+  assignedHub        Hub?                @relation("CustomerAssignedHub", fields: [assignedHubId], references: [id], onDelete: SetNull)
+  assignedExecutive  AdminUser?          @relation("CustomerAssignedExecutive", fields: [assignedExecutiveId], references: [id], onDelete: SetNull)
+  registeredBy       AdminUser?          @relation("CustomerRegisteredBy", fields: [registeredByUserId], references: [id], onDelete: SetNull)
+  executiveAssignmentHistory CustomerExecutiveAssignmentHistory[]
+  deliveryBenefit    CustomerDeliveryBenefit?
 
   @@index([phone])
   @@index([roleId])
@@ -967,6 +1070,11 @@ model Customer {
   @@index([membershipId])
   @@index([loyaltyAccountId])
   @@index([deletedAt])
+  @@index([assignedHubId])
+  @@index([assignedExecutiveId])
+  @@index([registeredByUserId])
+  @@index([registrationSource])
+  @@index([createdAt])
   @@map("customers")
 }
 
@@ -991,6 +1099,27 @@ model CustomerProfile {
   customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
   @@map("customer_profiles")
+}
+
+model CustomerExecutiveAssignmentHistory {
+  id           String   @id @default(uuid()) @db.Uuid
+  customerId   String   @map("customer_id") @db.Uuid
+  executiveId  String?  @map("executive_id") @db.Uuid
+  previousExecutiveId String? @map("previous_executive_id") @db.Uuid
+  hubId        String?  @map("hub_id") @db.Uuid
+  action       String   @db.VarChar(40)
+  reason       String?  @db.VarChar(300)
+  notes        String?  @db.Text
+  assignedById String?  @map("assigned_by_id") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  customer  Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  executive AdminUser? @relation("AssignmentExecutive", fields: [executiveId], references: [id], onDelete: SetNull)
+  assignedBy AdminUser? @relation("AssignmentActor", fields: [assignedById], references: [id], onDelete: SetNull)
+
+  @@index([customerId, createdAt(sort: Desc)])
+  @@index([executiveId])
+  @@map("customer_executive_assignment_history")
 }
 
 model RefreshToken {
@@ -1088,6 +1217,7 @@ model Address {
 
   customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
   orders   Order[]
+  bulkEnquiries BulkEnquiry[]
 
   @@index([customerId, type])
   @@index([customerId, isDefault])
@@ -1198,6 +1328,7 @@ model Hub {
   requisitions      Requisition[]       @relation("RequisitionHub")
   warehouseRequisitions Requisition[]   @relation("RequisitionWarehouseHub")
   ledgerEntries     InventoryLedgerEntry[]
+  assignedCustomers Customer[]          @relation("CustomerAssignedHub")
 
   @@index([isActive, status])
   @@index([pincode])
@@ -1291,6 +1422,14 @@ model Order {
   loadingCharges      Decimal       @default(0) @map("loading_charges") @db.Decimal(12, 2)
   unloadingCharges    Decimal       @default(0) @map("unloading_charges") @db.Decimal(12, 2)
   bikeDeliveryFree    Boolean       @default(false) @map("bike_delivery_free")
+  /// Company-absorbed bike delivery cost when free-delivery benefit is used
+  companyAbsorbedDelivery Decimal    @default(0) @map("company_absorbed_delivery") @db.Decimal(12, 2)
+  /// Snapshot of pricing used at order confirmation (never recalculated)
+  deliveryPricingRuleId String?     @map("delivery_pricing_rule_id") @db.Uuid
+  deliveryVehicleType DeliveryVehicleType? @map("delivery_vehicle_type")
+  deliveryDistanceKm  Decimal?      @map("delivery_distance_km") @db.Decimal(8, 2)
+  deliveryPricingVersion Int?       @map("delivery_pricing_version")
+  freeDeliveryApplied Boolean       @default(false) @map("free_delivery_applied")
   priorityOrder       Boolean       @default(false) @map("priority_order")
   assignedDriverId    String?       @map("assigned_driver_id") @db.Uuid
   assignedVehicleId   String?       @map("assigned_vehicle_id") @db.Uuid
@@ -1314,6 +1453,9 @@ model Order {
   cancelReason    String?       @map("cancel_reason") @db.VarChar(500)
   cancelledAt     DateTime?     @map("cancelled_at")
   deliveredAt     DateTime?     @map("delivered_at")
+  /// APP | CUSTOMER_EXECUTIVE | SUPER_ADMIN | HUB
+  orderSource     String?       @map("order_source") @db.VarChar(40)
+  createdByAdminId String?      @map("created_by_admin_id") @db.Uuid
   deletedAt       DateTime?     @map("deleted_at")
   createdAt       DateTime      @default(now()) @map("created_at")
   updatedAt       DateTime      @updatedAt @map("updated_at")
@@ -1336,6 +1478,8 @@ model Order {
   dispatch       HubDispatch?
   proofOfDelivery ProofOfDelivery?
   refunds         Refund[]
+  paymentLinks    PaymentLink[]
+  bulkEnquiries   BulkEnquiry[] @relation("BulkEnquiryConvertedOrder")
 
   @@index([customerId, orderStatus, createdAt(sort: Desc)])
   @@index([customerId, createdAt(sort: Desc)])
@@ -1345,6 +1489,7 @@ model Order {
   @@index([assignedLoaderId])
   @@index([addressId])
   @@index([orderNumber])
+  @@index([orderSource])
   @@index([deletedAt])
   @@map("orders")
 }
@@ -1359,6 +1504,10 @@ model OrderItem {
   sku          String?  @db.VarChar(80)
   brand        String?  @db.VarChar(120)
   category     String?  @db.VarChar(120)
+  /// Snapshot of productType code at order time (e.g. RED_BRICKS)
+  productType  String?  @map("product_type") @db.VarChar(50)
+  /// Snapshot of grade code/label at order time (e.g. A_PLUS)
+  grade        String?  @db.VarChar(50)
   variant      String?  @db.VarChar(120)
   quantity     Int
   unit         String   @db.VarChar(30)
@@ -1374,6 +1523,37 @@ model OrderItem {
   @@index([orderId])
   @@index([productId])
   @@map("order_items")
+}
+
+model PaymentLink {
+  id                 String            @id @default(uuid()) @db.Uuid
+  customerId         String            @map("customer_id") @db.Uuid
+  orderId            String            @map("order_id") @db.Uuid
+  amount             Decimal           @db.Decimal(12, 2)
+  currency           String            @default("INR") @db.VarChar(10)
+  status             PaymentLinkStatus @default(CREATED)
+  paymentUrl         String            @map("payment_url") @db.VarChar(500)
+  publicToken        String            @unique @map("public_token") @db.VarChar(64)
+  createdById        String?           @map("created_by_id") @db.Uuid
+  reminderCount      Int               @default(0) @map("reminder_count")
+  notificationStatus String?           @map("notification_status") @db.VarChar(40)
+  sentAt             DateTime?         @map("sent_at")
+  openedAt           DateTime?         @map("opened_at")
+  paidAt             DateTime?         @map("paid_at")
+  expiresAt          DateTime          @map("expires_at")
+  metadata           Json?             @db.JsonB
+  createdAt          DateTime          @default(now()) @map("created_at")
+  updatedAt          DateTime          @updatedAt @map("updated_at")
+
+  customer  Customer   @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  order     Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  createdBy AdminUser? @relation("PaymentLinkCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([customerId, status, createdAt(sort: Desc)])
+  @@index([orderId])
+  @@index([createdById])
+  @@index([status, expiresAt])
+  @@map("payment_links")
 }
 
 model OrderTimeline {
@@ -1695,31 +1875,209 @@ model LoyaltyTransaction {
   @@index([type, expiresAt])
   @@index([expiresAt])
   @@index([referenceOrderId])
+  @@index([accountId, referenceId])
   @@map("loyalty_transactions")
+}
+
+// ─── Delivery benefits (separate from loyalty) ───────────────────────────────
+
+model CustomerDeliveryBenefit {
+  id                String   @id @default(uuid()) @db.Uuid
+  customerId        String   @unique @map("customer_id") @db.Uuid
+  benefitType       String   @default("FREE_BIKE_DELIVERY") @map("benefit_type") @db.VarChar(50)
+  totalAllowed      Int      @default(3) @map("total_allowed")
+  usedCount         Int      @default(0) @map("used_count")
+  companyCostPerUse Decimal  @default(99) @map("company_cost_per_use") @db.Decimal(12, 2)
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  customer Customer                   @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  usages   DeliveryBenefitUsage[]
+
+  @@index([customerId])
+  @@map("customer_delivery_benefits")
+}
+
+model DeliveryBenefitUsage {
+  id           String   @id @default(uuid()) @db.Uuid
+  benefitId    String   @map("benefit_id") @db.Uuid
+  customerId   String   @map("customer_id") @db.Uuid
+  orderId      String   @unique @map("order_id") @db.Uuid
+  absorbedCost Decimal  @default(99) @map("absorbed_cost") @db.Decimal(12, 2)
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  benefit CustomerDeliveryBenefit @relation(fields: [benefitId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+  @@index([orderId])
+  @@map("delivery_benefit_usages")
 }
 
 // ─── Bulk Procurement ────────────────────────────────────────────────────────
 
-model BulkEnquiry {
-  id                String            @id @default(uuid()) @db.Uuid
-  customerId        String            @map("customer_id") @db.Uuid
-  companyName       String            @map("company_name") @db.VarChar(200)
-  projectName       String            @map("project_name") @db.VarChar(200)
-  location          String            @db.VarChar(300)
-  remarks           String?           @db.Text
-  expectedQuantity  Int               @map("expected_quantity")
-  expectedUnit      String            @default("Bags") @map("expected_unit") @db.VarChar(50)
-  status            BulkEnquiryStatus @default(NEW)
-  assignedExecutive String?           @map("assigned_executive") @db.VarChar(200)
-  createdAt         DateTime          @default(now()) @map("created_at")
-  updatedAt         DateTime          @updatedAt @map("updated_at")
+model BulkEnquiryNumberSequence {
+  year      Int      @id
+  lastValue Int      @default(0) @map("last_value")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
-  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  @@map("bulk_enquiry_number_sequences")
+}
+
+model BulkEnquiry {
+  id                       String                   @id @default(uuid()) @db.Uuid
+  enquiryNumber            String                   @unique @map("enquiry_number") @db.VarChar(40)
+  customerId               String                   @map("customer_id") @db.Uuid
+  /// Snapshot fields preserved at submission time
+  customerNameSnapshot     String?                  @map("customer_name_snapshot") @db.VarChar(200)
+  customerPhoneSnapshot    String?                  @map("customer_phone_snapshot") @db.VarChar(20)
+  customerEmailSnapshot    String?                  @map("customer_email_snapshot") @db.VarChar(200)
+  customerTypeSnapshot     String?                  @map("customer_type_snapshot") @db.VarChar(50)
+  gstNumberSnapshot        String?                  @map("gst_number_snapshot") @db.VarChar(20)
+  companyName              String                   @map("company_name") @db.VarChar(200)
+  projectName              String                   @map("project_name") @db.VarChar(200)
+  siteType                 String?                  @map("site_type") @db.VarChar(100)
+  expectedStartDate        DateTime?                @map("expected_start_date") @db.Date
+  materialCategoryId       String?                  @map("material_category_id") @db.Uuid
+  materialCategorySlug     String?                  @map("material_category_slug") @db.VarChar(120)
+  materialCategoryName     String?                  @map("material_category_name") @db.VarChar(200)
+  isMixedLoad              Boolean                  @default(false) @map("is_mixed_load")
+  /// For Mixed Load: [{ id, slug, name }]
+  materialCategoriesJson   Json?                    @map("material_categories_json") @db.JsonB
+  productType              String?                  @map("product_type") @db.VarChar(50)
+  grade                    String?                  @db.VarChar(50)
+  materialTypeLabel        String?                  @map("material_type_label") @db.VarChar(200)
+  location                 String                   @db.VarChar(300)
+  addressLine              String?                  @map("address_line") @db.VarChar(300)
+  city                     String?                  @db.VarChar(120)
+  state                    String?                  @db.VarChar(120)
+  pincode                  String?                  @db.VarChar(12)
+  latitude                 Decimal?                 @db.Decimal(10, 7)
+  longitude                Decimal?                 @db.Decimal(10, 7)
+  addressId                String?                  @map("address_id") @db.Uuid
+  remarks                  String?                  @db.Text
+  additionalNotes          String?                  @map("additional_notes") @db.Text
+  expectedQuantity         Decimal                  @map("expected_quantity") @db.Decimal(12, 3)
+  expectedUnit             String                   @default("Bags") @map("expected_unit") @db.VarChar(50)
+  deliveryRequirement      BulkDeliveryRequirement? @map("delivery_requirement")
+  deliveryDate             DateTime?                @map("delivery_date") @db.Date
+  preferredContact         BulkPreferredContact     @default(BOTH) @map("preferred_contact")
+  status                   BulkEnquiryStatus        @default(NEW)
+  assignedExecutiveId      String?                  @map("assigned_executive_id") @db.Uuid
+  assignedExecutive        String?                  @map("assigned_executive") @db.VarChar(200)
+  estimatedValue           Decimal?                 @map("estimated_value") @db.Decimal(14, 2)
+  quotedValue              Decimal?                 @map("quoted_value") @db.Decimal(14, 2)
+  convertedOrderId         String?                  @map("converted_order_id") @db.Uuid
+  convertedAt              DateTime?                @map("converted_at")
+  createdAt                DateTime                 @default(now()) @map("created_at")
+  updatedAt                DateTime                 @updatedAt @map("updated_at")
+
+  customer            Customer                @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  materialCategory    Category?               @relation(fields: [materialCategoryId], references: [id], onDelete: SetNull)
+  address             Address?                @relation(fields: [addressId], references: [id], onDelete: SetNull)
+  assignedExecutiveUser AdminUser?            @relation("BulkEnquiryAssignedExecutive", fields: [assignedExecutiveId], references: [id], onDelete: SetNull)
+  convertedOrder      Order?                  @relation("BulkEnquiryConvertedOrder", fields: [convertedOrderId], references: [id], onDelete: SetNull)
+  activities          BulkEnquiryActivity[]
+  followUps           BulkEnquiryFollowUp[]
+  internalNotes       BulkEnquiryNote[]
+  quotations          BulkEnquiryQuotation[]
 
   @@index([customerId])
   @@index([status])
+  @@index([enquiryNumber])
+  @@index([assignedExecutiveId])
+  @@index([materialCategoryId])
+  @@index([materialCategorySlug])
+  @@index([city])
+  @@index([createdAt])
   @@index([customerId, status, createdAt(sort: Desc)])
+  @@index([assignedExecutiveId, status, createdAt(sort: Desc)])
   @@map("bulk_enquiries")
+}
+
+model BulkEnquiryActivity {
+  id          String           @id @default(uuid()) @db.Uuid
+  enquiryId   String           @map("enquiry_id") @db.Uuid
+  type        BulkActivityType
+  message     String           @db.VarChar(500)
+  metadata    Json?            @db.JsonB
+  performedBy String?          @map("performed_by") @db.VarChar(200)
+  performedByAdminId String?   @map("performed_by_admin_id") @db.Uuid
+  createdAt   DateTime         @default(now()) @map("created_at")
+
+  enquiry BulkEnquiry @relation(fields: [enquiryId], references: [id], onDelete: Cascade)
+  performedByAdmin AdminUser? @relation("BulkEnquiryActivityActor", fields: [performedByAdminId], references: [id], onDelete: SetNull)
+
+  @@index([enquiryId, createdAt(sort: Desc)])
+  @@map("bulk_enquiry_activities")
+}
+
+model BulkEnquiryFollowUp {
+  id          String             @id @default(uuid()) @db.Uuid
+  enquiryId   String             @map("enquiry_id") @db.Uuid
+  followUpAt  DateTime           @map("follow_up_at")
+  note        String             @db.Text
+  status      BulkFollowUpStatus @default(PENDING)
+  createdById String?            @map("created_by_id") @db.Uuid
+  createdByName String?          @map("created_by_name") @db.VarChar(200)
+  completedAt DateTime?          @map("completed_at")
+  createdAt   DateTime           @default(now()) @map("created_at")
+  updatedAt   DateTime           @updatedAt @map("updated_at")
+
+  enquiry   BulkEnquiry @relation(fields: [enquiryId], references: [id], onDelete: Cascade)
+  createdBy AdminUser?  @relation("BulkEnquiryFollowUpCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([enquiryId, followUpAt])
+  @@index([status, followUpAt])
+  @@map("bulk_enquiry_follow_ups")
+}
+
+model BulkEnquiryNote {
+  id            String   @id @default(uuid()) @db.Uuid
+  enquiryId     String   @map("enquiry_id") @db.Uuid
+  note          String   @db.Text
+  createdById   String?  @map("created_by_id") @db.Uuid
+  createdByName String?  @map("created_by_name") @db.VarChar(200)
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  enquiry   BulkEnquiry @relation(fields: [enquiryId], references: [id], onDelete: Cascade)
+  createdBy AdminUser?  @relation("BulkEnquiryNoteCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([enquiryId, createdAt(sort: Desc)])
+  @@map("bulk_enquiry_notes")
+}
+
+model BulkEnquiryQuotation {
+  id              String              @id @default(uuid()) @db.Uuid
+  enquiryId       String              @map("enquiry_id") @db.Uuid
+  quotationNumber String              @unique @map("quotation_number") @db.VarChar(40)
+  status          BulkQuotationStatus @default(DRAFT)
+  materialLabel   String              @map("material_label") @db.VarChar(300)
+  quantity        Decimal             @db.Decimal(12, 3)
+  unit            String              @db.VarChar(50)
+  unitPrice       Decimal             @map("unit_price") @db.Decimal(14, 2)
+  deliveryCharge  Decimal             @default(0) @map("delivery_charge") @db.Decimal(14, 2)
+  gstPercent      Decimal             @default(18) @map("gst_percent") @db.Decimal(5, 2)
+  discountAmount  Decimal             @default(0) @map("discount_amount") @db.Decimal(14, 2)
+  subtotal        Decimal             @db.Decimal(14, 2)
+  gstAmount       Decimal             @map("gst_amount") @db.Decimal(14, 2)
+  totalAmount     Decimal             @map("total_amount") @db.Decimal(14, 2)
+  productId       String?             @map("product_id") @db.Uuid
+  notes           String?             @db.Text
+  validUntil      DateTime?           @map("valid_until")
+  sentAt          DateTime?           @map("sent_at")
+  acceptedAt      DateTime?           @map("accepted_at")
+  rejectedAt      DateTime?           @map("rejected_at")
+  createdById     String?             @map("created_by_id") @db.Uuid
+  createdAt       DateTime            @default(now()) @map("created_at")
+  updatedAt       DateTime            @updatedAt @map("updated_at")
+
+  enquiry   BulkEnquiry @relation(fields: [enquiryId], references: [id], onDelete: Cascade)
+  product   Product?    @relation(fields: [productId], references: [id], onDelete: SetNull)
+  createdBy AdminUser?  @relation("BulkEnquiryQuotationCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([enquiryId, createdAt(sort: Desc)])
+  @@index([status])
+  @@map("bulk_enquiry_quotations")
 }
 
 // ─── Testimonials CMS ────────────────────────────────────────────────────────
@@ -1774,6 +2132,16 @@ model AdminUser {
   supportTicketHistory      SupportTicketHistory[]
   generatedSettlements      SettlementBatch[]       @relation("SettlementGeneratedBy")
   approvedSettlements       SettlementBatch[]       @relation("SettlementApprovedBy")
+  assignedCustomers         Customer[]              @relation("CustomerAssignedExecutive")
+  registeredCustomers       Customer[]              @relation("CustomerRegisteredBy")
+  customerAssignmentHistory CustomerExecutiveAssignmentHistory[] @relation("AssignmentExecutive")
+  customerAssignmentsMade   CustomerExecutiveAssignmentHistory[] @relation("AssignmentActor")
+  createdPaymentLinks       PaymentLink[]           @relation("PaymentLinkCreatedBy")
+  assignedBulkEnquiries     BulkEnquiry[]           @relation("BulkEnquiryAssignedExecutive")
+  bulkEnquiryActivities     BulkEnquiryActivity[]   @relation("BulkEnquiryActivityActor")
+  bulkEnquiryFollowUps      BulkEnquiryFollowUp[]   @relation("BulkEnquiryFollowUpCreator")
+  bulkEnquiryNotes          BulkEnquiryNote[]       @relation("BulkEnquiryNoteCreator")
+  bulkEnquiryQuotations     BulkEnquiryQuotation[]  @relation("BulkEnquiryQuotationCreator")
 
   @@index([email])
   @@index([role, isActive])
@@ -2530,4 +2898,69 @@ model RequisitionNumberCounter {
 
   @@unique([hubCode, year])
   @@map("requisition_number_counters")
+}
+
+// ─── Delivery pricing (vehicle + distance slabs) ─────────────────────────────
+
+model DeliveryPricingRule {
+  id              String                @id @default(uuid()) @db.Uuid
+  vehicleType     DeliveryVehicleType   @map("vehicle_type")
+  distanceFromKm  Decimal               @default(0) @map("distance_from_km") @db.Decimal(8, 2)
+  distanceToKm    Decimal               @map("distance_to_km") @db.Decimal(8, 2)
+  price           Decimal               @db.Decimal(12, 2)
+  currency        String                @default("INR") @db.VarChar(3)
+  status          DeliveryPricingStatus @default(ACTIVE)
+  version         Int                   @default(1)
+  createdBy       String?               @map("created_by") @db.Uuid
+  updatedBy       String?               @map("updated_by") @db.Uuid
+  createdAt       DateTime              @default(now()) @map("created_at")
+  updatedAt       DateTime              @updatedAt @map("updated_at")
+
+  history DeliveryPricingHistory[]
+
+  @@unique([vehicleType, distanceFromKm, distanceToKm])
+  @@index([vehicleType, status])
+  @@index([status])
+  @@map("delivery_pricing_rules")
+}
+
+model DeliveryPricingHistory {
+  id                   String              @id @default(uuid()) @db.Uuid
+  ruleId               String              @map("rule_id") @db.Uuid
+  vehicleType          DeliveryVehicleType @map("vehicle_type")
+  previousPrice        Decimal             @map("previous_price") @db.Decimal(12, 2)
+  newPrice             Decimal             @map("new_price") @db.Decimal(12, 2)
+  previousDistanceFrom Decimal             @map("previous_distance_from") @db.Decimal(8, 2)
+  previousDistanceTo   Decimal             @map("previous_distance_to") @db.Decimal(8, 2)
+  newDistanceFrom      Decimal             @map("new_distance_from") @db.Decimal(8, 2)
+  newDistanceTo        Decimal             @map("new_distance_to") @db.Decimal(8, 2)
+  previousStatus       DeliveryPricingStatus? @map("previous_status")
+  newStatus            DeliveryPricingStatus? @map("new_status")
+  reason               String?             @db.VarChar(500)
+  updatedBy            String?             @map("updated_by") @db.Uuid
+  updatedByName        String?             @map("updated_by_name") @db.VarChar(120)
+  createdAt            DateTime            @default(now()) @map("created_at")
+
+  rule DeliveryPricingRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  @@index([ruleId, createdAt])
+  @@index([vehicleType])
+  @@map("delivery_pricing_history")
+}
+
+/// Global free-bike-delivery benefit config (separate from per-rule Bike price).
+model DeliveryBenefitConfig {
+  id                      String   @id @default(uuid()) @db.Uuid
+  /// Singleton key — always "DEFAULT"
+  configKey               String   @unique @default("DEFAULT") @map("config_key") @db.VarChar(40)
+  firstBikeDeliveriesFree Int      @default(3) @map("first_bike_deliveries_free")
+  /// Company absorbs this amount when free bike benefit is used (not the list price)
+  companyAbsorptionInr    Decimal  @default(99) @map("company_absorption_inr") @db.Decimal(12, 2)
+  status                  DeliveryPricingStatus @default(ACTIVE)
+  updatedBy               String?  @map("updated_by") @db.Uuid
+  updatedByName           String?  @map("updated_by_name") @db.VarChar(120)
+  createdAt               DateTime @default(now()) @map("created_at")
+  updatedAt               DateTime @updatedAt @map("updated_at")
+
+  @@map("delivery_benefit_configs")
 }

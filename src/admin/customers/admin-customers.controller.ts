@@ -19,6 +19,7 @@ import { AdminRoles } from '../decorators/admin-roles.decorator';
 import { ROLE_GROUPS } from '../constants/admin-rbac.constants';
 import { AdminCustomersService } from './admin-customers.service';
 import {
+  AdminAssignCustomerDto,
   AdminCustomerQueryDto,
   AdminSetStatusDto,
   AdminUpdateCustomerDto,
@@ -50,6 +51,14 @@ export class AdminCustomersController {
   async findAll(@Query() query: AdminCustomerQueryDto) {
     const data = await this.customersService.findAll(query);
     return { success: true, message: 'Customers fetched', data };
+  }
+
+  @Get('stats')
+  @AdminRoles(...ROLE_GROUPS.CUSTOMER_EXECUTIVE)
+  @ApiOperation({ summary: 'Customer dashboard statistics' })
+  async stats() {
+    const data = await this.customersService.getStats();
+    return { success: true, message: 'Customer stats fetched', data };
   }
 
   @Get(':id')
@@ -132,6 +141,31 @@ export class AdminCustomersController {
     return { success: true, message: 'Customer updated', data };
   }
 
+  @Patch(':id/assignment')
+  @AdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
+  @ApiOperation({ summary: 'Assign hub and/or customer executive' })
+  async assign(
+    @Param('id') id: string,
+    @Body() dto: AdminAssignCustomerDto,
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+  ) {
+    const old = await this.customersService.findOne(id);
+    const data = await this.customersService.assign(id, dto, admin.id);
+    await this.auditService.log({
+      adminUserId: admin.id,
+      adminEmail: admin.email,
+      action: 'UPDATE',
+      resource: 'CustomerAssignment',
+      resourceId: id,
+      oldValue: {
+        assignedHubId: old.assignedHubId,
+        assignedExecutiveId: old.assignedExecutiveId,
+      },
+      newValue: dto,
+    });
+    return { success: true, message: 'Customer assignment updated', data };
+  }
+
   @Patch(':id/status')
   @AdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
   @ApiOperation({ summary: 'Activate, disable, or suspend a customer' })
@@ -200,7 +234,7 @@ export class AdminCustomersController {
   ) {
     const data = await this.customersService.setStatus(
       id,
-      CustomerStatus.INACTIVE,
+      CustomerStatus.SUSPENDED,
     );
     await this.auditService.log({
       adminUserId: admin.id,
@@ -208,7 +242,7 @@ export class AdminCustomersController {
       action: 'UPDATE',
       resource: 'CustomerStatus',
       resourceId: id,
-      newValue: { status: 'INACTIVE' },
+      newValue: { status: 'SUSPENDED' },
     });
     return { success: true, message: 'Customer disabled', data };
   }

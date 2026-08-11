@@ -29,6 +29,7 @@ import { CustomerSitesModule } from '../modules/customer-sites/customer-sites.mo
 // Customer Executive
 import { CustomerExecutiveController } from './customer-executive/customer-executive.controller';
 import { CustomerExecutiveService } from './customer-executive/customer-executive.service';
+import { PaymentWebhookController } from './payments/payment-webhook.controller';
 
 // Hub Managers
 import { AdminHubManagersController } from './hub-managers/admin-hub-managers.controller';
@@ -146,24 +147,33 @@ import { DriversModule } from '../modules/drivers/drivers.module';
 import { AdminDriversController } from './drivers/admin-drivers.controller';
 import { AdminLogisticsController } from './logistics/admin-logistics.controller';
 import { AdminLogisticsService } from './logistics/admin-logistics.service';
+import { AdminDeliveryPricingController } from './delivery-pricing/admin-delivery-pricing.controller';
 
 // Shared modules
+import { RedisModule } from '../common/database/redis.module';
+import { OtpModule } from '../auth/otp/otp.module';
+import { CartModule } from '../modules/cart/cart.module';
 import { OrdersModule } from '../modules/orders/orders.module';
 import { NotificationModule } from '../modules/notification/notification.module';
 import { SupportModule } from '../modules/support/support.module';
 import { InvoiceModule } from '../modules/invoice/invoice.module';
 import { HubModule } from '../hub/hub.module';
 import { LoyaltyModule } from '../modules/loyalty/loyalty.module';
+import { DeliveryModule } from '../modules/delivery/delivery.module';
 
 @Module({
   imports: [
     PassportModule,
+    RedisModule,
+    OtpModule,
+    CartModule,
     OrdersModule,
     NotificationModule,
     SupportModule,
     InvoiceModule,
     HubModule,
     LoyaltyModule,
+    DeliveryModule,
     RequisitionsModule,
     VehiclesModule,
     DriversModule,
@@ -182,6 +192,7 @@ import { LoyaltyModule } from '../modules/loyalty/loyalty.module';
     AdminDashboardController,
     AdminCustomersController,
     CustomerExecutiveController,
+    PaymentWebhookController,
     AdminHubManagersController,
     AdminUsersController,
     AdminHubsController,
@@ -217,6 +228,7 @@ import { LoyaltyModule } from '../modules/loyalty/loyalty.module';
     AdminVehiclesController,
     AdminDriversController,
     AdminLogisticsController,
+    AdminDeliveryPricingController,
   ],
   providers: [
     AdminJwtStrategy,

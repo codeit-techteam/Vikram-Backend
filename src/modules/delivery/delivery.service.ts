@@ -3,11 +3,7 @@ import {
   buildDeliveryMessage,
   buildDeliverySubtitle,
 } from '../../common/delivery/customer-delivery.util';
-import {
-  DELIVERY_CHARGE,
-  FREE_DELIVERY_THRESHOLD,
-  toMoney,
-} from '../../common/shopping/pricing.util';
+import { FREE_DELIVERY_THRESHOLD, toMoney } from '../../common/shopping/pricing.util';
 import { CoverageService } from '../coverage/coverage.service';
 import type { CoverageStockItem } from '../coverage/coverage.types';
 import {
@@ -15,6 +11,8 @@ import {
   DeliveryEtaQueryDto,
   DeliveryEtaResponseDto,
 } from './dto/delivery-eta.dto';
+import { DeliveryPricingService } from './delivery-pricing.service';
+import { resolveDeliveryVehicleForQuantity } from './delivery-pricing.constants';
 
 /** ETA formula constants (minutes / speed). Tunable ops knobs. */
 const PICKING_MINUTES = 5;
@@ -31,7 +29,10 @@ const SAME_DAY_CUTOFF_MINUTES = 18 * 60;
 
 @Injectable()
 export class DeliveryService {
-  constructor(private readonly coverageService: CoverageService) {}
+  constructor(
+    private readonly coverageService: CoverageService,
+    private readonly deliveryPricingService: DeliveryPricingService,
+  ) {}
 
   async calculateEtaFromQuery(
     query: DeliveryEtaQueryDto,
@@ -84,7 +85,7 @@ export class DeliveryService {
         deliveryMessage: buildDeliveryMessage(0, { serviceable: false }),
         deliveryDay: 'Unavailable',
         deliveringBy: null,
-        deliveryCharge: DELIVERY_CHARGE,
+        deliveryCharge: 0,
         freeDelivery: false,
         message: hub
           ? 'Delivery unavailable at this location'
@@ -109,9 +110,35 @@ export class DeliveryService {
     const deliverAt = new Date(now.getTime() + estimatedMinutes * 60_000);
     const deliveryDay = this.resolveDeliveryDay(now, deliverAt, estimatedMinutes);
     const deliveringBy = this.formatTime(deliverAt);
+    const totalQty = items.reduce((sum, i) => sum + (i.quantity || 1), 0);
+    const vehicleType = resolveDeliveryVehicleForQuantity(totalQty || 1);
+
+    let deliveryCharge = 0;
+    let freeDelivery = false;
+    let pricingMessage: string | undefined;
+
+    try {
+      const priced = await this.deliveryPricingService.calculateCharge({
+        vehicleType,
+        distanceKm,
+        applyFreeBikeBenefit: false,
+      });
+      if (priced.available) {
+        deliveryCharge = priced.listPrice;
+      } else {
+        pricingMessage = priced.message;
+      }
+    } catch {
+      pricingMessage = 'Delivery pricing unavailable';
+    }
+
+    // Membership/threshold free delivery is applied at checkout, not ETA preview
     const cartSubtotalHint = 0;
-    const deliveryCharge =
-      cartSubtotalHint >= FREE_DELIVERY_THRESHOLD ? 0 : DELIVERY_CHARGE;
+    if (cartSubtotalHint >= FREE_DELIVERY_THRESHOLD) {
+      deliveryCharge = 0;
+      freeDelivery = true;
+    }
+
     const serviceable = hub.inCoverage && (hub.canFulfill || items.length === 0);
     const preorder = deliveryDay === 'Tomorrow';
 
@@ -126,12 +153,14 @@ export class DeliveryService {
       deliveryDay,
       deliveringBy,
       deliveryCharge: toMoney(deliveryCharge),
-      freeDelivery: deliveryCharge === 0,
-      message: hub.canFulfill
-        ? buildDeliverySubtitle(serviceable, { freeDelivery: deliveryCharge === 0 })
-        : items.length > 0
-          ? 'Some items may be unavailable at your location'
-          : undefined,
+      freeDelivery,
+      message: pricingMessage
+        ? pricingMessage
+        : hub.canFulfill
+          ? buildDeliverySubtitle(serviceable, { freeDelivery })
+          : items.length > 0
+            ? 'Some items may be unavailable at your location'
+            : undefined,
     };
   }
 
@@ -142,7 +171,7 @@ export class DeliveryService {
       deliveryMessage: buildDeliveryMessage(0, { serviceable: false }),
       deliveryDay: 'Unavailable',
       deliveringBy: null,
-      deliveryCharge: DELIVERY_CHARGE,
+      deliveryCharge: 0,
       freeDelivery: false,
       message,
     };
@@ -156,7 +185,10 @@ export class DeliveryService {
     const endOfToday = new Date(now);
     endOfToday.setHours(23, 59, 59, 999);
 
-    if (deliverAt.getTime() <= endOfToday.getTime() && estimatedMinutes < SAME_DAY_CUTOFF_MINUTES) {
+    if (
+      deliverAt.getTime() <= endOfToday.getTime() &&
+      estimatedMinutes < SAME_DAY_CUTOFF_MINUTES
+    ) {
       return 'Today';
     }
 

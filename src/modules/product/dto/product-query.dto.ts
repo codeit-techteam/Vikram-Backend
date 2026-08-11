@@ -98,6 +98,21 @@ export class ProductQueryDto extends PaginationQueryDto {
   @IsString()
   grade?: string;
 
+  @ApiPropertyOptional({
+    example: 'RED_BRICKS',
+    description:
+      'Filter by product type code (e.g. RED_BRICKS, GREY_ASH_BRICKS). Aliases: red_bricks, fly_ash_bricks',
+  })
+  @IsOptional()
+  @IsString()
+  productType?: string;
+
+  /** Alias for productType (brickType=red_bricks) */
+  @ApiPropertyOptional({ example: 'red_bricks', deprecated: true })
+  @IsOptional()
+  @IsString()
+  brickType?: string;
+
   @ApiPropertyOptional({ example: 'IN STOCK' })
   @IsOptional()
   @IsString()

@@ -18,6 +18,7 @@ import {
 import { PrismaPg } from '@prisma/adapter-pg';
 import pg from 'pg';
 import { seedCmsHome } from './seedCmsHome';
+import { seedDeliveryPricing } from './scripts/seed-delivery-pricing';
 
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
 const adapter = new PrismaPg(pool);
@@ -42,14 +43,21 @@ async function main() {
       },
     }),
     prisma.category.upsert({
-      where: { slug: 'steel' },
-      update: {},
+      where: { slug: 'rmc' },
+      update: {
+        name: 'RMC',
+        nameHi: 'आरएमसी',
+        labelKey: 'rmc',
+        description: 'Ready Mix Concrete',
+        imageUrl: '/assets/category-rmc.png',
+      },
       create: {
-        slug: 'steel',
-        name: 'Steel',
-        nameHi: 'स्टील',
-        labelKey: 'steel',
-        imageUrl: '/assets/category-steel.png',
+        slug: 'rmc',
+        name: 'RMC',
+        nameHi: 'आरएमसी',
+        labelKey: 'rmc',
+        description: 'Ready Mix Concrete',
+        imageUrl: '/assets/category-rmc.png',
         isFeatured: true,
         displayOrder: 2,
         priority: 9,
@@ -74,12 +82,15 @@ async function main() {
       update: {
         name: 'Bricks',
         nameHi: 'ईंट',
+        labelKey: 'bricks',
+        description: 'Red Bricks and Grey Ash Bricks (Fly Ash Bricks)',
       },
       create: {
         slug: 'bricks',
         name: 'Bricks',
         nameHi: 'ईंट',
-        labelKey: 'bricksAndMasonry',
+        labelKey: 'bricks',
+        description: 'Red Bricks and Grey Ash Bricks (Fly Ash Bricks)',
         imageUrl: '/assets/category-bricks.png',
         isFeatured: true,
         displayOrder: 4,
@@ -206,39 +217,58 @@ async function main() {
       ],
     },
     {
-      slug: 'tata-tiscon-500d-tmt-bars',
-      sku: 'STL-TATA-500D',
-      name: 'TATA Tiscon 500D TMT Bars',
-      brand: 'TATA Steel',
-      categoryId: categoryMap['steel'],
-      grade: 'Fe 500D',
-      badge: '⚡ 90 min ETA',
+      slug: 'rmc-m25',
+      sku: 'RMC-M25',
+      name: 'RMC M25',
+      brand: 'Bajriwala Concrete',
+      categoryId: categoryMap['rmc'],
+      grade: 'M25',
+      badge: '⚡ Same Day',
       badgeColor: '#FEB623',
-      status: 'READY FOR DISPATCH',
-      spec: 'Minimum 500 kg',
-      unit: 'kg',
-      retailPrice: 62,
-      bulkPrice: 58,
-      bulkThreshold: 1000,
-      bulkLabel: 'Bulk Price (1000+ kg)',
+      status: 'IN STOCK',
+      spec: 'Ready Mix Concrete',
+      unit: 'Cum',
+      retailPrice: 4800,
+      bulkPrice: 4500,
+      bulkThreshold: 10,
+      bulkLabel: 'Bulk Price (10+ Cum)',
       listingType: ProductListingType.FEATURED,
       isFeatured: true,
       isBestSelling: true,
       gst: 18,
       salesCount: 2100,
       displayOrder: 1,
-      hasVariants: true,
-      description: 'High ductility TMT bars for earthquake-resistant structures.',
-      specs: { GRADE: 'Fe 500D', YIELD: '500 MPa', ELONGATION: '16%' },
-      images: [
-        'https://images.unsplash.com/photo-1504917595217-d4dc5ebe6122?w=800',
-      ],
-      variants: [
-        { label: '8mm', price: 62, displayUnit: 'kg' },
-        { label: '10mm', price: 62, displayUnit: 'kg' },
-        { label: '12mm', price: 63, displayUnit: 'kg' },
-        { label: '16mm', price: 63, displayUnit: 'kg' },
-      ],
+      description:
+        'Ready Mix Concrete M25 for structural pours. Delivered by Bajriwala mixer trucks.',
+      specs: { GRADE: 'M25', TYPE: 'Ready Mix Concrete' },
+      images: ['/assets/category-rmc.png'],
+    },
+    {
+      slug: 'rmc-m30',
+      sku: 'RMC-M30',
+      name: 'RMC M30',
+      brand: 'Bajriwala Concrete',
+      categoryId: categoryMap['rmc'],
+      grade: 'M30',
+      badge: '⚡ Same Day',
+      badgeColor: '#FEB623',
+      status: 'IN STOCK',
+      spec: 'Ready Mix Concrete',
+      unit: 'Cum',
+      retailPrice: 5200,
+      bulkPrice: 4900,
+      bulkThreshold: 10,
+      bulkLabel: 'Bulk Price (10+ Cum)',
+      listingType: ProductListingType.FEATURED,
+      isFeatured: true,
+      isBestSelling: false,
+      gst: 18,
+      salesCount: 900,
+      displayOrder: 2,
+      description:
+        'Ready Mix Concrete M30 for high-strength structural applications.',
+      specs: { GRADE: 'M30', TYPE: 'Ready Mix Concrete' },
+      images: ['/assets/category-rmc.png'],
     },
     {
       slug: 'manufactured-sand-m-sand',
@@ -268,9 +298,11 @@ async function main() {
     {
       slug: 'red-clay-bricks',
       sku: 'BRK-RED-STD',
-      name: 'Red Clay Bricks (Standard)',
+      name: 'Red Bricks — A',
       brand: 'Local',
       categoryId: categoryMap['bricks'],
+      productType: 'RED_BRICKS',
+      grade: 'A',
       status: 'IN STOCK',
       spec: 'Minimum 500 pcs',
       unit: 'Piece',
@@ -286,8 +318,8 @@ async function main() {
       salesCount: 3200,
       displayOrder: 1,
       hasVariants: true,
-      description: 'Standard red clay bricks for wall construction.',
-      specs: { SIZE: '9x4x3 inches', STRENGTH: '3.5 N/mm²' },
+      description: 'Red clay bricks grade A for wall construction.',
+      specs: { SIZE: '9x4x3 inches', STRENGTH: '3.5 N/mm²', TYPE: 'RED_BRICKS', GRADE: 'A' },
       images: [
         'https://images.unsplash.com/photo-1628744448840-55bdb3526085?w=800',
       ],
@@ -369,8 +401,11 @@ async function main() {
             data: {
               productId: product.id,
               label: v.label,
-              displayUnit: 'displayUnit' in v ? v.displayUnit : undefined,
-              count: 'count' in v ? v.count : undefined,
+              displayUnit:
+                'displayUnit' in v && typeof v.displayUnit === 'string'
+                  ? v.displayUnit
+                  : undefined,
+              count: 'count' in v && typeof v.count === 'number' ? v.count : undefined,
               price: v.price,
               displayOrder: idx,
             },
@@ -386,7 +421,7 @@ async function main() {
     create: {
       slug: 'monsoon-construction-sale',
       title: 'Monsoon Construction Sale',
-      subtitle: 'Up to 15% off on Cement & Steel',
+      subtitle: 'Up to 15% off on Cement & RMC',
       imageUrl:
         'https://images.unsplash.com/photo-1541888946425-d81bb19240f5?w=1200',
       mobileUrl:
@@ -441,7 +476,7 @@ async function main() {
       slug: 'construction-starter-bundle',
       title: 'Construction Starter Bundle',
       titleHi: 'निर्माण स्टार्टर बंडल',
-      description: 'Cement + Steel + Bricks at a special bundle price',
+      description: 'Cement + RMC + Bricks at a special bundle price',
       imageUrl:
         'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=800',
       offerType: OfferType.BUNDLE,
@@ -538,7 +573,7 @@ async function main() {
       type: NotificationType.ORDER,
       label: 'ORDER CONFIRMED',
       title: 'Order #BJW-901 Confirmed',
-      body: 'Your order for TMT Steel Bars has been confirmed and is being packed.',
+      body: 'Your order for RMC M25 has been confirmed and is being packed.',
       actionLabel: 'View Order',
       actionRoute: '/(tabs)/orders',
       actionVariant: 'outline',
@@ -567,7 +602,8 @@ async function main() {
 
   const popularSearches = [
     { query: 'UltraTech Cement', searchCount: 120, displayOrder: 1 },
-    { query: 'TMT Steel Bars', searchCount: 95, displayOrder: 2 },
+    { query: 'RMC M25', searchCount: 95, displayOrder: 2 },
+    { query: 'Fly Ash Bricks', searchCount: 80, displayOrder: 3 },
     { query: 'River Sand', searchCount: 80, displayOrder: 3 },
     { query: 'Red Bricks', searchCount: 70, displayOrder: 4 },
     { query: 'Stone Chips', searchCount: 55, displayOrder: 5 },
@@ -1101,44 +1137,69 @@ async function main() {
 
   const loyaltyAccount = await prisma.loyaltyAccount.upsert({
     where: { customerId: demoCustomer.id },
-    update: {
-      currentPoints: 12500,
-      availablePoints: 10500,
-      redeemedPoints: 2000,
-      tier: LoyaltyTier.GOLD,
-    },
+    update: {},
     create: {
       customerId: demoCustomer.id,
-      currentPoints: 12500,
-      availablePoints: 10500,
-      redeemedPoints: 2000,
-      tier: LoyaltyTier.GOLD,
+      currentPoints: 92,
+      availablePoints: 92,
+      redeemedPoints: 0,
+      tier: LoyaltyTier.BRONZE,
     },
   });
 
-  const existingLoyaltyTx = await prisma.loyaltyTransaction.findFirst({
-    where: { accountId: loyaltyAccount.id, reason: 'Points earned on order #BJW-901' },
-  });
-  if (!existingLoyaltyTx) {
-    await prisma.loyaltyTransaction.createMany({
-      data: [
-        {
-          accountId: loyaltyAccount.id,
-          points: 12500,
-          type: LoyaltyTransactionType.EARN,
-          reason: 'Points earned on order #BJW-901',
-          referenceId: 'BJW-901',
-        },
-        {
-          accountId: loyaltyAccount.id,
-          points: 2000,
-          type: LoyaltyTransactionType.REDEEM,
-          reason: 'Redeemed for order discount',
-          referenceId: 'BJW-882',
-        },
-      ],
+  // Migrate away from legacy inflated Rajesh seed (12,500 / 2,000 redeemed).
+  const isLegacyRajesh =
+    loyaltyAccount.currentPoints === 12500 &&
+    loyaltyAccount.redeemedPoints === 2000;
+
+  if (isLegacyRajesh) {
+    await prisma.loyaltyTransaction.deleteMany({
+      where: { accountId: loyaltyAccount.id },
+    });
+    await prisma.loyaltyAccount.update({
+      where: { id: loyaltyAccount.id },
+      data: {
+        currentPoints: 92,
+        availablePoints: 92,
+        redeemedPoints: 0,
+        tier: LoyaltyTier.BRONZE,
+      },
     });
   }
+
+  const existingLoyaltyTx = await prisma.loyaltyTransaction.findFirst({
+    where: {
+      accountId: loyaltyAccount.id,
+      referenceId: 'SEED_LOYALTY:9999900001',
+    },
+  });
+  if (!existingLoyaltyTx && (isLegacyRajesh || loyaltyAccount.currentPoints === 92)) {
+    const accountAfter = isLegacyRajesh
+      ? await prisma.loyaltyAccount.findUniqueOrThrow({
+          where: { id: loyaltyAccount.id },
+        })
+      : loyaltyAccount;
+    if (accountAfter.currentPoints === 92) {
+      await prisma.loyaltyTransaction.create({
+        data: {
+          accountId: loyaltyAccount.id,
+          points: 92,
+          type: LoyaltyTransactionType.EARN,
+          reason: 'Seed initial loyalty balance (dev only)',
+          referenceId: 'SEED_LOYALTY:9999900001',
+          openingPoints: 0,
+          closingPoints: 92,
+          remainingPoints: 92,
+          expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+        },
+      });
+    }
+  }
+
+  await prisma.customer.update({
+    where: { id: demoCustomer.id },
+    data: { loyaltyAccountId: loyaltyAccount.id },
+  });
 
   const purchaseDate = new Date();
   const expiryDate = new Date(purchaseDate);
@@ -1176,16 +1237,21 @@ async function main() {
     },
   });
   if (!existingBulkEnquiry) {
+    const year = new Date().getFullYear();
     await prisma.bulkEnquiry.create({
       data: {
+        enquiryNumber: `BULK-${year}-000001`,
         customerId: demoCustomer.id,
         companyName: 'Kumar Constructions Pvt Ltd',
         projectName: 'Skyline Residency Phase 2',
         location: 'Pune, Maharashtra',
         remarks: 'Need cement and TMT bars for foundation work',
+        additionalNotes: 'Need cement and TMT bars for foundation work',
         expectedQuantity: 500,
         expectedUnit: 'Bags',
         status: BulkEnquiryStatus.NEW,
+        customerNameSnapshot: demoCustomer.fullName,
+        customerPhoneSnapshot: demoCustomer.phone,
       },
     });
   }
@@ -1272,10 +1338,16 @@ async function main() {
     });
   }
 
-  const loyaltyTierSamples: Array<{ phone: string; name: string; tier: LoyaltyTier; points: number }> = [
-    { phone: '9999900010', name: 'Bronze Member', tier: LoyaltyTier.BRONZE, points: 500 },
-    { phone: '9999900011', name: 'Silver Member', tier: LoyaltyTier.SILVER, points: 2500 },
-    { phone: '9999900012', name: 'Platinum Member', tier: LoyaltyTier.PLATINUM, points: 45000 },
+  const loyaltyTierSamples: Array<{
+    phone: string;
+    name: string;
+    tier: LoyaltyTier;
+    points: number;
+  }> = [
+    // Dev-only sample accounts (ledger-backed). Re-seed does not overwrite balances.
+    { phone: '9999900010', name: 'Bronze Member', tier: LoyaltyTier.BRONZE, points: 120 },
+    { phone: '9999900011', name: 'Silver Member', tier: LoyaltyTier.SILVER, points: 650 },
+    { phone: '9999900012', name: 'Gold Member', tier: LoyaltyTier.GOLD, points: 2200 },
   ];
 
   for (const sample of loyaltyTierSamples) {
@@ -1285,25 +1357,83 @@ async function main() {
       create: { phone: sample.phone, fullName: sample.name, isVerified: true },
     });
 
-    const account = await prisma.loyaltyAccount.upsert({
+    const existingAccount = await prisma.loyaltyAccount.findUnique({
       where: { customerId: customer.id },
-      update: {
-        tier: sample.tier,
-        currentPoints: sample.points,
-        availablePoints: sample.points,
-      },
-      create: {
-        customerId: customer.id,
-        tier: sample.tier,
-        currentPoints: sample.points,
-        availablePoints: sample.points,
-      },
     });
 
-    await prisma.customer.update({
-      where: { id: customer.id },
-      data: { loyaltyAccountId: account.id },
-    });
+    // Migrate legacy Platinum Member 45,000 inflated seed once.
+    if (
+      existingAccount &&
+      sample.phone === '9999900012' &&
+      existingAccount.currentPoints === 45000
+    ) {
+      await prisma.loyaltyTransaction.deleteMany({
+        where: { accountId: existingAccount.id },
+      });
+      const reset = await prisma.loyaltyAccount.update({
+        where: { id: existingAccount.id },
+        data: {
+          tier: LoyaltyTier.GOLD,
+          currentPoints: sample.points,
+          availablePoints: sample.points,
+          redeemedPoints: 0,
+        },
+      });
+      await prisma.loyaltyTransaction.create({
+        data: {
+          accountId: reset.id,
+          points: sample.points,
+          type: LoyaltyTransactionType.EARN,
+          reason: 'Seed initial loyalty balance (dev only)',
+          referenceId: `SEED_LOYALTY:${sample.phone}`,
+          openingPoints: 0,
+          closingPoints: sample.points,
+          remainingPoints: sample.points,
+          expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+        },
+      });
+      await prisma.customer.update({
+        where: { id: customer.id },
+        data: { loyaltyAccountId: reset.id },
+      });
+      continue;
+    }
+
+    if (!existingAccount) {
+      const account = await prisma.loyaltyAccount.create({
+        data: {
+          customerId: customer.id,
+          tier: sample.tier,
+          currentPoints: sample.points,
+          availablePoints: sample.points,
+          redeemedPoints: 0,
+        },
+      });
+
+      await prisma.loyaltyTransaction.create({
+        data: {
+          accountId: account.id,
+          points: sample.points,
+          type: LoyaltyTransactionType.EARN,
+          reason: 'Seed initial loyalty balance (dev only)',
+          referenceId: `SEED_LOYALTY:${sample.phone}`,
+          openingPoints: 0,
+          closingPoints: sample.points,
+          remainingPoints: sample.points,
+          expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+        },
+      });
+
+      await prisma.customer.update({
+        where: { id: customer.id },
+        data: { loyaltyAccountId: account.id },
+      });
+    } else {
+      await prisma.customer.update({
+        where: { id: customer.id },
+        data: { loyaltyAccountId: existingAccount.id },
+      });
+    }
   }
 
   // ─── Dev login customer: Karan Singh (+918240890242 / OTP 123456) ─────────
@@ -1363,22 +1493,64 @@ async function main() {
     },
   });
 
-  const karanLoyalty = await prisma.loyaltyAccount.upsert({
+  const existingKaranLoyalty = await prisma.loyaltyAccount.findUnique({
     where: { customerId: karan.id },
-    update: {
-      tier: LoyaltyTier.PLATINUM,
-      currentPoints: 42000,
-      availablePoints: 38500,
-      redeemedPoints: 3500,
-    },
-    create: {
-      customerId: karan.id,
-      tier: LoyaltyTier.PLATINUM,
-      currentPoints: 42000,
-      availablePoints: 38500,
-      redeemedPoints: 3500,
+  });
+
+  let karanLoyalty = existingKaranLoyalty;
+
+  // Migrate away from legacy inflated seed balances (42k / 38.5k) once.
+  const isLegacyInflated =
+    !!existingKaranLoyalty &&
+    existingKaranLoyalty.currentPoints === 42000 &&
+    existingKaranLoyalty.redeemedPoints === 3500;
+
+  if (!karanLoyalty) {
+    karanLoyalty = await prisma.loyaltyAccount.create({
+      data: {
+        customerId: karan.id,
+        tier: LoyaltyTier.BRONZE,
+        currentPoints: 92,
+        availablePoints: 92,
+        redeemedPoints: 0,
+      },
+    });
+  } else if (isLegacyInflated) {
+    await prisma.loyaltyTransaction.deleteMany({
+      where: { accountId: karanLoyalty.id },
+    });
+    karanLoyalty = await prisma.loyaltyAccount.update({
+      where: { id: karanLoyalty.id },
+      data: {
+        tier: LoyaltyTier.BRONZE,
+        currentPoints: 92,
+        availablePoints: 92,
+        redeemedPoints: 0,
+      },
+    });
+  }
+
+  const karanSeedTx = await prisma.loyaltyTransaction.findFirst({
+    where: {
+      accountId: karanLoyalty.id,
+      referenceId: 'SEED_LOYALTY:karan',
     },
   });
+  if (!karanSeedTx && (isLegacyInflated || !existingKaranLoyalty)) {
+    await prisma.loyaltyTransaction.create({
+      data: {
+        accountId: karanLoyalty.id,
+        points: 92,
+        type: LoyaltyTransactionType.EARN,
+        reason: 'Seed initial loyalty balance (dev only)',
+        referenceId: 'SEED_LOYALTY:karan',
+        openingPoints: 0,
+        closingPoints: 92,
+        remainingPoints: 92,
+        expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+      },
+    });
+  }
 
   const karanMembershipExpiry = new Date();
   karanMembershipExpiry.setFullYear(karanMembershipExpiry.getFullYear() + 1);
@@ -1462,6 +1634,7 @@ async function main() {
   console.log('Seeded membership plans, loyalty, bulk enquiry, and testimonials.');
 
   await seedCmsHome(prisma);
+  await seedDeliveryPricing(prisma);
 
   // ── Admin Users (3 RBAC roles) ─────────────────────────────────────────────
   const adminPasswordHash = await bcrypt.hash('Admin@1234', 10);

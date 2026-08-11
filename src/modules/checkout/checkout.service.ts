@@ -9,11 +9,14 @@ import { MembershipService } from '../membership/membership.service';
 import { LoyaltyService } from '../loyalty/loyalty.service';
 import { LoyaltyTransactionService } from '../loyalty/loyalty-transaction.service';
 import {
+  calculateEarnPoints,
   calculateMaxRedeemablePoints,
 } from '../loyalty/loyalty.constants';
 import { decimalToNumber } from '../../common/shopping/pricing.util';
 import { CoverageService } from '../coverage/coverage.service';
 import { DeliveryService } from '../delivery/delivery.service';
+import { DeliveryPricingService } from '../delivery/delivery-pricing.service';
+import { resolveDeliveryVehicleForQuantity } from '../delivery/delivery-pricing.constants';
 import {
   CheckoutAddressDto,
   CheckoutResponseDto,
@@ -34,6 +37,7 @@ export class CheckoutService {
     private readonly loyaltyTransactionService: LoyaltyTransactionService,
     private readonly coverageService: CoverageService,
     private readonly deliveryService: DeliveryService,
+    private readonly deliveryPricingService: DeliveryPricingService,
   ) {}
 
   async getCheckout(
@@ -86,12 +90,32 @@ export class CheckoutService {
           })
         : null;
 
-    const [membershipSummary, loyaltySummary, redeemablePoints] =
+    const totalQty = cart.items.reduce((sum, i) => sum + i.quantity, 0);
+    const vehicleType = resolveDeliveryVehicleForQuantity(totalQty);
+    const distanceKm =
+      nearestHub && Number.isFinite(nearestHub.distanceKm)
+        ? Number(nearestHub.distanceKm)
+        : 0;
+
+    const [membershipSummary, loyaltySummary, redeemablePoints, priced] =
       await Promise.all([
         this.membershipService.getCurrentMembership(customerId),
         this.loyaltyService.getLoyaltySummary(customerId),
         this.loyaltyService.getRedeemablePoints(customerId),
+        this.deliveryPricingService.calculateCharge({
+          vehicleType,
+          distanceKm,
+          customerId,
+          applyFreeBikeBenefit: true,
+        }),
       ]);
+
+    if (!priced.available && distanceKm > 0) {
+      throw new BadRequestException(
+        priced.message ??
+          'Delivery pricing unavailable for this vehicle/distance',
+      );
+    }
 
     const hasActiveMembership = membershipSummary.current?.isActive === true;
     const membershipDiscountPercent = hasActiveMembership ? 5 : 0;
@@ -100,12 +124,29 @@ export class CheckoutService {
 
     const loadingCharges = LOADING_CHARGE;
     const unloadingCharges = UNLOADING_CHARGE;
-    const bikeDeliveryFree =
+
+    const thresholdOrMembershipFree =
       hasActiveMembership || cart.subtotal >= FREE_DELIVERY_THRESHOLD;
-    const deliveryCharge = bikeDeliveryFree ? 0 : cart.deliveryCharge;
+
+    // Server-calculated — never trust client-supplied deliveryCharge
+    let deliveryCharge = thresholdOrMembershipFree ? 0 : priced.deliveryCharge;
+    let bikeDeliveryFree =
+      thresholdOrMembershipFree || priced.freeDeliveryApplied;
+    let companyAbsorbedDelivery = thresholdOrMembershipFree
+      ? 0
+      : priced.companyAbsorbedDelivery;
+    const freeBikeDeliveriesRemaining =
+      priced.freeBikeDeliveriesRemaining ?? 0;
+    const freeDeliveryApplied =
+      !thresholdOrMembershipFree && priced.freeDeliveryApplied;
 
     const orderValueBeforeLoyalty =
-      cart.subtotal + cart.gstAmount + deliveryCharge - membershipDiscount;
+      cart.subtotal +
+      cart.gstAmount +
+      deliveryCharge +
+      loadingCharges +
+      unloadingCharges -
+      membershipDiscount;
 
     const maxRedeemablePoints = calculateMaxRedeemablePoints(
       orderValueBeforeLoyalty,
@@ -115,6 +156,7 @@ export class CheckoutService {
     const requestedLoyaltyPoints = dto.loyaltyPointsToRedeem ?? 0;
     let loyaltyUsed = 0;
     let loyaltyDiscount = 0;
+    let loyaltyMessage: string | undefined;
 
     if (requestedLoyaltyPoints > 0) {
       const validation = this.loyaltyTransactionService.validateRedemption({
@@ -124,12 +166,24 @@ export class CheckoutService {
       });
       loyaltyUsed = validation.allowedPoints;
       loyaltyDiscount = validation.discountAmount;
+      loyaltyMessage = validation.message;
+    } else {
+      const preview = this.loyaltyTransactionService.validateRedemption({
+        requestedPoints: 0,
+        orderValueInr: orderValueBeforeLoyalty,
+        availablePoints: redeemablePoints,
+        soft: true,
+      });
+      loyaltyMessage = preview.message;
     }
 
     const adjustedGrandTotal = Math.max(
       0,
       orderValueBeforeLoyalty - loyaltyDiscount,
     );
+
+    const eligibleEarnAmount = Math.max(0, cart.subtotal - membershipDiscount);
+    const estimatedEarnPoints = calculateEarnPoints(eligibleEarnAmount);
 
     return {
       address,
@@ -150,15 +204,33 @@ export class CheckoutService {
       paymentMethod: 'CASH',
       notes: dto.notes ?? null,
       membershipDiscount,
-      loyaltyPoints: loyaltySummary.currentPoints,
+      loyaltyPoints: loyaltySummary.availablePoints,
       redeemablePoints,
       maxRedeemablePoints,
       loyaltyUsed,
       loyaltyDiscount,
+      loyaltyAvailableValue: loyaltySummary.availableValue,
+      pointValueInr: loyaltySummary.pointValueInr,
+      minRedeemOrderValue: loyaltySummary.minRedeemOrderValue,
+      redemptionEligible:
+        orderValueBeforeLoyalty >= loyaltySummary.minRedeemOrderValue,
+      loyaltyMessage: loyaltyMessage ?? null,
+      estimatedEarnPoints,
       discount: membershipDiscount + loyaltyDiscount,
       loadingCharges,
       unloadingCharges,
       bikeDeliveryFree,
+      companyAbsorbedDelivery,
+      freeBikeDeliveriesRemaining,
+      deliveryVehicleType: vehicleType,
+      deliveryVehicleDisplayName: priced.vehicleDisplayName,
+      deliveryDistanceKm: distanceKm,
+      deliveryListPrice: priced.listPrice,
+      deliveryPricingRuleId: priced.pricingRuleId,
+      deliveryPricingVersion: priced.pricingVersion,
+      freeDeliveryApplied,
+      freeBikeDeliveriesAllowed: priced.freeBikeDeliveriesAllowed ?? null,
+      freeBikeDeliveriesUsed: priced.freeBikeDeliveriesUsed ?? null,
     };
   }
 
@@ -170,13 +242,13 @@ export class CheckoutService {
       ? await this.prisma.address.findFirst({
           where: { id: addressId, customerId, deletedAt: null },
         })
-      : await this.prisma.address.findFirst({
+      : ((await this.prisma.address.findFirst({
           where: { customerId, deletedAt: null, isDefault: true },
-        }) ??
+        })) ??
         (await this.prisma.address.findFirst({
           where: { customerId, deletedAt: null },
           orderBy: { createdAt: 'desc' },
-        }));
+        })));
 
     if (!address) {
       throw new NotFoundException(
@@ -192,7 +264,8 @@ export class CheckoutService {
       city: address.city,
       state: address.state,
       pincode: address.pincode,
-      latitude: address.latitude != null ? decimalToNumber(address.latitude) : null,
+      latitude:
+        address.latitude != null ? decimalToNumber(address.latitude) : null,
       longitude:
         address.longitude != null ? decimalToNumber(address.longitude) : null,
       isDefault: address.isDefault,
@@ -203,7 +276,7 @@ export class CheckoutService {
     address: CheckoutAddressDto,
     items: Array<{ productId: string; quantity: number }>,
   ) {
-    const match = await this.coverageService.findNearestHub(
+    return this.coverageService.findNearestHub(
       {
         latitude: address.latitude,
         longitude: address.longitude,
@@ -211,17 +284,5 @@ export class CheckoutService {
       },
       items,
     );
-
-    if (!match || !match.inCoverage) return null;
-
-    return {
-      id: match.id,
-      code: match.code,
-      name: match.name,
-      city: match.city,
-      pincode: match.pincode,
-      distanceKm: match.distanceKm,
-      canFulfill: match.canFulfill,
-    };
   }
 }

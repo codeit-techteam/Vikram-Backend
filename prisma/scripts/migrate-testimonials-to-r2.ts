@@ -31,7 +31,9 @@ const PUBLIC =
 const R2_THUMBS = {
   cement: `${PUBLIC}/categories/20260804-63e4d6ac-category-cement.png`,
   bricks: `${PUBLIC}/categories/20260804-fbef8b9c-category-bricks.png`,
-  steel: `${PUBLIC}/categories/20260804-a6faf494-category-steel.png`,
+  rmc: `${PUBLIC}/categories/20260811-5003e0ce-category-rmc.png`,
+  /** Legacy steel thumb → RMC mixer art */
+  steel: `${PUBLIC}/categories/20260811-5003e0ce-category-rmc.png`,
   sand: `${PUBLIC}/categories/20260804-c73acd89-category-sand.png`,
   aggregates: `${PUBLIC}/categories/20260804-963ac3d4-category-aggregates.png`,
   construction: `${PUBLIC}/categories/20260804-9bff8f92-category-grey-fill-sand.png`,

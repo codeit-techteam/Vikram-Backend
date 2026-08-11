@@ -36,6 +36,12 @@ export class OrderItemResponseDto {
   category?: string | null;
 
   @ApiPropertyOptional()
+  productType?: string | null;
+
+  @ApiPropertyOptional()
+  grade?: string | null;
+
+  @ApiPropertyOptional()
   variant?: string | null;
 
   @ApiProperty()

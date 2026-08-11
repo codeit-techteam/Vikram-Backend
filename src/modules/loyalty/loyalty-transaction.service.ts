@@ -13,12 +13,18 @@ import { CacheService } from '../../common/cache/cache.service';
 import { CACHE_KEYS } from '../../common/cache/cache.constants';
 import {
   addMonths,
+  availableValueInr,
   calculateEarnPoints,
   calculateMaxRedeemablePoints,
   getNextTierInfo,
-  LOYALTY_MIN_REDEEM_POINTS,
+  isRedemptionEligible,
+  LOYALTY_FIRST_ORDER_BONUS_POINTS,
+  LOYALTY_MAX_ORDER_REDEEM_PERCENT,
+  LOYALTY_MIN_REDEEM_ORDER_VALUE,
   LOYALTY_POINTS_EXPIRY_MONTHS,
   LOYALTY_POINT_VALUE_INR,
+  LOYALTY_REF,
+  LOYALTY_WELCOME_BONUS_POINTS,
   pointsToDiscountAmount,
   resolveTierFromPoints,
 } from './loyalty.constants';
@@ -56,6 +62,11 @@ export interface LoyaltyRedemptionValidation {
   discountAmount: number;
   remainingBalance: number;
   maxRedeemablePoints: number;
+  redemptionEligible: boolean;
+  minOrderValue: number;
+  pointValueInr: number;
+  availableValue: number;
+  message?: string;
 }
 
 @Injectable()
@@ -82,15 +93,26 @@ export class LoyaltyTransactionService {
     });
   }
 
+  /** Credit lots that can still be redeemed (EARN / ADJUSTMENT / ADMIN with remainingPoints). */
+  private creditLotWhere(accountId: string, now: Date): Prisma.LoyaltyTransactionWhereInput {
+    return {
+      accountId,
+      remainingPoints: { gt: 0 },
+      type: {
+        in: [
+          LoyaltyTransactionType.EARN,
+          LoyaltyTransactionType.ADJUSTMENT,
+          LoyaltyTransactionType.ADMIN,
+        ],
+      },
+      OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+    };
+  }
+
   async getNonExpiredBalance(accountId: string): Promise<number> {
     const now = new Date();
     const lots = await this.prisma.loyaltyTransaction.findMany({
-      where: {
-        accountId,
-        type: LoyaltyTransactionType.EARN,
-        remainingPoints: { gt: 0 },
-        OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
-      },
+      where: this.creditLotWhere(accountId, now),
       select: { remainingPoints: true },
     });
 
@@ -101,9 +123,7 @@ export class LoyaltyTransactionService {
     const now = new Date();
     const lot = await this.prisma.loyaltyTransaction.findFirst({
       where: {
-        accountId,
-        type: LoyaltyTransactionType.EARN,
-        remainingPoints: { gt: 0 },
+        ...this.creditLotWhere(accountId, now),
         expiresAt: { gt: now },
       },
       orderBy: { expiresAt: 'asc' },
@@ -117,50 +137,74 @@ export class LoyaltyTransactionService {
     requestedPoints: number;
     orderValueInr: number;
     availablePoints: number;
+    soft?: boolean;
   }): LoyaltyRedemptionValidation {
-    const { requestedPoints, orderValueInr, availablePoints } = params;
+    const { requestedPoints, orderValueInr, availablePoints, soft = false } =
+      params;
+
+    const base: LoyaltyRedemptionValidation = {
+      requestedPoints,
+      allowedPoints: 0,
+      discountAmount: 0,
+      remainingBalance: availablePoints,
+      maxRedeemablePoints: calculateMaxRedeemablePoints(
+        orderValueInr,
+        availablePoints,
+      ),
+      redemptionEligible: isRedemptionEligible(orderValueInr),
+      minOrderValue: LOYALTY_MIN_REDEEM_ORDER_VALUE,
+      pointValueInr: LOYALTY_POINT_VALUE_INR,
+      availableValue: availableValueInr(availablePoints),
+    };
 
     if (requestedPoints < 0) {
+      if (soft) {
+        return {
+          ...base,
+          message: 'Points must be zero or positive',
+        };
+      }
       throw new BadRequestException('Points must be zero or positive');
     }
 
     if (requestedPoints === 0) {
       return {
-        requestedPoints: 0,
-        allowedPoints: 0,
-        discountAmount: 0,
-        remainingBalance: availablePoints,
-        maxRedeemablePoints: calculateMaxRedeemablePoints(
-          orderValueInr,
-          availablePoints,
-        ),
+        ...base,
+        message: base.redemptionEligible
+          ? undefined
+          : `Loyalty points can be redeemed on orders of ₹${LOYALTY_MIN_REDEEM_ORDER_VALUE} or more.`,
       };
     }
 
-    if (requestedPoints < LOYALTY_MIN_REDEEM_POINTS) {
-      throw new BadRequestException(
-        `Minimum ${LOYALTY_MIN_REDEEM_POINTS} points required to redeem`,
-      );
+    if (!base.redemptionEligible) {
+      const message = `Loyalty points can be redeemed on orders of ₹${LOYALTY_MIN_REDEEM_ORDER_VALUE} or more.`;
+      if (soft) {
+        return { ...base, message };
+      }
+      throw new BadRequestException(message);
     }
 
     if (requestedPoints > availablePoints) {
+      if (soft) {
+        return { ...base, message: 'Insufficient loyalty points balance' };
+      }
       throw new BadRequestException('Insufficient loyalty points balance');
     }
 
-    const maxRedeemablePoints = calculateMaxRedeemablePoints(
-      orderValueInr,
-      availablePoints,
-    );
+    const maxRedeemablePoints = base.maxRedeemablePoints;
 
     if (requestedPoints > maxRedeemablePoints) {
-      throw new BadRequestException(
-        `Maximum ${maxRedeemablePoints} points (${LOYALTY_POINT_VALUE_INR} point = ₹1, capped at 30% of order value)`,
-      );
+      const message = `Maximum ${maxRedeemablePoints} points can be redeemed (₹${LOYALTY_POINT_VALUE_INR}/pt, capped at ${LOYALTY_MAX_ORDER_REDEEM_PERCENT * 100}% of order value)`;
+      if (soft) {
+        return { ...base, message };
+      }
+      throw new BadRequestException(message);
     }
 
     const discountAmount = pointsToDiscountAmount(requestedPoints);
 
     return {
+      ...base,
       requestedPoints,
       allowedPoints: requestedPoints,
       discountAmount,
@@ -172,12 +216,36 @@ export class LoyaltyTransactionService {
   async recordEntry(
     input: LoyaltyLedgerEntryInput,
   ): Promise<LoyaltyLedgerEntryResult> {
-    const result = await this.prisma.$transaction(async (tx) =>
-      this.recordEntryInTx(tx, input),
-    );
+    try {
+      const result = await this.prisma.$transaction(async (tx) =>
+        this.recordEntryInTx(tx, input),
+      );
 
-    await this.cache.del(CACHE_KEYS.LOYALTY(input.customerId));
-    return result.entry;
+      await this.cache.del(CACHE_KEYS.LOYALTY(input.customerId));
+      return result.entry;
+    } catch (error) {
+      if (
+        input.referenceId &&
+        error instanceof BadRequestException &&
+        String(error.message).includes('Duplicate loyalty ledger entry')
+      ) {
+        const account = await this.prisma.loyaltyAccount.findUnique({
+          where: { customerId: input.customerId },
+        });
+        if (account) {
+          const existing = await this.prisma.loyaltyTransaction.findFirst({
+            where: {
+              accountId: account.id,
+              referenceId: input.referenceId,
+            },
+          });
+          if (existing) {
+            return this.mapEntry(existing, input.customerId);
+          }
+        }
+      }
+      throw error;
+    }
   }
 
   async recordEntryInTx(
@@ -190,11 +258,35 @@ export class LoyaltyTransactionService {
     }
 
     const account = await this.ensureAccount(tx, input.customerId);
-    const openingPoints = account.availablePoints;
+
+    // Row-level lock prevents concurrent double-spend on the same loyalty account.
+    await tx.$queryRaw`
+      SELECT id FROM loyalty_accounts WHERE id = ${account.id}::uuid FOR UPDATE
+    `;
+
+    const lockedAccount = await tx.loyaltyAccount.findUniqueOrThrow({
+      where: { id: account.id },
+    });
+
+    if (input.referenceId) {
+      const existing = await tx.loyaltyTransaction.findFirst({
+        where: {
+          accountId: lockedAccount.id,
+          referenceId: input.referenceId,
+        },
+      });
+      if (existing) {
+        return {
+          entry: this.mapEntry(existing, input.customerId),
+          accountId: existing.accountId,
+        };
+      }
+    }
+    const openingPoints = lockedAccount.availablePoints;
 
     let closingPoints = openingPoints;
     const accountUpdate: Prisma.LoyaltyAccountUpdateInput = {
-      tier: resolveTierFromPoints(account.currentPoints),
+      tier: resolveTierFromPoints(lockedAccount.currentPoints),
     };
 
     const isCredit =
@@ -214,7 +306,7 @@ export class LoyaltyTransactionService {
       accountUpdate.availablePoints = { increment: points };
       accountUpdate.currentPoints = { increment: points };
       accountUpdate.tier = resolveTierFromPoints(
-        account.currentPoints + points,
+        lockedAccount.currentPoints + points,
       );
     } else if (isDebit) {
       if (openingPoints < points) {
@@ -232,62 +324,131 @@ export class LoyaltyTransactionService {
         accountUpdate.currentPoints = { decrement: points };
       }
       accountUpdate.tier = resolveTierFromPoints(
-        Math.max(0, account.currentPoints - points),
+        Math.max(0, lockedAccount.currentPoints - points),
       );
     } else {
       throw new BadRequestException(`Unsupported transaction type: ${input.type}`);
     }
 
     if (input.type === LoyaltyTransactionType.REDEEM) {
-      const lotBalance = await this.getNonExpiredBalanceInTx(tx, account.id);
+      const lotBalance = await this.getNonExpiredBalanceInTx(tx, lockedAccount.id);
       if (lotBalance < points) {
         throw new BadRequestException(
           'Insufficient non-expired loyalty points to redeem',
         );
       }
-      await this.consumePointsFromLots(tx, account.id, points);
+      await this.consumePointsFromLots(tx, lockedAccount.id, points);
     }
 
     if (
       input.type === LoyaltyTransactionType.ADJUSTMENT &&
       input.direction === 'DEBIT'
     ) {
-      const lotBalance = await this.getNonExpiredBalanceInTx(tx, account.id);
+      const lotBalance = await this.getNonExpiredBalanceInTx(tx, lockedAccount.id);
       if (lotBalance < points) {
         throw new BadRequestException('Insufficient loyalty points for debit');
       }
-      await this.consumePointsFromLots(tx, account.id, points);
+      await this.consumePointsFromLots(tx, lockedAccount.id, points);
     }
 
     await tx.loyaltyAccount.update({
-      where: { id: account.id },
+      where: { id: lockedAccount.id },
       data: accountUpdate,
     });
 
-    const transaction = await tx.loyaltyTransaction.create({
-      data: {
-        accountId: account.id,
-        points,
-        type: input.type,
-        reason: input.reason,
-        referenceId: input.referenceId,
-        referenceOrderId: input.referenceOrderId,
-        openingPoints,
-        closingPoints,
-        expiresAt: input.expiresAt ?? null,
+    try {
+      const transaction = await tx.loyaltyTransaction.create({
+        data: {
+          accountId: account.id,
+          points,
+          type: input.type,
+          reason: input.reason,
+          referenceId: input.referenceId,
+          referenceOrderId: input.referenceOrderId,
+          openingPoints,
+          closingPoints,
+          expiresAt: input.expiresAt ?? null,
           remainingPoints:
             input.trackLot &&
             (input.type === LoyaltyTransactionType.EARN ||
-              input.type === LoyaltyTransactionType.ADJUSTMENT)
+              input.type === LoyaltyTransactionType.ADJUSTMENT ||
+              input.type === LoyaltyTransactionType.ADMIN)
               ? points
               : null,
-      },
-    });
+        },
+      });
 
-    return {
-      entry: this.mapEntry(transaction, input.customerId),
-      accountId: account.id,
+      return {
+        entry: this.mapEntry(transaction, input.customerId),
+        accountId: account.id,
+      };
+    } catch (error) {
+      // Abort the interactive transaction so balance updates roll back on race.
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002' &&
+        input.referenceId
+      ) {
+        throw new BadRequestException(
+          `Duplicate loyalty ledger entry: ${input.referenceId}`,
+        );
+      }
+      throw error;
+    }
+  }
+
+  /** Registration welcome bonus — disabled (0). First-order bonus is the only +50. */
+  async creditWelcomeBonus(
+    customerId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<LoyaltyLedgerEntryResult | null> {
+    if (LOYALTY_WELCOME_BONUS_POINTS <= 0) {
+      return null;
+    }
+    const expiresAt = addMonths(new Date(), LOYALTY_POINTS_EXPIRY_MONTHS);
+    const input: LoyaltyLedgerEntryInput = {
+      customerId,
+      type: LoyaltyTransactionType.EARN,
+      points: LOYALTY_WELCOME_BONUS_POINTS,
+      reason: 'Welcome loyalty bonus',
+      referenceId: LOYALTY_REF.WELCOME_BONUS,
+      expiresAt,
+      trackLot: true,
     };
+
+    if (tx) {
+      const result = await this.recordEntryInTx(tx, input);
+      return result.entry;
+    }
+
+    return this.recordEntry(input);
+  }
+
+  /** First successfully completed (DELIVERED) order bonus (+50). Idempotent. */
+  async creditFirstOrderBonus(
+    customerId: string,
+    orderId: string,
+    orderNumber: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<LoyaltyLedgerEntryResult | null> {
+    const expiresAt = addMonths(new Date(), LOYALTY_POINTS_EXPIRY_MONTHS);
+    const input: LoyaltyLedgerEntryInput = {
+      customerId,
+      type: LoyaltyTransactionType.EARN,
+      points: LOYALTY_FIRST_ORDER_BONUS_POINTS,
+      reason: `First order loyalty bonus (${orderNumber})`,
+      referenceId: LOYALTY_REF.FIRST_ORDER_BONUS,
+      referenceOrderId: orderId,
+      expiresAt,
+      trackLot: true,
+    };
+
+    if (tx) {
+      const result = await this.recordEntryInTx(tx, input);
+      return result.entry;
+    }
+
+    return this.recordEntry(input);
   }
 
   async commitRedemptionForPlacedOrder(params: {
@@ -304,7 +465,7 @@ export class LoyaltyTransactionService {
       type: LoyaltyTransactionType.REDEEM,
       points: params.points,
       reason: `Redeemed for order ${params.orderNumber}`,
-      referenceId: params.orderId,
+      referenceId: LOYALTY_REF.redeem(params.orderId),
       referenceOrderId: params.orderId,
     });
   }
@@ -330,11 +491,7 @@ export class LoyaltyTransactionService {
       throw new BadRequestException('Loyalty points already redeemed for this order');
     }
 
-    const orderValueInr =
-      Number(order.subtotal) +
-      Number(order.gstAmount) +
-      Number(order.deliveryCharge) -
-      Number(order.membershipDiscount);
+    const orderValueInr = this.eligibleOrderValue(order);
 
     const availablePoints = await this.getNonExpiredBalanceForCustomer(
       params.customerId,
@@ -355,7 +512,7 @@ export class LoyaltyTransactionService {
       type: LoyaltyTransactionType.REDEEM,
       points: validation.allowedPoints,
       reason: `Redeemed for order ${order.orderNumber}`,
-      referenceId: order.id,
+      referenceId: LOYALTY_REF.redeem(order.id),
       referenceOrderId: order.id,
     });
 
@@ -392,11 +549,7 @@ export class LoyaltyTransactionService {
       throw new NotFoundException('Order not found');
     }
 
-    const orderValueInr =
-      Number(order.subtotal) +
-      Number(order.gstAmount) +
-      Number(order.deliveryCharge) -
-      Number(order.membershipDiscount);
+    const orderValueInr = this.eligibleOrderValue(order);
 
     const availablePoints = await this.getNonExpiredBalanceForCustomer(
       params.customerId,
@@ -406,6 +559,7 @@ export class LoyaltyTransactionService {
       requestedPoints: params.points,
       orderValueInr,
       availablePoints,
+      soft: true,
     });
 
     return {
@@ -414,43 +568,110 @@ export class LoyaltyTransactionService {
     };
   }
 
-  async earnForDeliveredOrder(orderId: string): Promise<LoyaltyLedgerEntryResult | null> {
+  /**
+   * Eligible spend for earn: product subtotal after membership discount.
+   * Excludes loyalty discount (not in subtotal), delivery, and GST — avoids circular rewards.
+   */
+  eligibleEarnAmount(order: {
+    subtotal: Prisma.Decimal | number;
+    membershipDiscount: Prisma.Decimal | number;
+  }): number {
+    const subtotal = Number(order.subtotal);
+    const membershipDiscount = Number(order.membershipDiscount);
+    return Math.max(0, subtotal - membershipDiscount);
+  }
+
+  eligibleOrderValue(order: {
+    subtotal: Prisma.Decimal | number;
+    gstAmount: Prisma.Decimal | number;
+    deliveryCharge: Prisma.Decimal | number;
+    membershipDiscount: Prisma.Decimal | number;
+    loadingCharges?: Prisma.Decimal | number;
+    unloadingCharges?: Prisma.Decimal | number;
+  }): number {
+    return (
+      Number(order.subtotal) +
+      Number(order.gstAmount) +
+      Number(order.deliveryCharge) +
+      Number(order.loadingCharges ?? 0) +
+      Number(order.unloadingCharges ?? 0) -
+      Number(order.membershipDiscount)
+    );
+  }
+
+  async earnForDeliveredOrder(orderId: string): Promise<{
+    orderEarned: LoyaltyLedgerEntryResult | null;
+    firstOrderBonus: LoyaltyLedgerEntryResult | null;
+  }> {
     const order = await this.prisma.order.findFirst({
       where: { id: orderId, deletedAt: null },
     });
 
     if (!order || order.orderStatus !== 'DELIVERED') {
-      return null;
+      return { orderEarned: null, firstOrderBonus: null };
     }
 
-    const existingEarn = await this.prisma.loyaltyTransaction.findFirst({
-      where: {
-        referenceOrderId: order.id,
+    const earnAmount = this.eligibleEarnAmount(order);
+    const points = calculateEarnPoints(earnAmount);
+    const expiresAt = addMonths(new Date(), LOYALTY_POINTS_EXPIRY_MONTHS);
+
+    let orderEarned: LoyaltyLedgerEntryResult | null = null;
+
+    if (points > 0) {
+      orderEarned = await this.recordEntry({
+        customerId: order.customerId,
         type: LoyaltyTransactionType.EARN,
+        points,
+        reason: `Points earned on order ${order.orderNumber}`,
+        referenceId: LOYALTY_REF.orderEarned(order.id),
+        referenceOrderId: order.id,
+        expiresAt,
+        trackLot: true,
+      });
+    }
+
+    const firstOrderBonus = await this.maybeCreditFirstOrderBonus(order);
+
+    return { orderEarned, firstOrderBonus };
+  }
+
+  private async maybeCreditFirstOrderBonus(order: {
+    id: string;
+    customerId: string;
+    orderNumber: string;
+  }): Promise<LoyaltyLedgerEntryResult | null> {
+    const account = await this.prisma.loyaltyAccount.findUnique({
+      where: { customerId: order.customerId },
+    });
+
+    if (account) {
+      const existing = await this.prisma.loyaltyTransaction.findFirst({
+        where: {
+          accountId: account.id,
+          referenceId: LOYALTY_REF.FIRST_ORDER_BONUS,
+        },
+      });
+      if (existing) return null;
+    }
+
+    const priorDelivered = await this.prisma.order.count({
+      where: {
+        customerId: order.customerId,
+        orderStatus: 'DELIVERED',
+        deletedAt: null,
+        id: { not: order.id },
       },
     });
 
-    if (existingEarn) {
+    if (priorDelivered > 0) {
       return null;
     }
 
-    const points = calculateEarnPoints(Number(order.subtotal));
-    if (points <= 0) {
-      return null;
-    }
-
-    const expiresAt = addMonths(new Date(), LOYALTY_POINTS_EXPIRY_MONTHS);
-
-    return this.recordEntry({
-      customerId: order.customerId,
-      type: LoyaltyTransactionType.EARN,
-      points,
-      reason: `Points earned on order ${order.orderNumber}`,
-      referenceId: order.id,
-      referenceOrderId: order.id,
-      expiresAt,
-      trackLot: true,
-    });
+    return this.creditFirstOrderBonus(
+      order.customerId,
+      order.id,
+      order.orderNumber,
+    );
   }
 
   async refundRedemptionForCancelledOrder(orderId: string): Promise<void> {
@@ -458,34 +679,75 @@ export class LoyaltyTransactionService {
       where: { id: orderId, deletedAt: null },
     });
 
-    if (!order || order.loyaltyPointsUsed <= 0) {
-      return;
+    if (!order) return;
+
+    if (order.loyaltyPointsUsed > 0) {
+      const expiresAt = addMonths(new Date(), LOYALTY_POINTS_EXPIRY_MONTHS);
+      await this.recordEntry({
+        customerId: order.customerId,
+        type: LoyaltyTransactionType.ADJUSTMENT,
+        points: order.loyaltyPointsUsed,
+        reason: `Refund for cancelled order ${order.orderNumber}`,
+        referenceId: LOYALTY_REF.refundRestore(order.id),
+        referenceOrderId: order.id,
+        expiresAt,
+        trackLot: true,
+      });
     }
 
-    const existingRefund = await this.prisma.loyaltyTransaction.findFirst({
+    await this.reverseEarnedPointsForOrder(order);
+  }
+
+  private async reverseEarnedPointsForOrder(order: {
+    id: string;
+    customerId: string;
+    orderNumber: string;
+  }): Promise<void> {
+    const account = await this.prisma.loyaltyAccount.findUnique({
+      where: { customerId: order.customerId },
+    });
+    if (!account) return;
+
+    const earnTx = await this.prisma.loyaltyTransaction.findFirst({
       where: {
-        referenceOrderId: order.id,
-        type: LoyaltyTransactionType.ADJUSTMENT,
-        reason: { contains: 'Refund for cancelled order' },
+        accountId: account.id,
+        referenceId: LOYALTY_REF.orderEarned(order.id),
+        type: LoyaltyTransactionType.EARN,
       },
     });
 
-    if (existingRefund) {
-      return;
+    if (earnTx && earnTx.points > 0) {
+      await this.recordEntry({
+        customerId: order.customerId,
+        type: LoyaltyTransactionType.ADJUSTMENT,
+        points: earnTx.points,
+        reason: `Earn reversal for cancelled order ${order.orderNumber}`,
+        referenceId: LOYALTY_REF.earnReversal(order.id),
+        referenceOrderId: order.id,
+        direction: 'DEBIT',
+      });
     }
 
-    const expiresAt = addMonths(new Date(), LOYALTY_POINTS_EXPIRY_MONTHS);
-
-    await this.recordEntry({
-      customerId: order.customerId,
-      type: LoyaltyTransactionType.ADJUSTMENT,
-      points: order.loyaltyPointsUsed,
-      reason: `Refund for cancelled order ${order.orderNumber}`,
-      referenceId: order.id,
-      referenceOrderId: order.id,
-      expiresAt,
-      trackLot: true,
+    const firstBonus = await this.prisma.loyaltyTransaction.findFirst({
+      where: {
+        accountId: account.id,
+        referenceId: LOYALTY_REF.FIRST_ORDER_BONUS,
+        referenceOrderId: order.id,
+        type: LoyaltyTransactionType.EARN,
+      },
     });
+
+    if (firstBonus && firstBonus.points > 0) {
+      await this.recordEntry({
+        customerId: order.customerId,
+        type: LoyaltyTransactionType.ADJUSTMENT,
+        points: firstBonus.points,
+        reason: `First-order bonus reversal for cancelled order ${order.orderNumber}`,
+        referenceId: LOYALTY_REF.firstOrderReversal(order.id),
+        referenceOrderId: order.id,
+        direction: 'DEBIT',
+      });
+    }
   }
 
   async getNonExpiredBalanceForCustomer(customerId: string): Promise<number> {
@@ -522,31 +784,42 @@ export class LoyaltyTransactionService {
     return balance;
   }
 
-  buildSummary(account: {
-    id: string;
-    customerId: string;
-    currentPoints: number;
-    redeemedPoints: number;
-    availablePoints: number;
-    tier: LoyaltyTier;
-  }, redeemablePoints: number, nextExpiry: Date | null) {
+  buildSummary(
+    account: {
+      id: string;
+      customerId: string;
+      currentPoints: number;
+      redeemedPoints: number;
+      availablePoints: number;
+      tier: LoyaltyTier;
+    },
+    redeemablePoints: number,
+    nextExpiry: Date | null,
+  ) {
     const tierInfo = getNextTierInfo(account.currentPoints);
 
     return {
       id: account.id,
       customerId: account.customerId,
       currentPoints: account.currentPoints,
+      lifetimeEarned: account.currentPoints,
       redeemedPoints: account.redeemedPoints,
+      lifetimeRedeemed: account.redeemedPoints,
       availablePoints: redeemablePoints,
+      availableValue: availableValueInr(redeemablePoints),
       tier: resolveTierFromPoints(account.currentPoints),
       redeemablePoints,
       nextTier: tierInfo.nextTier,
       pointsToNextTier: tierInfo.pointsToNextTier,
       tierProgress: tierInfo.tierProgress,
       nextExpiry: nextExpiry?.toISOString() ?? null,
-      minRedeemPoints: LOYALTY_MIN_REDEEM_POINTS,
+      minRedeemPoints: LOYALTY_MIN_REDEEM_ORDER_VALUE,
+      minRedeemOrderValue: LOYALTY_MIN_REDEEM_ORDER_VALUE,
       pointValueInr: LOYALTY_POINT_VALUE_INR,
-      maxOrderRedeemPercent: 30,
+      maxOrderRedeemPercent: LOYALTY_MAX_ORDER_REDEEM_PERCENT * 100,
+      welcomeBonus: LOYALTY_WELCOME_BONUS_POINTS,
+      firstOrderBonus: LOYALTY_FIRST_ORDER_BONUS_POINTS,
+      earnPointsPer100Inr: 1,
     };
   }
 
@@ -556,12 +829,7 @@ export class LoyaltyTransactionService {
   ): Promise<number> {
     const now = new Date();
     const lots = await tx.loyaltyTransaction.findMany({
-      where: {
-        accountId,
-        type: LoyaltyTransactionType.EARN,
-        remainingPoints: { gt: 0 },
-        OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
-      },
+      where: this.creditLotWhere(accountId, now),
       select: { remainingPoints: true },
     });
 
@@ -577,12 +845,7 @@ export class LoyaltyTransactionService {
     let remaining = pointsToConsume;
 
     const lots = await tx.loyaltyTransaction.findMany({
-      where: {
-        accountId,
-        type: LoyaltyTransactionType.EARN,
-        remainingPoints: { gt: 0 },
-        OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
-      },
+      where: this.creditLotWhere(accountId, now),
       orderBy: { createdAt: 'asc' },
     });
 

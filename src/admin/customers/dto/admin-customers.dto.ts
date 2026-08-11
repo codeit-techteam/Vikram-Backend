@@ -12,6 +12,8 @@ export class AdminCustomerQueryDto {
   @ApiPropertyOptional() @IsOptional() @IsString() search?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() status?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() membership?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() hubId?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() executiveId?: string;
   @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsInt() @Min(1) page?: number = 1;
   @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsInt() @Min(1) limit?: number = 20;
 }
@@ -23,6 +25,28 @@ export class AdminUpdateCustomerDto {
   @ApiPropertyOptional() @IsOptional() @IsString() companyName?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() gstNumber?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() businessType?: string;
+}
+
+export class AdminAssignCustomerDto {
+  @ApiPropertyOptional({ description: 'Hub UUID or null to clear' })
+  @IsOptional()
+  @IsString()
+  hubId?: string | null;
+
+  @ApiPropertyOptional({ description: 'Customer executive admin user UUID or null to clear' })
+  @IsOptional()
+  @IsString()
+  executiveId?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  reason?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  notes?: string;
 }
 
 export class AdminSetStatusDto {
