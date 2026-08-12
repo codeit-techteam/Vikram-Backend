@@ -40,6 +40,7 @@ import {
   CeCreateTicketDto,
   CeCustomerSearchQueryDto,
   CeEmergencyStatusDto,
+  CeExpertCallbackQueryDto,
   CeLookupCustomerDto,
   CeOrdersQueryDto,
   CePaginationQueryDto,
@@ -53,6 +54,7 @@ import {
   CeTrackingSearchQueryDto,
   CeUpdateCustomerDto,
   CeUpdateCustomerNoteDto,
+  CeUpdateExpertCallbackDto,
   CeUpdateOrderAddressDto,
   CeUpdateOrderPaymentDto,
   CeUpdateTicketDto,
@@ -543,5 +545,38 @@ export class CustomerExecutiveController {
   ) {
     const data = await this.ceService.updateTicket(id, dto, admin);
     return { success: true, message: 'Ticket updated', data };
+  }
+
+  @Get('expert-callbacks')
+  @ApiOperation({ summary: 'List material expert callback requests from the app' })
+  async getExpertCallbacks(
+    @Query() query: CeExpertCallbackQueryDto,
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+  ) {
+    const data = await this.ceService.findExpertCallbacks(query, admin);
+    return { success: true, message: 'Expert callbacks fetched', data };
+  }
+
+  @Get('expert-callbacks/:id')
+  @ApiOperation({ summary: 'Get material expert callback request details' })
+  @ApiParam({ name: 'id' })
+  async getExpertCallback(
+    @Param('id') id: string,
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+  ) {
+    const data = await this.ceService.findExpertCallback(id, admin);
+    return { success: true, message: 'Expert callback fetched', data };
+  }
+
+  @Patch('expert-callbacks/:id')
+  @ApiOperation({ summary: 'Update material expert callback status / notes' })
+  @ApiParam({ name: 'id' })
+  async updateExpertCallback(
+    @Param('id') id: string,
+    @Body() dto: CeUpdateExpertCallbackDto,
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+  ) {
+    const data = await this.ceService.updateExpertCallback(id, dto, admin);
+    return { success: true, message: 'Expert callback updated', data };
   }
 }

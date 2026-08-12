@@ -76,7 +76,7 @@ export class AdminTestimonialsService {
         location: dto.location,
         city: dto.city,
         videoUrl: dto.videoUrl,
-        thumbnail: dto.thumbnail,
+        thumbnail: dto.thumbnail?.trim() || null,
         imageUrl: dto.imageUrl,
         profileImage: dto.profileImage,
         review: dto.review,
@@ -102,7 +102,7 @@ export class AdminTestimonialsService {
     if (dto.location !== undefined) data.location = dto.location;
     if (dto.city !== undefined) data.city = dto.city;
     if (dto.videoUrl !== undefined) data.videoUrl = dto.videoUrl;
-    if (dto.thumbnail !== undefined) data.thumbnail = dto.thumbnail;
+    if (dto.thumbnail !== undefined) data.thumbnail = dto.thumbnail?.trim() || null;
     if (dto.imageUrl !== undefined) data.imageUrl = dto.imageUrl;
     if (dto.profileImage !== undefined) data.profileImage = dto.profileImage;
     if (dto.review !== undefined) data.review = dto.review;
@@ -251,6 +251,12 @@ export class AdminTestimonialsService {
   private readableMedia(url?: string | null): string | null {
     if (!url?.trim()) return null;
     if (isLegacyAssetPath(url)) return null;
+    if (
+      url.includes('commondatastorage.googleapis.com') ||
+      url.includes('gtv-videos-bucket')
+    ) {
+      return null;
+    }
     if (isAbsoluteMediaUrl(url)) return url.trim();
     // Bare R2 object key → public CDN URL via existing R2 config
     if (!url.includes('://') && !url.startsWith('/')) {
@@ -271,8 +277,8 @@ export class AdminTestimonialsService {
       imageUrl: string | null;
     },
   ): boolean {
-    if (type === 'VIDEO') return !media.videoUrl && !media.thumbnail;
-    if (type === 'IMAGE') return !media.imageUrl && !media.thumbnail;
+    if (type === 'VIDEO') return !media.videoUrl;
+    if (type === 'IMAGE') return !media.imageUrl;
     return false;
   }
 

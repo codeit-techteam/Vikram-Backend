@@ -37,6 +37,7 @@ import {
   OrderListResponseDto,
   OrderTimelineEventDto,
 } from './dto/order-response.dto';
+import { normalizeCatalogUnit } from '../catalog/catalog-display';
 import {
   CANCELLABLE_STATUSES,
   ORDER_STATUS_LABELS,
@@ -771,7 +772,11 @@ export class OrdersService {
       grade: item.grade ?? product?.grade ?? null,
       variant,
       quantity: item.quantity,
-      unit: item.unit || product?.unit || '',
+      unit:
+        normalizeCatalogUnit(item.unit || product?.unit || '') ||
+        item.unit ||
+        product?.unit ||
+        '',
       unitPrice,
       price: unitPrice,
       mrp,

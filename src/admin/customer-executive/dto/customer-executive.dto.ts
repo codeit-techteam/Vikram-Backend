@@ -22,6 +22,7 @@ import {
   BulkEnquiryStatus,
   BulkFollowUpStatus,
   BulkQuotationStatus,
+  ExpertCallbackStatus,
   SupportTicketPriority,
   SupportTicketReason,
   SupportTicketStatus,
@@ -640,6 +641,31 @@ export class CeTicketQueryDto extends CePaginationQueryDto {
   @IsOptional()
   @IsString()
   priority?: string;
+}
+
+export class CeExpertCallbackQueryDto extends CePaginationQueryDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  q?: string;
+
+  @ApiPropertyOptional({ enum: ExpertCallbackStatus })
+  @IsOptional()
+  @IsEnum(ExpertCallbackStatus)
+  status?: ExpertCallbackStatus;
+}
+
+export class CeUpdateExpertCallbackDto {
+  @ApiPropertyOptional({ enum: ExpertCallbackStatus })
+  @IsOptional()
+  @IsEnum(ExpertCallbackStatus)
+  status?: ExpertCallbackStatus;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(5000)
+  executiveNotes?: string;
 }
 
 export class CePaymentQueryDto extends CePaginationQueryDto {

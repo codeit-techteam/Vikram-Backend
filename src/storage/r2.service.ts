@@ -132,27 +132,32 @@ export class R2StorageService {
   }
 
   /**
-   * Prefer public CDN URL when configured; otherwise return a long-lived signed URL.
+   * Always rebuild from `storageKey` when present so stale absolute `publicUrl`
+   * values (deleted UUID keys / 404s) never leak to Admin or the Customer App.
+   * Without R2_PUBLIC_URL, return a long-lived signed URL for the key.
    */
   async resolveReadableUrl(
     keyOrUrl: string,
     storageKey?: string | null,
   ): Promise<string> {
-    if (keyOrUrl.startsWith('http://') || keyOrUrl.startsWith('https://')) {
-      if (this.hasPublicBaseUrl() || !storageKey) {
-        return keyOrUrl;
+    const key =
+      storageKey?.trim() ||
+      this.extractStorageKey(keyOrUrl) ||
+      (!keyOrUrl.startsWith('http://') && !keyOrUrl.startsWith('https://')
+        ? keyOrUrl.trim()
+        : null);
+
+    if (key) {
+      if (this.hasPublicBaseUrl()) {
+        return this.getPublicUrl(key);
       }
+      this.logger.warn(
+        'R2_PUBLIC_URL is empty — returning signed URL. Enable R2 public access or custom domain for production.',
+      );
+      return this.generateSignedUrl(key);
     }
 
-    const key = storageKey || keyOrUrl;
-    if (this.hasPublicBaseUrl()) {
-      return this.getPublicUrl(key);
-    }
-
-    this.logger.warn(
-      'R2_PUBLIC_URL is empty — returning signed URL. Enable R2 public access or custom domain for production.',
-    );
-    return this.generateSignedUrl(key);
+    return keyOrUrl;
   }
 
   async uploadBuffer(

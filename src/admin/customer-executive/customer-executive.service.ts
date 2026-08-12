@@ -10,6 +10,7 @@ import {
   AdminRole,
   AuditAction,
   BulkEnquiryStatus,
+  ExpertCallbackStatus,
   LoyaltyTier,
   NotificationType,
   OrderStatus,
@@ -70,6 +71,7 @@ import type {
   CeCreateTicketDto,
   CeCustomerSearchQueryDto,
   CeEmergencyStatusDto,
+  CeExpertCallbackQueryDto,
   CeLookupCustomerDto,
   CeOrdersQueryDto,
   CePaginationQueryDto,
@@ -83,6 +85,7 @@ import type {
   CeTrackingSearchQueryDto,
   CeUpdateCustomerDto,
   CeUpdateCustomerNoteDto,
+  CeUpdateExpertCallbackDto,
   CeUpdateOrderAddressDto,
   CeUpdateOrderPaymentDto,
   CeUpdateTicketDto,
@@ -2147,6 +2150,120 @@ export class CustomerExecutiveService {
         },
       });
     }
+
+    return updated;
+  }
+
+  async findExpertCallbacks(query: CeExpertCallbackQueryDto, admin: AuthenticatedAdmin) {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
+    const skip = (page - 1) * limit;
+
+    const scopedCustomerIds = await this.scopeCustomerIds(admin);
+    const where: Prisma.ExpertCallbackRequestWhereInput = {};
+
+    if (scopedCustomerIds !== null) {
+      where.customerId = { in: scopedCustomerIds };
+    }
+    if (query.status) where.status = query.status;
+    if (query.q?.trim()) {
+      const term = query.q.trim();
+      where.OR = [
+        { contactName: { contains: term, mode: 'insensitive' } },
+        { needs: { contains: term, mode: 'insensitive' } },
+        { phoneSnapshot: { contains: term, mode: 'insensitive' } },
+        { categoryName: { contains: term, mode: 'insensitive' } },
+        { categorySlug: { contains: term, mode: 'insensitive' } },
+        { customer: { fullName: { contains: term, mode: 'insensitive' } } },
+        { customer: { phone: { contains: term, mode: 'insensitive' } } },
+      ];
+    }
+
+    const [data, total, newCount, contactedCount, closedCount] = await Promise.all([
+      this.prisma.expertCallbackRequest.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          customer: { select: { id: true, phone: true, fullName: true } },
+          assignedExecutive: { select: { id: true, fullName: true } },
+        },
+      }),
+      this.prisma.expertCallbackRequest.count({ where }),
+      this.prisma.expertCallbackRequest.count({
+        where: { ...where, status: ExpertCallbackStatus.NEW },
+      }),
+      this.prisma.expertCallbackRequest.count({
+        where: { ...where, status: ExpertCallbackStatus.CONTACTED },
+      }),
+      this.prisma.expertCallbackRequest.count({
+        where: { ...where, status: ExpertCallbackStatus.CLOSED },
+      }),
+    ]);
+
+    return {
+      data,
+      meta: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 },
+      stats: {
+        total,
+        new: newCount,
+        contacted: contactedCount,
+        closed: closedCount,
+      },
+    };
+  }
+
+  async findExpertCallback(id: string, admin: AuthenticatedAdmin) {
+    const scopedCustomerIds = await this.scopeCustomerIds(admin);
+    const row = await this.prisma.expertCallbackRequest.findFirst({
+      where: { id },
+      include: {
+        customer: { select: { id: true, phone: true, fullName: true } },
+        assignedExecutive: { select: { id: true, fullName: true } },
+      },
+    });
+    if (!row) throw new NotFoundException('Expert callback request not found');
+    if (scopedCustomerIds !== null && !scopedCustomerIds.includes(row.customerId)) {
+      throw new ForbiddenException('You do not have access to this request');
+    }
+    return row;
+  }
+
+  async updateExpertCallback(
+    id: string,
+    dto: CeUpdateExpertCallbackDto,
+    admin: AuthenticatedAdmin,
+  ) {
+    const existing = await this.findExpertCallback(id, admin);
+    const now = new Date();
+    const nextStatus = dto.status ?? existing.status;
+
+    const updated = await this.prisma.expertCallbackRequest.update({
+      where: { id },
+      data: {
+        status: nextStatus,
+        executiveNotes:
+          dto.executiveNotes !== undefined
+            ? dto.executiveNotes.trim() || null
+            : existing.executiveNotes,
+        assignedExecutiveId: existing.assignedExecutiveId ?? admin.id,
+        contactedAt:
+          nextStatus === ExpertCallbackStatus.CONTACTED && !existing.contactedAt
+            ? now
+            : existing.contactedAt,
+        closedAt:
+          nextStatus === ExpertCallbackStatus.CLOSED
+            ? existing.closedAt ?? now
+            : nextStatus === ExpertCallbackStatus.NEW
+              ? null
+              : existing.closedAt,
+      },
+      include: {
+        customer: { select: { id: true, phone: true, fullName: true } },
+        assignedExecutive: { select: { id: true, fullName: true } },
+      },
+    });
 
     return updated;
   }

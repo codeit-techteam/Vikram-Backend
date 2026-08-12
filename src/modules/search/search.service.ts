@@ -20,6 +20,7 @@ import {
   SearchSuggestionItemDto,
   SearchSuggestionsResponseDto,
 } from './dto/search-response.dto';
+import { normalizeCatalogUnit } from '../catalog/catalog-display';
 
 @Injectable()
 export class SearchService {
@@ -406,7 +407,7 @@ export class SearchService {
       thumbnail: imageUrl,
       imageUrl,
       badge: product.badge,
-      unit: product.unit,
+      unit: normalizeCatalogUnit(product.unit) || product.unit,
     };
   }
 

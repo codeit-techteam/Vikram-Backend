@@ -25,6 +25,7 @@ import {
   deliveryRequirementOptions,
   formatBulkEnquiryNumber,
   isBricksCategorySlug,
+  normalizeContactPhone,
   normalizeUnit,
   optionalDecimalToNumber,
   preferredContactOptions,
@@ -148,7 +149,7 @@ export class BulkService {
     }
 
     const resolved = await this.resolveCategories(dto);
-    this.validateBrickFields(resolved.primarySlug, dto);
+    this.validateBrickFields(resolved.primarySlug, dto, resolved.categoriesJson);
 
     const companyName =
       dto.companyName?.trim() ||
@@ -158,15 +159,27 @@ export class BulkService {
     const projectName =
       dto.projectName?.trim() || 'Bulk Procurement Enquiry';
 
+    const mixedCategories = Array.isArray(resolved.categoriesJson)
+      ? (resolved.categoriesJson as Array<{ slug: string }>)
+      : [];
+    const bricksSelected =
+      isBricksCategorySlug(resolved.primarySlug) ||
+      mixedCategories.some((c) => isBricksCategorySlug(c.slug));
+
     let productType: string | null = null;
     let grade: string | null = null;
-    if (isBricksCategorySlug(resolved.primarySlug)) {
+    if (bricksSelected) {
       productType = validateBrickProductType(dto.productType);
       grade = validateBrickGrade(dto.grade);
     } else {
       productType = dto.productType?.trim() || null;
       grade = dto.grade?.trim() || null;
     }
+
+    const contactPhone =
+      normalizeContactPhone(dto.contactPhone) || customer.phone;
+    const contactEmail =
+      dto.contactEmail?.trim() || customer.email || null;
 
     const autoAssign = customer.assignedExecutive;
     const initialStatus = autoAssign
@@ -181,8 +194,8 @@ export class BulkService {
           enquiryNumber,
           customerId,
           customerNameSnapshot: customer.fullName ?? null,
-          customerPhoneSnapshot: customer.phone,
-          customerEmailSnapshot: customer.email ?? null,
+          customerPhoneSnapshot: contactPhone,
+          customerEmailSnapshot: contactEmail,
           customerTypeSnapshot:
             customer.role?.name ??
             customer.role?.slug ??
@@ -587,12 +600,19 @@ export class BulkService {
   private validateBrickFields(
     primarySlug: string | null,
     dto: CreateBulkEnquiryDto,
+    categoriesJson: Prisma.InputJsonValue | null,
   ) {
-    const categories = dto.materialCategorySlugs ?? [];
+    const slugList = [
+      ...(dto.materialCategorySlugs ?? []).map((s) => s.toLowerCase()),
+      ...(Array.isArray(categoriesJson)
+        ? (categoriesJson as Array<{ slug?: string }>)
+            .map((c) => (c.slug ?? '').toLowerCase())
+            .filter(Boolean)
+        : []),
+    ];
     const bricksInMixed =
       primarySlug === MIXED_LOAD_SLUG &&
-      (categories.map((s) => s.toLowerCase()).includes(CATEGORY_SLUGS.BRICKS) ||
-        dto.productType != null);
+      (slugList.includes(CATEGORY_SLUGS.BRICKS) || dto.productType != null);
 
     if (isBricksCategorySlug(primarySlug) || bricksInMixed) {
       if (!dto.productType?.trim()) {
@@ -635,7 +655,7 @@ export class BulkService {
       status: q.status,
       materialLabel: q.materialLabel,
       quantity: decimalToNumber(q.quantity),
-      unit: q.unit,
+      unit: normalizeUnit(q.unit),
       unitPrice: decimalToNumber(q.unitPrice),
       deliveryCharge: decimalToNumber(q.deliveryCharge),
       gstPercent: decimalToNumber(q.gstPercent),
@@ -668,7 +688,7 @@ export class BulkService {
       grade: enquiry.grade,
       materialTypeLabel: enquiry.materialTypeLabel,
       expectedQuantity: decimalToNumber(enquiry.expectedQuantity),
-      expectedUnit: enquiry.expectedUnit,
+      expectedUnit: normalizeUnit(enquiry.expectedUnit),
       deliveryRequirement: enquiry.deliveryRequirement,
       deliveryDate: enquiry.deliveryDate
         ? enquiry.deliveryDate.toISOString().slice(0, 10)

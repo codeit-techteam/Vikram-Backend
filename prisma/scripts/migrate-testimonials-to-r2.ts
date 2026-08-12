@@ -128,13 +128,13 @@ async function main() {
         console.log(
           `KEEP ${spec.customerName}: already on R2 (${row.videoUrl?.slice(0, 70)}...)`,
         );
-        // Still refresh thumbnail to R2 category asset if needed
-        if (!row.thumbnail?.includes('r2.dev')) {
+        // Drop separate poster thumbnails — cards preview from the video file.
+        if (row.thumbnail) {
           await prisma.testimonial.update({
             where: { id: row.id },
-            data: { thumbnail: spec.thumbnailUrl, city: spec.city ?? row.city },
+            data: { thumbnail: null, city: spec.city ?? row.city },
           });
-          console.log(`  updated thumbnail → R2`);
+          console.log(`  cleared thumbnail (video is source of truth)`);
         }
         continue;
       }
@@ -165,7 +165,7 @@ async function main() {
         where: { id: row.id },
         data: {
           videoUrl: publicUrl,
-          thumbnail: spec.thumbnailUrl,
+          thumbnail: null,
           city: spec.city ?? row.city,
           isPublished: true,
         },
@@ -173,7 +173,7 @@ async function main() {
 
       console.log(`  key=${uploaded.key}`);
       console.log(`  videoUrl=${publicUrl}`);
-      console.log(`  thumbnail=${spec.thumbnailUrl}`);
+      console.log(`  thumbnail=null (video preview)`);
     }
 
     // IMAGE testimonials — point imageUrl at existing R2 category art when remote third-party

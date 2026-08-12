@@ -5,6 +5,7 @@ import {
   IsArray,
   IsBoolean,
   IsDateString,
+  IsEmail,
   IsEnum,
   IsInt,
   IsNumber,
@@ -177,6 +178,26 @@ export class CreateBulkEnquiryDto {
   @IsString()
   @MaxLength(200)
   companyName?: string;
+
+  @ApiPropertyOptional({
+    example: '9876543210',
+    description:
+      'Contact mobile for this enquiry (stored on customerPhoneSnapshot for admin)',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  contactPhone?: string;
+
+  @ApiPropertyOptional({
+    example: 'rahul@example.com',
+    description:
+      'Contact email for this enquiry (stored on customerEmailSnapshot for admin)',
+  })
+  @IsOptional()
+  @IsEmail()
+  @MaxLength(200)
+  contactEmail?: string;
 }
 
 export class BulkEnquiryListQueryDto {

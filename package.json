@@ -32,7 +32,9 @@
     "media:migrate-hero-video": "tsx --env-file=.env prisma/scripts/migrate-hero-video-to-r2.ts",
     "media:migrate-catalog-images": "tsx --env-file=.env prisma/scripts/migrate-catalog-images-to-r2.ts",
     "media:upload-rmc-category": "tsx --env-file=.env prisma/scripts/upload-rmc-category-image.ts",
+    "media:upload-brick-images": "tsx --env-file=.env prisma/scripts/upload-brick-images-to-r2.ts",
     "media:migrate-testimonials": "tsx --env-file=.env prisma/scripts/migrate-testimonials-to-r2.ts",
+    "media:repair-cms": "tsx --env-file=.env prisma/scripts/repair-cms-media-urls.ts",
     "postinstall": "prisma generate"
   },
   "prisma": {

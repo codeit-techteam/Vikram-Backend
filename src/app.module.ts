@@ -38,6 +38,7 @@ import { CustomerProfileModule } from './modules/customer-profile/customer-profi
 import { MembershipModule } from './modules/membership/membership.module';
 import { LoyaltyModule } from './modules/loyalty/loyalty.module';
 import { BulkModule } from './modules/bulk/bulk.module';
+import { ExpertCallbackModule } from './modules/expert-callback/expert-callback.module';
 import { TestimonialsModule } from './modules/testimonials/testimonials.module';
 import { EmergencyOrderModule } from './modules/emergency-order/emergency-order.module';
 import { AdminModule } from './admin/admin.module';
@@ -107,6 +108,7 @@ import { StorageModule } from './storage/storage.module';
     MembershipModule,
     LoyaltyModule,
     BulkModule,
+    ExpertCallbackModule,
     TestimonialsModule,
     EmergencyOrderModule,
     AdminModule,

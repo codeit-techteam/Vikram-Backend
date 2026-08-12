@@ -73,6 +73,9 @@ enum HomeSectionType {
   EMERGENCY_BANNER
   FEATURED_COLLECTION
   PROMO_BANNER
+  FEATURED_PRODUCTS
+  RECENTLY_ADDED
+  TOP_DEALS
 }
 
 enum RedirectType {
@@ -351,6 +354,12 @@ enum BulkActivityType {
   CONVERTED_TO_ORDER
   CANCELLED
   REJECTED
+}
+
+enum ExpertCallbackStatus {
+  NEW
+  CONTACTED
+  CLOSED
 }
 
 enum TestimonialType {
@@ -1066,6 +1075,7 @@ model Customer {
   loyaltyAccount     LoyaltyAccount?       @relation("LoyaltyCustomerOwner")
   memberships        CustomerMembership[] @relation("MembershipHistory")
   bulkEnquiries      BulkEnquiry[]
+  expertCallbacks    ExpertCallbackRequest[]
   emergencyOrders    EmergencyOrder[]
   refunds            Refund[]
   paymentLinks       PaymentLink[]
@@ -2102,6 +2112,33 @@ model BulkEnquiryQuotation {
   @@map("bulk_enquiry_quotations")
 }
 
+// ─── Material Expert Callbacks ───────────────────────────────────────────────
+
+model ExpertCallbackRequest {
+  id                  String               @id @default(uuid()) @db.Uuid
+  customerId          String               @map("customer_id") @db.Uuid
+  contactName         String               @map("contact_name") @db.VarChar(200)
+  needs               String               @db.Text
+  phoneSnapshot       String?              @map("phone_snapshot") @db.VarChar(20)
+  categorySlug        String?              @map("category_slug") @db.VarChar(120)
+  categoryName        String?              @map("category_name") @db.VarChar(200)
+  status              ExpertCallbackStatus @default(NEW)
+  assignedExecutiveId String?              @map("assigned_executive_id") @db.Uuid
+  executiveNotes      String?              @map("executive_notes") @db.Text
+  contactedAt         DateTime?            @map("contacted_at")
+  closedAt            DateTime?            @map("closed_at")
+  createdAt           DateTime             @default(now()) @map("created_at")
+  updatedAt           DateTime             @updatedAt @map("updated_at")
+
+  customer          Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  assignedExecutive AdminUser? @relation("ExpertCallbackAssignedExecutive", fields: [assignedExecutiveId], references: [id], onDelete: SetNull)
+
+  @@index([customerId, createdAt(sort: Desc)])
+  @@index([status, createdAt(sort: Desc)])
+  @@index([assignedExecutiveId, status])
+  @@map("expert_callback_requests")
+}
+
 // ─── Testimonials CMS ────────────────────────────────────────────────────────
 
 model Testimonial {
@@ -2164,6 +2201,7 @@ model AdminUser {
   bulkEnquiryFollowUps      BulkEnquiryFollowUp[]   @relation("BulkEnquiryFollowUpCreator")
   bulkEnquiryNotes          BulkEnquiryNote[]       @relation("BulkEnquiryNoteCreator")
   bulkEnquiryQuotations     BulkEnquiryQuotation[]  @relation("BulkEnquiryQuotationCreator")
+  assignedExpertCallbacks   ExpertCallbackRequest[] @relation("ExpertCallbackAssignedExecutive")
 
   @@index([email])
   @@index([role, isActive])

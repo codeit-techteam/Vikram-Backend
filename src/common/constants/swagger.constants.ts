@@ -40,6 +40,7 @@ export const SWAGGER_TAGS = {
   MEMBERSHIP: 'Membership',
   LOYALTY: 'Loyalty',
   BULK: 'Bulk Procurement',
+  EXPERT_CALLBACK: 'Material Expert Callbacks',
   TESTIMONIALS: 'Testimonials',
   EMERGENCY_ORDER: 'Emergency Delivery',
   // Admin Panel

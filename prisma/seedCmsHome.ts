@@ -12,6 +12,19 @@ const HERO_IMAGE =
 const EMERGENCY_IMAGE =
   'https://images.unsplash.com/photo-1503387762-592deb58ef4e?w=800&q=80';
 
+/** R2 / CDN URLs managed by Admin uploads — never overwrite on re-seed. */
+function isManagedCdnUrl(url?: string | null): boolean {
+  if (!url?.trim()) return false;
+  const value = url.trim().toLowerCase();
+  return (
+    value.includes('r2.dev') ||
+    value.includes('cloudflarestorage.com') ||
+    value.includes('/videos/') ||
+    value.includes('/testimonials/') ||
+    value.includes('/thumbnails/')
+  );
+}
+
 /**
  * Seeds Home Screen CMS content migrated from frontend static arrays.
  * Idempotent via upsert on slug / sectionType / customerName.
@@ -121,6 +134,30 @@ export async function seedCmsHome(prisma: PrismaClient): Promise<void> {
       layoutType: 'grid',
     },
     {
+      sectionType: HomeSectionType.FEATURED_PRODUCTS,
+      title: 'Featured Products',
+      subtitle: 'Hand-picked products for your sites',
+      displayOrder: 20,
+      apiSource: 'products.home.featured',
+      layoutType: 'horizontal',
+    },
+    {
+      sectionType: HomeSectionType.RECENTLY_ADDED,
+      title: 'Recently Added',
+      subtitle: 'New arrivals in the catalog',
+      displayOrder: 21,
+      apiSource: 'products.home.new',
+      layoutType: 'horizontal',
+    },
+    {
+      sectionType: HomeSectionType.TOP_DEALS,
+      title: 'Top Deals',
+      subtitle: 'Best prices and bulk savings',
+      displayOrder: 22,
+      apiSource: 'products.home.offers',
+      layoutType: 'horizontal',
+    },
+    {
       sectionType: HomeSectionType.OFFER_FOR_YOU,
       title: 'Offers For You',
       displayOrder: 5,
@@ -163,7 +200,9 @@ export async function seedCmsHome(prisma: PrismaClient): Promise<void> {
           section.sectionType !== HomeSectionType.PRIORITY_EXPRESS &&
           section.sectionType !== HomeSectionType.FEATURED_COLLECTION &&
           section.sectionType !== HomeSectionType.EMERGENCY_BANNER &&
-          section.sectionType !== HomeSectionType.RECOMMENDED,
+          section.sectionType !== HomeSectionType.RECOMMENDED &&
+          section.sectionType !== HomeSectionType.OFFER_FOR_YOU &&
+          section.sectionType !== HomeSectionType.PRODUCT_DISCOVERY,
       },
       create: {
         sectionType: section.sectionType,
@@ -176,7 +215,9 @@ export async function seedCmsHome(prisma: PrismaClient): Promise<void> {
           section.sectionType !== HomeSectionType.PRIORITY_EXPRESS &&
           section.sectionType !== HomeSectionType.FEATURED_COLLECTION &&
           section.sectionType !== HomeSectionType.EMERGENCY_BANNER &&
-          section.sectionType !== HomeSectionType.RECOMMENDED,
+          section.sectionType !== HomeSectionType.RECOMMENDED &&
+          section.sectionType !== HomeSectionType.OFFER_FOR_YOU &&
+          section.sectionType !== HomeSectionType.PRODUCT_DISCOVERY,
       },
     });
   }
@@ -258,6 +299,13 @@ export async function seedCmsHome(prisma: PrismaClient): Promise<void> {
   }
 
   // ─── Promotional video banner ──────────────────────────────────────────────
+  // Prefer R2-backed Video records (HOME_HERO_VIDEO). Do not overwrite an
+  // existing playable CDN URL with Google sample media on re-seed.
+  const existingDeliveryBanner = await prisma.banner.findUnique({
+    where: { slug: 'home-delivery-video-banner' },
+  });
+  const keepDeliveryVideoUrl = isManagedCdnUrl(existingDeliveryBanner?.videoUrl);
+
   await prisma.banner.upsert({
     where: { slug: 'home-delivery-video-banner' },
     update: {
@@ -266,7 +314,11 @@ export async function seedCmsHome(prisma: PrismaClient): Promise<void> {
       badge: '2-Hour Delivery',
       bannerType: BannerType.VIDEO,
       imageUrl: HERO_IMAGE,
-      videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
+      ...(keepDeliveryVideoUrl
+        ? {}
+        : {
+            videoUrl: null as string | null,
+          }),
       thumbnailUrl: HERO_IMAGE,
       ctaLabel: 'Shop Now',
       buttonAction: 'product',
@@ -284,7 +336,7 @@ export async function seedCmsHome(prisma: PrismaClient): Promise<void> {
       badge: '2-Hour Delivery',
       bannerType: BannerType.VIDEO,
       imageUrl: HERO_IMAGE,
-      videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
+      videoUrl: null,
       thumbnailUrl: HERO_IMAGE,
       ctaLabel: 'Shop Now',
       buttonAction: 'product',
@@ -296,18 +348,21 @@ export async function seedCmsHome(prisma: PrismaClient): Promise<void> {
     },
   });
 
-  // Align legacy video seed path with frontend asset
-  await prisma.video.updateMany({
-    where: { slug: 'home-hero-cement' },
-    data: {
-      title: 'Materials Delivered Right to Your Site',
-      description: 'Real-time tracking, verified drivers, zero delays.',
-      videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
-      thumbnailUrl: HERO_IMAGE,
-      linkTarget: 'ultratech-premium-ppc-cement',
-    },
+  // Legacy slug only — never clobber R2 storageKey / CDN URLs set by Admin upload.
+  const legacyHero = await prisma.video.findFirst({
+    where: { slug: 'home-hero-cement', deletedAt: null },
   });
-
+  if (legacyHero && !legacyHero.storageKey && !isManagedCdnUrl(legacyHero.videoUrl)) {
+    await prisma.video.update({
+      where: { id: legacyHero.id },
+      data: {
+        title: 'Materials Delivered Right to Your Site',
+        description: 'Real-time tracking, verified drivers, zero delays.',
+        thumbnailUrl: HERO_IMAGE,
+        linkTarget: 'ultratech-premium-ppc-cement',
+      },
+    });
+  }
   // ─── Brand advertisements ──────────────────────────────────────────────────
   const ads = [
     {
@@ -571,20 +626,9 @@ export async function seedCmsHome(prisma: PrismaClient): Promise<void> {
     },
   });
 
-  // ─── Testimonials (HTTPS / CDN URLs only — never local /assets paths) ───────
-  // Thumbnails and videos use absolute URLs so Admin + Customer App share the
-  // same playable media. Replace with R2 public URLs after Admin uploads.
-  const THUMB_CEMENT =
-    'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=800';
-  const THUMB_BRICKS =
-    'https://images.unsplash.com/photo-1541888946425-d81bb19240f5?w=800';
-  const THUMB_STEEL =
-    'https://images.unsplash.com/photo-1503387762-592deb58ef4e?w=800';
-  const THUMB_SAND =
-    'https://images.unsplash.com/photo-1590496793929-36417d95d741?w=800';
-  const THUMB_AGGREGATES =
-    'https://images.unsplash.com/photo-1581094794329-cd11a4e4b8a8?w=800';
-
+  // ─── Testimonials (Admin-managed media — never seed broken Google samples) ─
+  // Metadata only on re-seed. Video URLs come from Admin upload or
+  // `npm run media:migrate-testimonials`. No separate poster thumbnails for videos.
   const videoTestimonials = [
     {
       type: TestimonialType.VIDEO,
@@ -595,8 +639,8 @@ export async function seedCmsHome(prisma: PrismaClient): Promise<void> {
       rating: 5,
       review:
         'Cement delivered to our site within 2 hours. Quality was exactly as promised.',
-      videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
-      thumbnail: THUMB_CEMENT,
+      videoUrl: null as string | null,
+      thumbnail: null as string | null,
       sortOrder: 1,
       featured: true,
       isPublished: true,
@@ -610,8 +654,8 @@ export async function seedCmsHome(prisma: PrismaClient): Promise<void> {
       rating: 5,
       review:
         'Bulk brick order handled professionally. Saved us two days of procurement.',
-      videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4',
-      thumbnail: THUMB_BRICKS,
+      videoUrl: null as string | null,
+      thumbnail: null as string | null,
       sortOrder: 2,
       featured: true,
       isPublished: true,
@@ -625,8 +669,8 @@ export async function seedCmsHome(prisma: PrismaClient): Promise<void> {
       rating: 5,
       review:
         'Reliable partner for every project. Materials always arrive on schedule.',
-      videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4',
-      thumbnail: THUMB_STEEL,
+      videoUrl: null as string | null,
+      thumbnail: null as string | null,
       sortOrder: 3,
       featured: true,
       isPublished: true,
@@ -640,8 +684,8 @@ export async function seedCmsHome(prisma: PrismaClient): Promise<void> {
       rating: 5,
       review:
         'Premium river sand delivered in bulk — fine grain, zero debris. Our plaster finish turned out flawless.',
-      videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
-      thumbnail: THUMB_SAND,
+      videoUrl: null as string | null,
+      thumbnail: null as string | null,
       sortOrder: 4,
       featured: false,
       isPublished: true,
@@ -655,14 +699,13 @@ export async function seedCmsHome(prisma: PrismaClient): Promise<void> {
       rating: 5,
       review:
         'Bajriwala has transformed how we manage site logistics. Highly recommended.',
-      videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
-      thumbnail: THUMB_AGGREGATES,
+      videoUrl: null as string | null,
+      thumbnail: null as string | null,
       sortOrder: 5,
       featured: false,
       isPublished: true,
     },
   ];
-
   const textTestimonials = [
     {
       type: TestimonialType.TEXT,
@@ -741,6 +784,10 @@ export async function seedCmsHome(prisma: PrismaClient): Promise<void> {
     });
 
     if (existing) {
+      const preserveVideo =
+        item.type === TestimonialType.VIDEO && isManagedCdnUrl(existing.videoUrl);
+      const preserveThumb =
+        item.type !== TestimonialType.VIDEO && isManagedCdnUrl(existing.thumbnail);
       await prisma.testimonial.update({
         where: { id: existing.id },
         data: {
@@ -748,8 +795,21 @@ export async function seedCmsHome(prisma: PrismaClient): Promise<void> {
           city: item.city,
           location: item.location,
           rating: item.rating,
-          videoUrl: 'videoUrl' in item ? item.videoUrl : existing.videoUrl,
-          thumbnail: 'thumbnail' in item ? item.thumbnail : existing.thumbnail,
+          // Never replace Admin/R2 media with seed placeholders or broken samples.
+          videoUrl: preserveVideo
+            ? existing.videoUrl
+            : 'videoUrl' in item
+              ? item.videoUrl
+              : existing.videoUrl,
+          // Video testimonials have no separate poster — always clear on seed.
+          thumbnail:
+            item.type === TestimonialType.VIDEO
+              ? null
+              : preserveThumb
+                ? existing.thumbnail
+                : 'thumbnail' in item
+                  ? item.thumbnail
+                  : existing.thumbnail,
           sortOrder: item.sortOrder,
           featured: item.featured,
           isPublished: true,

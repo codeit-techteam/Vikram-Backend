@@ -25,6 +25,7 @@ import {
   BULK_TERMINAL_STATUSES,
   decimalToNumber,
   formatBulkQuotationNumber,
+  normalizeUnit,
   optionalDecimalToNumber,
 } from '../../modules/bulk/bulk.constants';
 import type { AuthenticatedAdmin } from '../auth/admin-jwt.strategy';
@@ -453,7 +454,7 @@ export class AdminBulkService {
           status: BulkQuotationStatus.DRAFT,
           materialLabel: dto.materialLabel,
           quantity,
-          unit: dto.unit,
+          unit: normalizeUnit(dto.unit),
           unitPrice,
           deliveryCharge,
           gstPercent,
@@ -974,11 +975,13 @@ export class AdminBulkService {
         { location: { contains: search, mode: 'insensitive' } },
         { customerNameSnapshot: { contains: search, mode: 'insensitive' } },
         { customerPhoneSnapshot: { contains: search, mode: 'insensitive' } },
+        { customerEmailSnapshot: { contains: search, mode: 'insensitive' } },
         {
           customer: {
             OR: [
               { fullName: { contains: search, mode: 'insensitive' } },
               { phone: { contains: search, mode: 'insensitive' } },
+              { email: { contains: search, mode: 'insensitive' } },
               {
                 profile: {
                   companyName: { contains: search, mode: 'insensitive' },
@@ -1077,7 +1080,7 @@ export class AdminBulkService {
       status: q.status,
       materialLabel: q.materialLabel,
       quantity: decimalToNumber(q.quantity),
-      unit: q.unit,
+      unit: normalizeUnit(q.unit),
       unitPrice: decimalToNumber(q.unitPrice),
       deliveryCharge: decimalToNumber(q.deliveryCharge),
       gstPercent: decimalToNumber(q.gstPercent),

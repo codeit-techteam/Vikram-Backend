@@ -14,6 +14,7 @@ import {
   type BrickGrade,
   type BrickProductType,
 } from '../catalog/catalog.constants';
+import { normalizeCatalogUnit } from '../catalog/catalog-display';
 
 export const BULK_DELIVERY_REQUIREMENT_LABELS: Record<
   BulkDeliveryRequirement,
@@ -95,7 +96,8 @@ export const BULK_COMMON_UNITS = [
   'Bags',
   'MT',
   'Tonnes',
-  'Cubic Metres',
+  'Cubic Meter',
+  'Cum',
   'Pieces',
   'Numbers',
   'Loads',
@@ -150,7 +152,15 @@ export function optionalDecimalToNumber(
 export function normalizeUnit(unit?: string | null): string {
   const trimmed = unit?.trim();
   if (!trimmed) return 'Bags';
-  return trimmed;
+  return normalizeCatalogUnit(trimmed) || trimmed;
+}
+
+/** Keep last 10 digits for Indian mobile snapshots; empty → null. */
+export function normalizeContactPhone(phone?: string | null): string | null {
+  if (!phone) return null;
+  const digits = phone.replace(/\D/g, '');
+  if (!digits) return null;
+  return digits.length > 10 ? digits.slice(-10) : digits;
 }
 
 export function isBricksCategorySlug(slug?: string | null): boolean {

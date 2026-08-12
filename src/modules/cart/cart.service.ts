@@ -20,6 +20,7 @@ import {
   UpdateCartItemDto,
 } from './dto/cart.dto';
 import { pickPreferredMediaUrl } from '../../common/utils/media-url';
+import { normalizeCatalogUnit } from '../catalog/catalog-display';
 
 type BulkTier = { minQty: number; price: number; label?: string | null };
 
@@ -437,7 +438,7 @@ export class CartService {
           grade: item.product.grade ?? null,
           variant: variantLabel,
           mrp,
-          unit: item.product.unit,
+          unit: normalizeCatalogUnit(item.product.unit) || item.product.unit,
           thumbnailUrl: pickPreferredMediaUrl(
             item.product.images.map((img) => img.url),
           ),

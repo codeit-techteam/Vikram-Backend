@@ -24,6 +24,10 @@ import {
   normalizeBrickGrade,
   normalizeBrickProductType,
 } from '../catalog/catalog.constants';
+import {
+  normalizeBulkLabel,
+  normalizeCatalogUnit,
+} from '../catalog/catalog-display';
 import { ProductQueryDto } from './dto/product-query.dto';
 import {
   BulkPricingTierDto,
@@ -961,7 +965,7 @@ export class ProductService {
       badgeColor: product.badgeColor,
       status: product.status,
       spec: product.spec,
-      unit: product.unit,
+      unit: normalizeCatalogUnit(product.unit) || product.unit,
       retailPrice,
       price: retailPrice,
       mrp,
@@ -972,7 +976,7 @@ export class ProductService {
       gallery,
       bulkPrice,
       bulkThreshold: product.bulkThreshold,
-      bulkLabel: product.bulkLabel,
+      bulkLabel: normalizeBulkLabel(product.bulkLabel) ?? product.bulkLabel,
       bulkPricing,
       minOrder: product.minOrder,
       maxOrder: product.maxOrder,

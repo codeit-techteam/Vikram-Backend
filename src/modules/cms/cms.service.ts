@@ -24,7 +24,16 @@ import {
 } from './dto/cms-response.dto';
 
 function media(url?: string | null): string | null {
-  return normalizeMediaUrl(url);
+  const normalized = normalizeMediaUrl(url);
+  if (!normalized) return null;
+  // Google sample bucket often returns AccessDenied — never serve to app/admin.
+  if (
+    normalized.includes('commondatastorage.googleapis.com') ||
+    normalized.includes('gtv-videos-bucket')
+  ) {
+    return null;
+  }
+  return normalized;
 }
 
 const scheduleFilter = (now: Date) => ({
@@ -185,7 +194,8 @@ export class CmsService {
       location: t.location,
       rating: t.rating,
       review: t.review,
-      thumbnailUrl: media(t.thumbnail),
+      // Video testimonials do not use a separate poster — app generates a frame from videoUrl.
+      thumbnailUrl: t.type === 'VIDEO' ? null : media(t.thumbnail),
       videoUrl: media(t.videoUrl),
       profileImage: media(t.profileImage ?? t.imageUrl),
       imageUrl: media(t.imageUrl),
@@ -412,12 +422,16 @@ export class CmsService {
     if (videos.length > 0) {
       return Promise.all(
         videos.map(async (v, index) => {
-          const videoUrl = v.storageKey
+          const videoUrl = await this.storage.resolveReadableUrl(
+            v.publicUrl || v.videoUrl,
+            v.storageKey,
+          );
+          const thumbnailUrl = v.thumbnailKey
             ? await this.storage.resolveReadableUrl(
-                v.publicUrl || v.videoUrl,
-                v.storageKey,
+                v.thumbnailUrl || '',
+                v.thumbnailKey,
               )
-            : v.publicUrl || v.videoUrl;
+            : media(v.thumbnailUrl);
 
           return {
             id: v.id,
@@ -426,9 +440,9 @@ export class CmsService {
             buttonText: v.ctaLabel || 'Shop Now',
             buttonAction: v.linkUrl ? 'route' : null,
             bannerType: BannerType.VIDEO,
-            imageUrl: v.thumbnailUrl ?? '',
+            imageUrl: thumbnailUrl ?? '',
             videoUrl,
-            thumbnailUrl: v.thumbnailUrl,
+            thumbnailUrl,
             badge: null,
             priority: v.priority,
             displayOrder: v.displayOrder || index,

@@ -53,7 +53,7 @@ export class AdminVideosService {
       }
     }
 
-    return rows.map((row) => this.serialize(row));
+    return Promise.all(rows.map((row) => this.serialize(row)));
   }
 
   async findOne(id: string) {
@@ -64,9 +64,35 @@ export class AdminVideosService {
     return this.serialize(video);
   }
 
-  private serialize<T extends { sizeBytes?: bigint | null }>(row: T) {
+  private async serialize<
+    T extends {
+      sizeBytes?: bigint | null;
+      storageKey?: string | null;
+      videoUrl?: string;
+      publicUrl?: string | null;
+      thumbnailUrl?: string | null;
+      thumbnailKey?: string | null;
+    },
+  >(row: T) {
+    const readableVideo = row.storageKey
+      ? await this.storage.resolveReadableUrl(
+          row.publicUrl || row.videoUrl || '',
+          row.storageKey,
+        )
+      : row.publicUrl || row.videoUrl || null;
+
+    const readableThumb = row.thumbnailKey
+      ? await this.storage.resolveReadableUrl(
+          row.thumbnailUrl || '',
+          row.thumbnailKey,
+        )
+      : row.thumbnailUrl;
+
     return {
       ...row,
+      videoUrl: readableVideo || row.videoUrl,
+      publicUrl: readableVideo || row.publicUrl,
+      thumbnailUrl: readableThumb || row.thumbnailUrl,
       sizeBytes:
         row.sizeBytes === null || row.sizeBytes === undefined
           ? null
@@ -376,7 +402,7 @@ export class AdminVideosService {
     const video = await this.findOne(videoId);
     const slug = `home-hero-video-banner`;
     const existing = await this.prisma.banner.findFirst({
-      where: { slug, deletedAt: null },
+      where: { slug },
     });
 
     const data = {
@@ -397,6 +423,7 @@ export class AdminVideosService {
       status: video.published ? EntityStatus.ACTIVE : EntityStatus.DRAFT,
       priority: video.priority,
       displayOrder: video.displayOrder,
+      deletedAt: null,
     };
 
     if (existing) {
