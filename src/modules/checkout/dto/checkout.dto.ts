@@ -245,4 +245,37 @@ export class CheckoutResponseDto {
 
   @ApiPropertyOptional({ example: 1 })
   freeBikeDeliveriesUsed?: number | null;
+
+  @ApiPropertyOptional({ example: 1 })
+  deliveryVehicleCount?: number;
+
+  @ApiPropertyOptional({ example: 320 })
+  deliveryTotalWeightKg?: number | null;
+
+  @ApiPropertyOptional({ example: 18 })
+  deliveryTotalVolumeCft?: number | null;
+
+  @ApiPropertyOptional({ example: 50 })
+  deliveryTotalQuantity?: number | null;
+
+  @ApiPropertyOptional({ example: 320 })
+  deliveryCapacityUsed?: number | null;
+
+  @ApiPropertyOptional({ example: 500 })
+  deliveryCapacityLimit?: number | null;
+
+  @ApiPropertyOptional({ example: 64 })
+  deliveryCapacityUtilizationPercent?: number | null;
+
+  @ApiPropertyOptional({ example: 'FREE_BIKE_DELIVERY' })
+  deliveryFreeReason?: string | null;
+
+  @ApiPropertyOptional({ example: false })
+  deliveryRequiresBulkQuote?: boolean;
+
+  @ApiPropertyOptional({ example: false })
+  deliveryMultiVehicle?: boolean;
+
+  @ApiPropertyOptional({ type: Object })
+  deliveryBreakdown?: Record<string, unknown> | null;
 }

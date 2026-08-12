@@ -16,7 +16,6 @@ import { decimalToNumber } from '../../common/shopping/pricing.util';
 import { CoverageService } from '../coverage/coverage.service';
 import { DeliveryService } from '../delivery/delivery.service';
 import { DeliveryPricingService } from '../delivery/delivery-pricing.service';
-import { resolveDeliveryVehicleForQuantity } from '../delivery/delivery-pricing.constants';
 import {
   CheckoutAddressDto,
   CheckoutResponseDto,
@@ -90,8 +89,6 @@ export class CheckoutService {
           })
         : null;
 
-    const totalQty = cart.items.reduce((sum, i) => sum + i.quantity, 0);
-    const vehicleType = resolveDeliveryVehicleForQuantity(totalQty);
     const distanceKm =
       nearestHub && Number.isFinite(nearestHub.distanceKm)
         ? Number(nearestHub.distanceKm)
@@ -102,13 +99,23 @@ export class CheckoutService {
         this.membershipService.getCurrentMembership(customerId),
         this.loyaltyService.getLoyaltySummary(customerId),
         this.loyaltyService.getRedeemablePoints(customerId),
-        this.deliveryPricingService.calculateCharge({
-          vehicleType,
+        this.deliveryPricingService.calculateFromCart({
+          cartItems: cart.items.map((i) => ({
+            productId: i.productId,
+            quantity: i.quantity,
+          })),
           distanceKm,
           customerId,
           applyFreeBikeBenefit: true,
         }),
       ]);
+
+    if (priced.requiresBulkQuote) {
+      throw new BadRequestException(
+        priced.message ??
+          'Your order requires a bulk delivery quote. Please use Bulk Enquiry.',
+      );
+    }
 
     if (!priced.available && distanceKm > 0) {
       throw new BadRequestException(
@@ -116,6 +123,8 @@ export class CheckoutService {
           'Delivery pricing unavailable for this vehicle/distance',
       );
     }
+
+    const vehicleType = priced.vehicleType;
 
     const hasActiveMembership = membershipSummary.current?.isActive === true;
     const membershipDiscountPercent = hasActiveMembership ? 5 : 0;
@@ -231,6 +240,17 @@ export class CheckoutService {
       freeDeliveryApplied,
       freeBikeDeliveriesAllowed: priced.freeBikeDeliveriesAllowed ?? null,
       freeBikeDeliveriesUsed: priced.freeBikeDeliveriesUsed ?? null,
+      deliveryVehicleCount: priced.vehicleCount,
+      deliveryTotalWeightKg: priced.totalWeightKg,
+      deliveryTotalVolumeCft: priced.totalVolumeCft,
+      deliveryTotalQuantity: priced.totalQuantity,
+      deliveryCapacityUsed: priced.capacityUsed,
+      deliveryCapacityLimit: priced.capacityLimit,
+      deliveryCapacityUtilizationPercent: priced.capacityUtilizationPercent,
+      deliveryFreeReason: priced.freeDeliveryReason,
+      deliveryRequiresBulkQuote: priced.requiresBulkQuote,
+      deliveryMultiVehicle: priced.multiVehicle,
+      deliveryBreakdown: priced.breakdown ?? null,
     };
   }
 

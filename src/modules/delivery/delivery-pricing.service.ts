@@ -17,6 +17,9 @@ import {
   formatDistanceSlab,
   resolveDeliveryVehicleForQuantity,
 } from './delivery-pricing.constants';
+import { DeliveryLoadService } from './engine/delivery-load.service';
+import { DeliveryVehicleSelectionService } from './engine/delivery-vehicle-selection.service';
+import type { CartLoadItemInput } from './engine/delivery-load.types';
 
 export interface CalculatedDeliveryCharge {
   available: boolean;
@@ -35,15 +38,42 @@ export interface CalculatedDeliveryCharge {
   distanceToKm: number | null;
   distanceSlab: string | null;
   freeDeliveryApplied: boolean;
+  freeDeliveryReason: string | null;
   companyAbsorbedDelivery: number;
   freeBikeDeliveriesRemaining: number | null;
   freeBikeDeliveriesAllowed: number | null;
   freeBikeDeliveriesUsed: number | null;
+  vehicleCount: number;
+  totalWeightKg: number | null;
+  totalVolumeCft: number | null;
+  totalQuantity: number | null;
+  capacityUsed: number | null;
+  capacityLimit: number | null;
+  capacityUtilizationPercent: number | null;
+  selectionMode: string | null;
+  requiresBulkQuote: boolean;
+  multiVehicle: boolean;
+  breakdown?: {
+    baseDeliveryCharge: number;
+    vehicle: string;
+    distanceKm: number;
+    loadWeightKg: number | null;
+    loadVolumeCft: number | null;
+    vehicleCapacity: number | null;
+    capacityUtilizationPercent: number | null;
+    vehicleCount: number;
+    discount: number;
+    finalDeliveryCharge: number;
+  };
 }
 
 @Injectable()
 export class DeliveryPricingService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly loadService: DeliveryLoadService,
+    private readonly vehicleSelection: DeliveryVehicleSelectionService,
+  ) {}
 
   async listRules(params?: {
     vehicleType?: DeliveryVehicleType;
@@ -273,10 +303,22 @@ export class DeliveryPricingService {
     customerId?: string;
     /** When true, apply first-N free bike benefit if eligible. */
     applyFreeBikeBenefit?: boolean;
+    vehicleCount?: number;
+    totalWeightKg?: number | null;
+    totalVolumeCft?: number | null;
+    totalQuantity?: number | null;
+    capacityUsed?: number | null;
+    capacityLimit?: number | null;
+    capacityUtilizationPercent?: number | null;
+    selectionMode?: string | null;
   }): Promise<CalculatedDeliveryCharge> {
     const vehicleType = params.vehicleType;
     const distanceKm = toMoney(params.distanceKm);
     const resolved = await this.resolveListPrice(vehicleType, distanceKm);
+
+    const listPrice = resolved.available ? resolved.price : 0;
+    const vehicleCount = Math.max(1, params.vehicleCount ?? 1);
+    const totalList = toMoney(listPrice * vehicleCount);
 
     const base: CalculatedDeliveryCharge = {
       available: resolved.available,
@@ -284,8 +326,8 @@ export class DeliveryPricingService {
       vehicleType,
       vehicleDisplayName: DELIVERY_VEHICLE_DISPLAY_NAMES[vehicleType],
       distanceKm,
-      listPrice: resolved.price,
-      deliveryCharge: resolved.available ? resolved.price : 0,
+      listPrice: totalList,
+      deliveryCharge: resolved.available ? totalList : 0,
       currency: resolved.currency,
       pricingRuleId: resolved.ruleId,
       pricingVersion: resolved.version,
@@ -296,17 +338,41 @@ export class DeliveryPricingService {
           ? formatDistanceSlab(resolved.distanceFromKm, resolved.distanceToKm)
           : null,
       freeDeliveryApplied: false,
+      freeDeliveryReason: null,
       companyAbsorbedDelivery: 0,
       freeBikeDeliveriesRemaining: null,
       freeBikeDeliveriesAllowed: null,
       freeBikeDeliveriesUsed: null,
+      vehicleCount,
+      totalWeightKg: params.totalWeightKg ?? null,
+      totalVolumeCft: params.totalVolumeCft ?? null,
+      totalQuantity: params.totalQuantity ?? null,
+      capacityUsed: params.capacityUsed ?? null,
+      capacityLimit: params.capacityLimit ?? null,
+      capacityUtilizationPercent: params.capacityUtilizationPercent ?? null,
+      selectionMode: params.selectionMode ?? null,
+      requiresBulkQuote: false,
+      multiVehicle: vehicleCount > 1,
+      breakdown: {
+        baseDeliveryCharge: totalList,
+        vehicle: DELIVERY_VEHICLE_DISPLAY_NAMES[vehicleType],
+        distanceKm,
+        loadWeightKg: params.totalWeightKg ?? null,
+        loadVolumeCft: params.totalVolumeCft ?? null,
+        vehicleCapacity: params.capacityLimit ?? null,
+        capacityUtilizationPercent: params.capacityUtilizationPercent ?? null,
+        vehicleCount,
+        discount: 0,
+        finalDeliveryCharge: resolved.available ? totalList : 0,
+      },
     };
 
     if (!resolved.available || !params.applyFreeBikeBenefit || !params.customerId) {
       return base;
     }
 
-    if (vehicleType !== DeliveryVehicleType.BIKE || resolved.price <= 0) {
+    // Free bike benefit only when selected vehicle is Bike (not after upgrade)
+    if (vehicleType !== DeliveryVehicleType.BIKE || totalList <= 0 || vehicleCount > 1) {
       return base;
     }
 
@@ -331,7 +397,12 @@ export class DeliveryPricingService {
     if (remaining > 0) {
       base.deliveryCharge = 0;
       base.freeDeliveryApplied = true;
+      base.freeDeliveryReason = 'FREE_BIKE_DELIVERY';
       base.companyAbsorbedDelivery = toMoney(benefitConfig.companyAbsorptionInr);
+      if (base.breakdown) {
+        base.breakdown.discount = totalList;
+        base.breakdown.finalDeliveryCharge = 0;
+      }
     }
 
     return base;
@@ -349,7 +420,119 @@ export class DeliveryPricingService {
       distanceKm: params.distanceKm,
       customerId: params.customerId,
       applyFreeBikeBenefit: params.applyFreeBikeBenefit,
+      totalQuantity: params.quantity,
+      selectionMode: 'QTY_TIER_FALLBACK',
     });
+  }
+
+  /**
+   * Production path:
+   * Quantity → Load → Vehicle Capacity → Vehicle Selection → Distance Pricing → Free Delivery
+   */
+  async calculateFromCart(params: {
+    cartItems: CartLoadItemInput[];
+    distanceKm: number;
+    customerId?: string;
+    applyFreeBikeBenefit?: boolean;
+  }): Promise<CalculatedDeliveryCharge> {
+    if (!Number.isFinite(params.distanceKm) || params.distanceKm < 0) {
+      return this.unavailableResult(
+        'Unable to calculate delivery distance.',
+        params.distanceKm,
+      );
+    }
+
+    const load = await this.loadService.calculateFromCartItems(params.cartItems);
+    if (!load.ok) {
+      return this.unavailableResult(
+        load.message ?? 'Delivery calculation unavailable',
+        params.distanceKm,
+        {
+          totalWeightKg: load.totalWeightKg,
+          totalVolumeCft: load.totalVolumeCft,
+          totalQuantity: load.totalQuantity,
+        },
+      );
+    }
+
+    const selection = await this.vehicleSelection.selectVehicle(load);
+    if (!selection.ok || !selection.vehicleType) {
+      return {
+        ...this.unavailableResult(
+          selection.message ?? 'Delivery pricing unavailable',
+          params.distanceKm,
+          {
+            totalWeightKg: load.totalWeightKg,
+            totalVolumeCft: load.totalVolumeCft,
+            totalQuantity: load.totalQuantity,
+            capacityUsed: selection.capacityUsed,
+            capacityLimit: selection.capacityLimit,
+            capacityUtilizationPercent: selection.capacityUtilizationPercent,
+            selectionMode: selection.mode,
+          },
+        ),
+        requiresBulkQuote: selection.requiresBulkQuote,
+        multiVehicle: selection.multiVehicle,
+        vehicleCount: selection.vehicleCount || 0,
+        vehicleType: selection.vehicleType ?? DeliveryVehicleType.BIKE,
+        vehicleDisplayName:
+          selection.vehicleDisplayName ??
+          DELIVERY_VEHICLE_DISPLAY_NAMES[DeliveryVehicleType.BIKE],
+      };
+    }
+
+    return this.calculateCharge({
+      vehicleType: selection.vehicleType,
+      distanceKm: params.distanceKm,
+      customerId: params.customerId,
+      applyFreeBikeBenefit: params.applyFreeBikeBenefit,
+      vehicleCount: selection.vehicleCount,
+      totalWeightKg: load.totalWeightKg,
+      totalVolumeCft: load.totalVolumeCft,
+      totalQuantity: load.totalQuantity,
+      capacityUsed: selection.capacityUsed,
+      capacityLimit: selection.capacityLimit,
+      capacityUtilizationPercent: selection.capacityUtilizationPercent,
+      selectionMode: selection.mode,
+    });
+  }
+
+  private unavailableResult(
+    message: string,
+    distanceKm: number,
+    extras?: Partial<CalculatedDeliveryCharge>,
+  ): CalculatedDeliveryCharge {
+    return {
+      available: false,
+      message,
+      vehicleType: DeliveryVehicleType.BIKE,
+      vehicleDisplayName: DELIVERY_VEHICLE_DISPLAY_NAMES.BIKE,
+      distanceKm: toMoney(distanceKm || 0),
+      listPrice: 0,
+      deliveryCharge: 0,
+      currency: 'INR',
+      pricingRuleId: null,
+      pricingVersion: null,
+      distanceFromKm: null,
+      distanceToKm: null,
+      distanceSlab: null,
+      freeDeliveryApplied: false,
+      freeDeliveryReason: null,
+      companyAbsorbedDelivery: 0,
+      freeBikeDeliveriesRemaining: null,
+      freeBikeDeliveriesAllowed: null,
+      freeBikeDeliveriesUsed: null,
+      vehicleCount: 0,
+      totalWeightKg: extras?.totalWeightKg ?? null,
+      totalVolumeCft: extras?.totalVolumeCft ?? null,
+      totalQuantity: extras?.totalQuantity ?? null,
+      capacityUsed: extras?.capacityUsed ?? null,
+      capacityLimit: extras?.capacityLimit ?? null,
+      capacityUtilizationPercent: extras?.capacityUtilizationPercent ?? null,
+      selectionMode: extras?.selectionMode ?? null,
+      requiresBulkQuote: extras?.requiresBulkQuote ?? false,
+      multiVehicle: extras?.multiVehicle ?? false,
+    };
   }
 
   async createRule(

@@ -12,7 +12,6 @@ import {
   DeliveryEtaResponseDto,
 } from './dto/delivery-eta.dto';
 import { DeliveryPricingService } from './delivery-pricing.service';
-import { resolveDeliveryVehicleForQuantity } from './delivery-pricing.constants';
 
 /** ETA formula constants (minutes / speed). Tunable ops knobs. */
 const PICKING_MINUTES = 5;
@@ -111,19 +110,44 @@ export class DeliveryService {
     const deliveryDay = this.resolveDeliveryDay(now, deliverAt, estimatedMinutes);
     const deliveringBy = this.formatTime(deliverAt);
     const totalQty = items.reduce((sum, i) => sum + (i.quantity || 1), 0);
-    const vehicleType = resolveDeliveryVehicleForQuantity(totalQty || 1);
 
     let deliveryCharge = 0;
     let freeDelivery = false;
     let pricingMessage: string | undefined;
+    let vehicleType: string | undefined;
+    let vehicleDisplayName: string | undefined;
+    let vehicleCount = 1;
+    let totalWeightKg: number | null = null;
+    let capacityUsed: number | null = null;
+    let capacityLimit: number | null = null;
 
     try {
-      const priced = await this.deliveryPricingService.calculateCharge({
-        vehicleType,
-        distanceKm,
-        applyFreeBikeBenefit: false,
-      });
-      if (priced.available) {
+      const priced =
+        items.length > 0
+          ? await this.deliveryPricingService.calculateFromCart({
+              cartItems: items.map((i) => ({
+                productId: i.productId,
+                quantity: i.quantity,
+              })),
+              distanceKm,
+              applyFreeBikeBenefit: false,
+            })
+          : await this.deliveryPricingService.calculateForCartQuantity({
+              quantity: totalQty || 1,
+              distanceKm,
+              applyFreeBikeBenefit: false,
+            });
+
+      vehicleType = priced.vehicleType;
+      vehicleDisplayName = priced.vehicleDisplayName;
+      vehicleCount = priced.vehicleCount;
+      totalWeightKg = priced.totalWeightKg;
+      capacityUsed = priced.capacityUsed;
+      capacityLimit = priced.capacityLimit;
+
+      if (priced.requiresBulkQuote) {
+        pricingMessage = priced.message;
+      } else if (priced.available) {
         deliveryCharge = priced.listPrice;
       } else {
         pricingMessage = priced.message;
@@ -154,6 +178,13 @@ export class DeliveryService {
       deliveringBy,
       deliveryCharge: toMoney(deliveryCharge),
       freeDelivery,
+      deliveryVehicleType: vehicleType,
+      deliveryVehicleDisplayName: vehicleDisplayName,
+      deliveryVehicleCount: vehicleCount,
+      deliveryDistanceKm: distanceKm,
+      deliveryTotalWeightKg: totalWeightKg,
+      deliveryCapacityUsed: capacityUsed,
+      deliveryCapacityLimit: capacityLimit,
       message: pricingMessage
         ? pricingMessage
         : hub.canFulfill

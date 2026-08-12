@@ -72,6 +72,7 @@ enum HomeSectionType {
   PRODUCT_DISCOVERY
   EMERGENCY_BANNER
   FEATURED_COLLECTION
+  PROMO_BANNER
 }
 
 enum RedirectType {
@@ -654,6 +655,17 @@ model Product {
   hasVariants      Boolean            @default(false) @map("has_variants")
   defaultVariantId String?            @map("default_variant_id") @db.Uuid
   perPiecePrice    Decimal?           @map("per_piece_price") @db.Decimal(12, 2)
+  /// Logistics: weight per sellable unit (kg). Admin-configurable — never invent.
+  weightPerUnitKg  Decimal?           @map("weight_per_unit_kg") @db.Decimal(12, 3)
+  /// Logistics: volume per sellable unit (CFT). Admin-configurable — never invent.
+  volumePerUnitCft Decimal?           @map("volume_per_unit_cft") @db.Decimal(12, 3)
+  /// WEIGHT | VOLUME | QUANTITY | MIXED — how load is measured for this SKU
+  loadType         String?            @map("load_type") @db.VarChar(20)
+  isTransportable  Boolean            @default(true) @map("is_transportable")
+  allowDecimalQuantity Boolean        @default(false) @map("allow_decimal_quantity")
+  preferredVehicleType DeliveryVehicleType? @map("preferred_vehicle_type")
+  /// JSON array of DeliveryVehicleType strings; null = all active vehicles allowed
+  allowedVehicleTypes Json?           @map("allowed_vehicle_types") @db.JsonB
   specs            Json?              @db.JsonB
   gst              Decimal            @default(18) @db.Decimal(5, 2)
   listingType      ProductListingType @default(STANDARD) @map("listing_type")
@@ -1430,6 +1442,16 @@ model Order {
   deliveryDistanceKm  Decimal?      @map("delivery_distance_km") @db.Decimal(8, 2)
   deliveryPricingVersion Int?       @map("delivery_pricing_version")
   freeDeliveryApplied Boolean       @default(false) @map("free_delivery_applied")
+  /// Snapshot of load / capacity used at confirmation (never recalculated)
+  deliveryVehicleCount Int?         @map("delivery_vehicle_count")
+  deliveryTotalWeightKg Decimal?    @map("delivery_total_weight_kg") @db.Decimal(12, 3)
+  deliveryTotalVolumeCft Decimal?   @map("delivery_total_volume_cft") @db.Decimal(12, 3)
+  deliveryTotalQuantity Decimal?    @map("delivery_total_quantity") @db.Decimal(12, 3)
+  deliveryCapacityUsed Decimal?     @map("delivery_capacity_used") @db.Decimal(12, 3)
+  deliveryCapacityLimit Decimal?    @map("delivery_capacity_limit") @db.Decimal(12, 3)
+  deliveryFreeReason  String?       @map("delivery_free_reason") @db.VarChar(120)
+  deliveryRequiresBulkQuote Boolean @default(false) @map("delivery_requires_bulk_quote")
+  deliveryMultiVehicle Boolean      @default(false) @map("delivery_multi_vehicle")
   priorityOrder       Boolean       @default(false) @map("priority_order")
   assignedDriverId    String?       @map("assigned_driver_id") @db.Uuid
   assignedVehicleId   String?       @map("assigned_vehicle_id") @db.Uuid
@@ -2963,4 +2985,49 @@ model DeliveryBenefitConfig {
   updatedAt               DateTime @updatedAt @map("updated_at")
 
   @@map("delivery_benefit_configs")
+}
+
+/// Pricing-vehicle capacity master (BIKE / E_LOADER / …). Capacities are Admin-configurable — never invent kg/CFT.
+model DeliveryVehicleConfig {
+  id                        String              @id @default(uuid()) @db.Uuid
+  vehicleType               DeliveryVehicleType @unique @map("vehicle_type")
+  displayName               String              @map("display_name") @db.VarChar(80)
+  /// null until Admin configures — do not invent operational capacities
+  maxWeightKg               Decimal?            @map("max_weight_kg") @db.Decimal(12, 3)
+  maxVolumeCft              Decimal?            @map("max_volume_cft") @db.Decimal(12, 3)
+  maxQuantity               Decimal?            @map("max_quantity") @db.Decimal(12, 3)
+  /// Safe utilization % (default 100). Usable = max * (limit/100).
+  capacityUtilizationLimit  Decimal             @default(100) @map("capacity_utilization_limit") @db.Decimal(5, 2)
+  /// Lower number = preferred first (smallest suitable vehicle)
+  priority                  Int                 @default(100)
+  active                    Boolean             @default(true)
+  /// JSON array of category IDs/slugs; null = all categories allowed
+  allowedProductCategories  Json?               @map("allowed_product_categories") @db.JsonB
+  createdBy                 String?             @map("created_by") @db.Uuid
+  updatedBy                 String?             @map("updated_by") @db.Uuid
+  createdAt                 DateTime            @default(now()) @map("created_at")
+  updatedAt                 DateTime            @updatedAt @map("updated_at")
+
+  @@index([active, priority])
+  @@map("delivery_vehicle_configs")
+}
+
+/// Engine behaviour toggles (multi-vehicle, bulk quote, qty-tier fallback).
+model DeliveryEngineConfig {
+  id                      String   @id @default(uuid()) @db.Uuid
+  configKey               String   @unique @default("DEFAULT") @map("config_key") @db.VarChar(40)
+  /// AUTO_SPLIT | BULK_QUOTE | REJECT
+  multiVehicleMode        String   @default("BULK_QUOTE") @map("multi_vehicle_mode") @db.VarChar(30)
+  enablePartialDelivery   Boolean  @default(false) @map("enable_partial_delivery")
+  /// When true and vehicle capacities are unset, fall back to bag-qty tiers (migration path)
+  qtyTierFallbackEnabled  Boolean  @default(true) @map("qty_tier_fallback_enabled")
+  bulkOrderThresholdKg    Decimal? @map("bulk_order_threshold_kg") @db.Decimal(12, 3)
+  bulkOrderThresholdCft   Decimal? @map("bulk_order_threshold_cft") @db.Decimal(12, 3)
+  bulkOrderThresholdQty   Int?     @map("bulk_order_threshold_qty")
+  updatedBy               String?  @map("updated_by") @db.Uuid
+  updatedByName           String?  @map("updated_by_name") @db.VarChar(120)
+  createdAt               DateTime @default(now()) @map("created_at")
+  updatedAt               DateTime @updatedAt @map("updated_at")
+
+  @@map("delivery_engine_configs")
 }

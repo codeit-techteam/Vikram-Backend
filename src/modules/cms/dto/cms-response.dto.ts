@@ -141,6 +141,8 @@ export class CmsHomeResponseDto {
   banners!: CmsBannerDto[];
   /** Alias for image hero carousel — same as banners filtered to HOME_HERO */
   heroBanners!: CmsBannerDto[];
+  /** Home promo carousel banners (HOME_PROMO placement) */
+  promoBanners!: CmsBannerDto[];
   ads!: CmsAdvertisementDto[];
   /** Alias for brand ads / shop-from-catalogs cards */
   brandAdvertisements!: CmsAdvertisementDto[];

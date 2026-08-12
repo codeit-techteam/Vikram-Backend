@@ -1,15 +1,24 @@
-import { INITIAL_DELIVERY_PRICING_SEED } from '../../src/modules/delivery/delivery-pricing.constants';
+import {
+  DELIVERY_VEHICLE_DISPLAY_NAMES,
+  DELIVERY_VEHICLE_TYPES,
+  INITIAL_DELIVERY_PRICING_SEED,
+} from '../../src/modules/delivery/delivery-pricing.constants';
 
 /**
- * Idempotent seed of Excel delivery pricing into the database.
- * Safe to re-run — uses unique (vehicleType, from, to).
- * Migration also inserts the same rows; this keeps seed.ts in sync.
+ * Idempotent seed of Excel delivery pricing + vehicle capacity shells.
+ * Capacities stay NULL until Admin configures them — never invent kg/CFT.
  */
 export async function seedDeliveryPricing(prisma: {
   deliveryPricingRule: {
     upsert: (args: unknown) => Promise<unknown>;
   };
   deliveryBenefitConfig: {
+    upsert: (args: unknown) => Promise<unknown>;
+  };
+  deliveryVehicleConfig: {
+    upsert: (args: unknown) => Promise<unknown>;
+  };
+  deliveryEngineConfig: {
     upsert: (args: unknown) => Promise<unknown>;
   };
 }) {
@@ -46,7 +55,37 @@ export async function seedDeliveryPricing(prisma: {
     update: {},
   });
 
+  let priority = 1;
+  for (const type of DELIVERY_VEHICLE_TYPES) {
+    await prisma.deliveryVehicleConfig.upsert({
+      where: { vehicleType: type },
+      create: {
+        vehicleType: type,
+        displayName: DELIVERY_VEHICLE_DISPLAY_NAMES[type],
+        maxWeightKg: null,
+        maxVolumeCft: null,
+        maxQuantity: null,
+        capacityUtilizationLimit: 100,
+        priority,
+        active: true,
+      },
+      update: {},
+    });
+    priority += 1;
+  }
+
+  await prisma.deliveryEngineConfig.upsert({
+    where: { configKey: 'DEFAULT' },
+    create: {
+      configKey: 'DEFAULT',
+      multiVehicleMode: 'BULK_QUOTE',
+      enablePartialDelivery: false,
+      qtyTierFallbackEnabled: true,
+    },
+    update: {},
+  });
+
   console.log(
-    `Seeded ${INITIAL_DELIVERY_PRICING_SEED.length} delivery pricing rules + benefit config`,
+    `Seeded ${INITIAL_DELIVERY_PRICING_SEED.length} delivery pricing rules + ${DELIVERY_VEHICLE_TYPES.length} vehicle configs (capacities unset) + engine config`,
   );
 }

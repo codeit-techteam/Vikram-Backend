@@ -80,6 +80,7 @@ export class CmsService {
       sections,
       banners,
       heroBanners: banners.filter((b) => b.placement === 'HOME_HERO'),
+      promoBanners: banners.filter((b) => b.placement === 'HOME_PROMO'),
       ads,
       brandAdvertisements: ads,
       catalogs: ads,

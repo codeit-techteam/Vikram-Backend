@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -18,6 +19,7 @@ import { SWAGGER_BEARER_AUTH } from '../../common/constants/swagger.constants';
 import type { AuthenticatedCustomer } from '../../auth/jwt/jwt-payload.interface';
 import { DeliveryVehicleType } from '../../../generated/prisma/client';
 import { DeliveryPricingService } from './delivery-pricing.service';
+import { DeliveryVehicleSelectionService } from './engine/delivery-vehicle-selection.service';
 import {
   CalculateDeliveryPricingDto,
   DeliveryPricingListQueryDto,
@@ -30,7 +32,10 @@ import {
 @ApiTags('Delivery Pricing')
 @Controller({ version: '1', path: 'delivery-pricing' })
 export class DeliveryPricingController {
-  constructor(private readonly pricingService: DeliveryPricingService) {}
+  constructor(
+    private readonly pricingService: DeliveryPricingService,
+    private readonly vehicleSelection: DeliveryVehicleSelectionService,
+  ) {}
 
   @Public()
   @Get()
@@ -49,15 +54,32 @@ export class DeliveryPricingController {
 
   @Public()
   @Get('vehicles')
-  @ApiOperation({ summary: 'List delivery vehicle types with display names' })
-  vehicles() {
+  @ApiOperation({
+    summary:
+      'List delivery vehicle types with capacity config (capacities may be null until Admin sets them)',
+  })
+  async vehicles() {
+    const configs = await this.vehicleSelection.listVehicleConfigs(false);
+    const byType = new Map(configs.map((c) => [c.vehicleType, c]));
     return {
       success: true,
       message: 'Delivery vehicle types',
-      data: DELIVERY_VEHICLE_TYPES.map((type) => ({
-        vehicleType: type,
-        displayName: DELIVERY_VEHICLE_DISPLAY_NAMES[type as DeliveryVehicleType],
-      })),
+      data: DELIVERY_VEHICLE_TYPES.map((type) => {
+        const cfg = byType.get(type as DeliveryVehicleType);
+        return {
+          vehicleType: type,
+          displayName:
+            cfg?.displayName ??
+            DELIVERY_VEHICLE_DISPLAY_NAMES[type as DeliveryVehicleType],
+          maxWeightKg: cfg?.maxWeightKg ?? null,
+          maxVolumeCft: cfg?.maxVolumeCft ?? null,
+          maxQuantity: cfg?.maxQuantity ?? null,
+          capacityUtilizationLimit: cfg?.capacityUtilizationLimit ?? 100,
+          priority: cfg?.priority ?? null,
+          active: cfg?.active ?? true,
+          hasConfiguredCapacity: cfg?.hasConfiguredCapacity ?? false,
+        };
+      }),
     };
   }
 
@@ -67,18 +89,47 @@ export class DeliveryPricingController {
   @Post('calculate')
   @ApiOperation({
     summary:
-      'Calculate delivery charge server-side from vehicleType + distanceKm',
+      'Calculate delivery charge: Quantity → Load → Vehicle → Distance → Price (server-side)',
   })
   async calculate(
     @Body() dto: CalculateDeliveryPricingDto,
     @CurrentUser() user?: AuthenticatedCustomer | null,
   ) {
     const customerId = user?.id;
+    const applyFree = dto.applyFreeBikeBenefit !== false && !!customerId;
+
+    if (dto.cartItems?.length) {
+      if (dto.distanceKm == null) {
+        throw new BadRequestException(
+          'distanceKm is required when calculating from cartItems',
+        );
+      }
+      const data = await this.pricingService.calculateFromCart({
+        cartItems: dto.cartItems,
+        distanceKm: dto.distanceKm,
+        customerId,
+        applyFreeBikeBenefit: applyFree,
+      });
+      return {
+        success: true,
+        message: data.available
+          ? 'Delivery charge calculated'
+          : data.message ?? 'Delivery pricing unavailable',
+        data,
+      };
+    }
+
+    if (dto.vehicleType == null || dto.distanceKm == null) {
+      throw new BadRequestException(
+        'Provide cartItems + distanceKm, or vehicleType + distanceKm',
+      );
+    }
+
     const data = await this.pricingService.calculateCharge({
       vehicleType: dto.vehicleType,
       distanceKm: dto.distanceKm,
       customerId,
-      applyFreeBikeBenefit: dto.applyFreeBikeBenefit !== false && !!customerId,
+      applyFreeBikeBenefit: applyFree,
     });
     return {
       success: true,

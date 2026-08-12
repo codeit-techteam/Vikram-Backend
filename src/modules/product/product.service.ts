@@ -163,8 +163,18 @@ export class ProductService {
     const cached = await this.cache.get<ProductResponseDto>(cacheKey);
     if (cached) return cached;
 
+    const looksLikeUuid =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+        slug,
+      );
+
     const product = await this.prisma.product.findFirst({
-      where: { slug, ...PRODUCT_ACTIVE_WHERE },
+      where: {
+        ...(looksLikeUuid
+          ? { OR: [{ slug }, { id: slug }] }
+          : { slug }),
+        ...PRODUCT_ACTIVE_WHERE,
+      },
       include: PRODUCT_DETAIL_INCLUDE,
     });
 

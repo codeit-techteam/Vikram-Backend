@@ -26,7 +26,9 @@ export const DELIVERY_VEHICLE_TYPES = Object.values(
 
 /**
  * Quantity → vehicle allocation (bag-equivalent units).
- * Kept in sync with Customer App `deliveryVehicles` tiers.
+ * Used ONLY as migration fallback when Admin has not configured vehicle
+ * capacities and/or product weight/volume logistics attributes.
+ * Prefer DeliveryVehicleConfig capacity matching in production.
  */
 export const DELIVERY_VEHICLE_QTY_TIERS: ReadonlyArray<{
   type: DeliveryVehicleType;

@@ -34,9 +34,17 @@ export async function seedCmsHome(prisma: PrismaClient): Promise<void> {
       layoutType: 'carousel',
     },
     {
+      sectionType: HomeSectionType.PROMO_BANNER,
+      title: 'Home Promo Banner',
+      subtitle: 'Bulk offers and promo carousels (Banner Management → Home Promo)',
+      displayOrder: 2,
+      apiSource: 'cms.promoBanners',
+      layoutType: 'carousel',
+    },
+    {
       sectionType: HomeSectionType.LOYALTY,
       title: 'Loyalty Progress',
-      displayOrder: 2,
+      displayOrder: 3,
       apiSource: 'loyalty',
       layoutType: 'card',
     },

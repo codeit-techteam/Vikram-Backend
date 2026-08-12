@@ -234,6 +234,16 @@ export class OrdersService {
             deliveryDistanceKm: checkout.deliveryDistanceKm ?? null,
             deliveryPricingVersion: checkout.deliveryPricingVersion ?? null,
             freeDeliveryApplied: checkout.freeDeliveryApplied ?? false,
+            deliveryVehicleCount: checkout.deliveryVehicleCount ?? 1,
+            deliveryTotalWeightKg: checkout.deliveryTotalWeightKg ?? null,
+            deliveryTotalVolumeCft: checkout.deliveryTotalVolumeCft ?? null,
+            deliveryTotalQuantity: checkout.deliveryTotalQuantity ?? null,
+            deliveryCapacityUsed: checkout.deliveryCapacityUsed ?? null,
+            deliveryCapacityLimit: checkout.deliveryCapacityLimit ?? null,
+            deliveryFreeReason: checkout.deliveryFreeReason ?? null,
+            deliveryRequiresBulkQuote:
+              checkout.deliveryRequiresBulkQuote ?? false,
+            deliveryMultiVehicle: checkout.deliveryMultiVehicle ?? false,
             notes: dto.notes ?? null,
             deliveryAddress: {
               id: checkout.address.id,

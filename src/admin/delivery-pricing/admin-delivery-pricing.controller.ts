@@ -20,14 +20,20 @@ import { ROLE_GROUPS } from '../constants/admin-rbac.constants';
 import type { AuthenticatedAdmin } from '../auth/admin-jwt.strategy';
 import { AuditService } from '../audit/audit.service';
 import { DeliveryPricingService } from '../../modules/delivery/delivery-pricing.service';
+import { DeliveryVehicleSelectionService } from '../../modules/delivery/engine/delivery-vehicle-selection.service';
 import {
   CreateDeliveryPricingDto,
   DeliveryPricingListQueryDto,
   UpdateDeliveryBenefitConfigDto,
+  UpdateDeliveryEngineConfigDto,
   UpdateDeliveryPricingDto,
   UpdateDeliveryPricingStatusDto,
+  UpdateDeliveryVehicleConfigDto,
 } from '../../modules/delivery/dto/delivery-pricing.dto';
-import { AuditAction } from '../../../generated/prisma/client';
+import {
+  AuditAction,
+  DeliveryVehicleType,
+} from '../../../generated/prisma/client';
 
 @ApiTags('Admin Delivery Pricing')
 @ApiBearerAuth(SWAGGER_BEARER_AUTH)
@@ -36,6 +42,7 @@ import { AuditAction } from '../../../generated/prisma/client';
 export class AdminDeliveryPricingController {
   constructor(
     private readonly pricingService: DeliveryPricingService,
+    private readonly vehicleSelection: DeliveryVehicleSelectionService,
     private readonly auditService: AuditService,
   ) {}
 
@@ -52,6 +59,82 @@ export class AdminDeliveryPricingController {
   async summary() {
     const data = await this.pricingService.getSummary();
     return { success: true, message: 'Delivery pricing summary', data };
+  }
+
+  @Get('vehicles')
+  @AdminRoles(...ROLE_GROUPS.WAREHOUSE)
+  @ApiOperation({
+    summary:
+      'List pricing-vehicle capacity configs (capacities Admin-configurable)',
+  })
+  async listVehicles() {
+    const data = await this.vehicleSelection.listVehicleConfigs(false);
+    return { success: true, message: 'Delivery vehicle configs', data };
+  }
+
+  @Put('vehicles/:vehicleType')
+  @AdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
+  @ApiOperation({ summary: 'Update vehicle capacity / priority / status' })
+  async updateVehicle(
+    @Param('vehicleType') vehicleType: DeliveryVehicleType,
+    @Body() dto: UpdateDeliveryVehicleConfigDto,
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+  ) {
+    if (!Object.values(DeliveryVehicleType).includes(vehicleType)) {
+      return {
+        success: false,
+        message: 'Invalid vehicle type',
+        data: null,
+      };
+    }
+    const before = await this.vehicleSelection.getVehicleConfig(vehicleType);
+    const data = await this.vehicleSelection.updateVehicleConfig(
+      vehicleType,
+      dto,
+      { id: admin.id },
+    );
+    await this.auditService.log({
+      adminUserId: admin.id,
+      adminEmail: admin.email,
+      action: AuditAction.UPDATE,
+      resource: 'DeliveryVehicleConfig',
+      resourceId: data.id,
+      oldValue: before,
+      newValue: data,
+    });
+    return { success: true, message: 'Vehicle config updated', data };
+  }
+
+  @Get('engine-config')
+  @AdminRoles(...ROLE_GROUPS.WAREHOUSE)
+  @ApiOperation({ summary: 'Delivery engine rules (multi-vehicle, bulk, fallback)' })
+  async engineConfig() {
+    const data = await this.vehicleSelection.getEngineConfig();
+    return { success: true, message: 'Delivery engine config', data };
+  }
+
+  @Put('engine-config')
+  @AdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
+  @ApiOperation({ summary: 'Update delivery engine rules' })
+  async updateEngineConfig(
+    @Body() dto: UpdateDeliveryEngineConfigDto,
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+  ) {
+    const before = await this.vehicleSelection.getEngineConfig();
+    const data = await this.vehicleSelection.updateEngineConfig(
+      dto,
+      this.actor(admin),
+    );
+    await this.auditService.log({
+      adminUserId: admin.id,
+      adminEmail: admin.email,
+      action: AuditAction.UPDATE,
+      resource: 'DeliveryEngineConfig',
+      resourceId: data.id,
+      oldValue: before,
+      newValue: data,
+    });
+    return { success: true, message: 'Engine config updated', data };
   }
 
   @Get('benefit-config')

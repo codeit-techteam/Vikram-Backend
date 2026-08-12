@@ -143,4 +143,25 @@ export class DeliveryEtaResponseDto {
 
   @ApiPropertyOptional()
   message?: string;
+
+  @ApiPropertyOptional({ example: 'E_LOADER' })
+  deliveryVehicleType?: string;
+
+  @ApiPropertyOptional({ example: 'E-Loader' })
+  deliveryVehicleDisplayName?: string;
+
+  @ApiPropertyOptional({ example: 1 })
+  deliveryVehicleCount?: number;
+
+  @ApiPropertyOptional({ example: 4.2 })
+  deliveryDistanceKm?: number;
+
+  @ApiPropertyOptional({ example: 320 })
+  deliveryTotalWeightKg?: number | null;
+
+  @ApiPropertyOptional({ example: 320 })
+  deliveryCapacityUsed?: number | null;
+
+  @ApiPropertyOptional({ example: 500 })
+  deliveryCapacityLimit?: number | null;
 }
