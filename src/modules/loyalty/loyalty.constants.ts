@@ -15,8 +15,9 @@ export const LOYALTY_MAX_ORDER_REDEEM_PERCENT = 0.3;
 export const LOYALTY_EARN_POINTS_PER_100_INR = 1;
 export const LOYALTY_POINTS_EXPIRY_MONTHS = 12;
 
-export const LOYALTY_WELCOME_BONUS_POINTS = 0;
-export const LOYALTY_FIRST_ORDER_BONUS_POINTS = 50;
+export const LOYALTY_WELCOME_BONUS_POINTS = 50;
+/** Registration welcome is the one-time +50 — first-order bonus disabled to avoid double credit */
+export const LOYALTY_FIRST_ORDER_BONUS_POINTS = 0;
 
 /** Idempotent ledger reference keys */
 export const LOYALTY_REF = {

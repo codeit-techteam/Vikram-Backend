@@ -6,8 +6,8 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
-import { IsBoolean, IsOptional } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+import { IsBoolean, IsInt, IsOptional, Max, Min } from 'class-validator';
 import { Public } from '../../common/decorators/public.decorator';
 import { SWAGGER_TAGS } from '../../common/constants/swagger.constants';
 import { OfferResponseDto } from './dto/offer-response.dto';
@@ -19,6 +19,16 @@ class OfferQueryDto {
   @Transform(({ value }) => value === 'true' || value === true)
   @IsBoolean()
   featured?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Max offers to return. Home carousel uses 5.',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(50)
+  limit?: number;
 }
 
 @Public()
@@ -29,15 +39,18 @@ export class OfferController {
 
   @Get()
   @ApiOperation({
-    summary: 'List active offers',
+    summary: 'List eligible published offers',
     description:
-      'Returns only active/visible offers within their date window, sorted by priority.',
+      'Returns only ACTIVE visible offers within their Asia/Kolkata schedule, sorted by priority.',
   })
   @ApiResponse({ status: 200, description: 'Offers fetched successfully' })
   async findAll(
     @Query() query: OfferQueryDto,
   ): Promise<{ success: boolean; message: string; data: OfferResponseDto[] }> {
-    const data = await this.offerService.findAll(query.featured);
+    const data = await this.offerService.findAll({
+      featured: query.featured,
+      limit: query.limit,
+    });
     return {
       success: true,
       message: 'Offers fetched successfully',
@@ -48,7 +61,8 @@ export class OfferController {
   @Get(':slug')
   @ApiOperation({
     summary: 'Get offer by slug',
-    description: 'Returns offer details including products inside the offer.',
+    description:
+      'Returns offer details including currently available mapped products. Unavailable products are omitted.',
   })
   @ApiParam({ name: 'slug', example: 'construction-starter-bundle' })
   @ApiResponse({ status: 200, description: 'Offer fetched successfully' })

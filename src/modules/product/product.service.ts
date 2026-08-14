@@ -9,15 +9,15 @@ import {
 } from '../../common/dto/pagination.dto';
 import { hashQueryParams, PRODUCT_ACTIVE_WHERE } from '../../common/utils/prisma.util';
 import {
-  buildDeliveryMessage,
-  computeDeliveryEtaMinutes,
-} from '../../common/delivery/customer-delivery.util';
-import {
   normalizeMediaUrl,
   normalizeMediaUrlList,
   pickPreferredMediaUrl,
 } from '../../common/utils/media-url';
 import { CoverageService } from '../coverage/coverage.service';
+import { DeliveryService } from '../delivery/delivery.service';
+import { parseAllowedVehicleTypes } from '../delivery/engine/delivery-load.service';
+import type { ProductLogisticsSnapshot } from '../delivery/engine/delivery-load.types';
+import type { DeliveryEtaCalculationResult } from '../delivery/engine/delivery-eta.logic';
 import {
   displayBrickGrade,
   displayBrickProductType,
@@ -28,6 +28,7 @@ import {
   normalizeBulkLabel,
   normalizeCatalogUnit,
 } from '../catalog/catalog-display';
+import { buildProductSearchClause } from '../catalog/product-search.where';
 import { ProductQueryDto } from './dto/product-query.dto';
 import {
   BulkPricingTierDto,
@@ -85,15 +86,37 @@ export class ProductService {
     private readonly prisma: PrismaService,
     private readonly cache: CacheService,
     private readonly coverageService: CoverageService,
+    private readonly deliveryService: DeliveryService,
   ) {}
 
   async findAll(query: ProductQueryDto): Promise<ProductListResponseDto> {
     const page = query.page ?? 1;
     const limit = Math.min(query.limit ?? 20, 100);
+    let hubId = query.hubId;
+    let distanceKm: number | null = null;
+
+    if (query.latitude != null && query.longitude != null) {
+      try {
+        const hub = await this.coverageService.findNearestHub({
+          latitude: query.latitude,
+          longitude: query.longitude,
+          pincode: query.pincode,
+        });
+        if (hub?.inCoverage) {
+          hubId = hubId ?? hub.id;
+          distanceKm = hub.distanceKm;
+        }
+      } catch {
+        // Catalog listing still works without a coverage match.
+      }
+    }
+
     const isDefaultList = this.isDefaultProductListQuery(query, page, limit);
     const cacheKey = isDefaultList
       ? CACHE_KEYS.PRODUCTS_PAGE(page)
-      : CACHE_KEYS.PRODUCTS(hashQueryParams({ ...query, page, limit }));
+      : CACHE_KEYS.PRODUCTS(
+          hashQueryParams({ ...query, page, limit, hubId, distanceKm }),
+        );
 
     const cached = await this.cache.get<ProductListResponseDto>(cacheKey);
     if (cached) return cached;
@@ -114,16 +137,23 @@ export class ProductService {
 
     const stockMap = await this.getStockMap(
       products.map((p) => p.id),
-      query.hubId,
+      hubId,
     );
     const hubInvMap = await this.getHubInventoryMap(
       products.map((p) => p.id),
-      query.hubId,
+      hubId,
     );
+    const etaMap = await this.catalogEtaMap(products, distanceKm);
 
     const result: ProductListResponseDto = {
       items: products.map((p) =>
-        this.mapProduct(p, true, stockMap.get(p.id), hubInvMap.get(p.id)),
+        this.mapProduct(
+          p,
+          true,
+          stockMap.get(p.id),
+          hubInvMap.get(p.id),
+          etaMap.get(p.id),
+        ),
       ),
       meta: buildPaginationMeta(page, limit, total),
     };
@@ -228,7 +258,7 @@ export class ProductService {
 
   async findFeatured(
     limit = 8,
-    deliveryEtaMinutes: number | null = null,
+    distanceKm?: number | null,
   ): Promise<ProductResponseDto[]> {
     const products = await this.prisma.product.findMany({
       where: { ...PRODUCT_ACTIVE_WHERE, isFeatured: true },
@@ -238,8 +268,9 @@ export class ProductService {
     });
     const stockMap = await this.getStockMap(products.map((p) => p.id));
     const hubInvMap = await this.getHubInventoryMap(products.map((p) => p.id));
+    const etaMap = await this.catalogEtaMap(products, distanceKm);
     return products.map((p) =>
-      this.mapProduct(p, true, stockMap.get(p.id), hubInvMap.get(p.id), deliveryEtaMinutes),
+      this.mapProduct(p, true, stockMap.get(p.id), hubInvMap.get(p.id), etaMap.get(p.id)),
     );
   }
 
@@ -284,7 +315,7 @@ export class ProductService {
 
   async findNewArrivals(
     limit = 8,
-    deliveryEtaMinutes: number | null = null,
+    distanceKm?: number | null,
   ): Promise<ProductResponseDto[]> {
     const products = await this.prisma.product.findMany({
       where: this.newArrivalsWhere(),
@@ -294,8 +325,9 @@ export class ProductService {
     });
     const stockMap = await this.getStockMap(products.map((p) => p.id));
     const hubInvMap = await this.getHubInventoryMap(products.map((p) => p.id));
+    const etaMap = await this.catalogEtaMap(products, distanceKm);
     return products.map((p) =>
-      this.mapProduct(p, true, stockMap.get(p.id), hubInvMap.get(p.id), deliveryEtaMinutes),
+      this.mapProduct(p, true, stockMap.get(p.id), hubInvMap.get(p.id), etaMap.get(p.id)),
     );
   }
 
@@ -306,7 +338,7 @@ export class ProductService {
   async findPopularNearYou(
     limit = 10,
     hubId?: string,
-    deliveryEtaMinutes: number | null = null,
+    distanceKm?: number | null,
   ): Promise<ProductResponseDto[]> {
     const products = await this.prisma.product.findMany({
       where: {
@@ -348,8 +380,9 @@ export class ProductService {
     const ids = products.map((p) => p.id);
     const stockMap = await this.getStockMap(ids, hubId);
     const hubInvMap = await this.getHubInventoryMap(ids, hubId);
+    const etaMap = await this.catalogEtaMap(products, distanceKm);
     return products.map((p) =>
-      this.mapProduct(p, true, stockMap.get(p.id), hubInvMap.get(p.id), deliveryEtaMinutes),
+      this.mapProduct(p, true, stockMap.get(p.id), hubInvMap.get(p.id), etaMap.get(p.id)),
     );
   }
 
@@ -359,7 +392,7 @@ export class ProductService {
   async findDealProducts(
     limit = 10,
     hubId?: string,
-    deliveryEtaMinutes: number | null = null,
+    distanceKm?: number | null,
   ): Promise<ProductResponseDto[]> {
     const now = new Date();
     const products = await this.prisma.product.findMany({
@@ -431,8 +464,9 @@ export class ProductService {
     const ids = finalProducts.map((p) => p.id);
     const stockMap = await this.getStockMap(ids, hubId);
     const hubInvMap = await this.getHubInventoryMap(ids, hubId);
+    const etaMap = await this.catalogEtaMap(finalProducts, distanceKm);
     return finalProducts.map((p) =>
-      this.mapProduct(p, true, stockMap.get(p.id), hubInvMap.get(p.id), deliveryEtaMinutes),
+      this.mapProduct(p, true, stockMap.get(p.id), hubInvMap.get(p.id), etaMap.get(p.id)),
     );
   }
 
@@ -451,7 +485,7 @@ export class ProductService {
   }> {
     const limit = Math.min(Math.max(options?.limit ?? 10, 8), 12);
     let hubId = options?.hubId;
-    let deliveryEtaMinutes: number | null = null;
+    let distanceKm: number | null = null;
 
     if (options?.latitude != null && options?.longitude != null) {
       const hub = await this.coverageService.findNearestHub({
@@ -461,12 +495,12 @@ export class ProductService {
       });
       if (hub?.inCoverage) {
         hubId = hub.id;
-        deliveryEtaMinutes = computeDeliveryEtaMinutes(hub.distanceKm);
+        distanceKm = hub.distanceKm;
       }
     }
 
     const section = options?.section;
-    const cacheKey = `${CACHE_KEYS.PRODUCTS_HOME(hubId, limit)}:${section ?? 'all'}:${deliveryEtaMinutes ?? 'na'}`;
+    const cacheKey = `${CACHE_KEYS.PRODUCTS_HOME(hubId, limit)}:${section ?? 'all'}:${distanceKm ?? 'na'}`;
 
     const cached = await this.cache.get<{
       featured: ProductResponseDto[];
@@ -484,19 +518,19 @@ export class ProductService {
     };
 
     if (section === 'featured') {
-      empty.featured = await this.findFeatured(limit, deliveryEtaMinutes);
+      empty.featured = await this.findFeatured(limit, distanceKm);
     } else if (section === 'popular') {
-      empty.popular = await this.findPopularNearYou(limit, hubId, deliveryEtaMinutes);
+      empty.popular = await this.findPopularNearYou(limit, hubId, distanceKm);
     } else if (section === 'offers') {
-      empty.offers = await this.findDealProducts(limit, hubId, deliveryEtaMinutes);
+      empty.offers = await this.findDealProducts(limit, hubId, distanceKm);
     } else if (section === 'new') {
-      empty.recentlyAdded = await this.findNewArrivals(limit, deliveryEtaMinutes);
+      empty.recentlyAdded = await this.findNewArrivals(limit, distanceKm);
     } else {
       const [featured, popular, offers, recentlyAdded] = await Promise.all([
-        this.findFeatured(limit, deliveryEtaMinutes),
-        this.findPopularNearYou(limit, hubId, deliveryEtaMinutes),
-        this.findDealProducts(limit, hubId, deliveryEtaMinutes),
-        this.findNewArrivals(limit, deliveryEtaMinutes),
+        this.findFeatured(limit, distanceKm),
+        this.findPopularNearYou(limit, hubId, distanceKm),
+        this.findDealProducts(limit, hubId, distanceKm),
+        this.findNewArrivals(limit, distanceKm),
       ]);
       empty.featured = featured;
       empty.popular = popular;
@@ -532,7 +566,9 @@ export class ProductService {
       !query.status &&
       query.minPrice === undefined &&
       query.maxPrice === undefined &&
-      !query.sortBy
+      !query.sortBy &&
+      query.latitude === undefined &&
+      query.longitude === undefined
     );
   }
 
@@ -627,47 +663,17 @@ export class ProductService {
       };
     }
     if (query.search) {
-      const term = query.search.trim();
-      const searchOr: Prisma.ProductWhereInput[] = [
-        { name: { contains: term, mode: 'insensitive' } },
-        { nameHi: { contains: term, mode: 'insensitive' } },
-        { brand: { contains: term, mode: 'insensitive' } },
-        { sku: { contains: term, mode: 'insensitive' } },
-        { description: { contains: term, mode: 'insensitive' } },
-        { grade: { contains: term, mode: 'insensitive' } },
-        { productType: { contains: term, mode: 'insensitive' } },
-        { metaKeywords: { contains: term, mode: 'insensitive' } },
-        { category: { name: { contains: term, mode: 'insensitive' } } },
-        { category: { slug: { contains: term, mode: 'insensitive' } } },
-      ];
-
-      const lowered = term.toLowerCase();
-      if (
-        lowered.includes('fly ash') ||
-        lowered.includes('flyash') ||
-        lowered.includes('grey ash') ||
-        lowered.includes('gray ash')
-      ) {
-        searchOr.push({ productType: 'GREY_ASH_BRICKS' });
+      const searchClause = buildProductSearchClause(query.search);
+      if (searchClause) {
+        where.AND = [
+          ...(Array.isArray(where.AND)
+            ? where.AND
+            : where.AND
+              ? [where.AND]
+              : []),
+          searchClause,
+        ];
       }
-      if (lowered.includes('red brick')) {
-        searchOr.push({ productType: 'RED_BRICKS' });
-      }
-      if (
-        lowered === 'rmc' ||
-        lowered.includes('ready mix') ||
-        lowered.includes('ready-mix')
-      ) {
-        searchOr.push({ category: { slug: 'rmc' } });
-      }
-      if (lowered === 'a+' || lowered === 'a plus') {
-        searchOr.push({ grade: 'A_PLUS' });
-      }
-      if (lowered === 'b+' || lowered === 'b plus') {
-        searchOr.push({ grade: 'B_PLUS' });
-      }
-
-      this.mergeOrFilter(where, searchOr);
     }
 
     return where;
@@ -688,7 +694,12 @@ export class ProductService {
         return [{ salesCount: sortOrder }];
       case 'createdAt':
         return [{ createdAt: sortOrder }, { displayOrder: 'asc' }];
+      case 'relevance':
+        return [{ salesCount: 'desc' }, { name: 'asc' }];
       default:
+        if (query.search) {
+          return [{ salesCount: 'desc' }, { name: 'asc' }];
+        }
         return [{ displayOrder: 'asc' }, { priority: 'desc' }];
     }
   }
@@ -819,6 +830,73 @@ export class ProductService {
     });
   }
 
+  private async catalogEtaMap(
+    products: Array<{
+      id: string;
+      name: string;
+      unit: string;
+      categoryId: string;
+      weightPerUnitKg?: unknown;
+      volumePerUnitCft?: unknown;
+      loadType?: string | null;
+      logisticsType?: string | null;
+      isTransportable?: boolean;
+      allowDecimalQuantity?: boolean;
+      preferredVehicleType?: ProductLogisticsSnapshot['preferredVehicleType'];
+      allowedVehicleTypes?: unknown;
+      category?: { id: string; slug: string };
+    }>,
+    distanceKm?: number | null,
+  ): Promise<Map<string, DeliveryEtaCalculationResult>> {
+    if (distanceKm == null || products.length === 0) return new Map();
+    try {
+      return await this.deliveryService.previewCatalogEtas(
+        products.map((p) => this.toLogisticsSnapshot(p)),
+        distanceKm,
+      );
+    } catch {
+      return new Map();
+    }
+  }
+
+  private toLogisticsSnapshot(product: {
+    id: string;
+    name: string;
+    unit: string;
+    categoryId: string;
+    weightPerUnitKg?: unknown;
+    volumePerUnitCft?: unknown;
+    loadType?: string | null;
+    logisticsType?: string | null;
+    isTransportable?: boolean;
+    allowDecimalQuantity?: boolean;
+    preferredVehicleType?: ProductLogisticsSnapshot['preferredVehicleType'];
+    allowedVehicleTypes?: unknown;
+    category?: { id: string; slug: string };
+  }): ProductLogisticsSnapshot {
+    return {
+      productId: product.id,
+      name: product.name,
+      unit: product.unit,
+      categoryId: product.categoryId,
+      categorySlug: product.category?.slug ?? null,
+      weightPerUnitKg:
+        product.weightPerUnitKg != null
+          ? Number(product.weightPerUnitKg)
+          : null,
+      volumePerUnitCft:
+        product.volumePerUnitCft != null
+          ? Number(product.volumePerUnitCft)
+          : null,
+      loadType: product.loadType ?? null,
+      logisticsType: product.logisticsType ?? null,
+      isTransportable: product.isTransportable !== false,
+      allowDecimalQuantity: product.allowDecimalQuantity === true,
+      preferredVehicleType: product.preferredVehicleType ?? null,
+      allowedVehicleTypes: parseAllowedVehicleTypes(product.allowedVehicleTypes),
+    };
+  }
+
   private mapProduct(
     product: {
       id: string;
@@ -850,6 +928,14 @@ export class ProductService {
       maxOrder: number | null;
       incrementStep?: number;
       defaultQuantity?: number;
+      weightPerUnitKg?: unknown;
+      volumePerUnitCft?: unknown;
+      loadType?: string | null;
+      logisticsType?: string | null;
+      isTransportable?: boolean;
+      allowDecimalQuantity?: boolean;
+      preferredVehicleType?: ProductLogisticsSnapshot['preferredVehicleType'];
+      allowedVehicleTypes?: unknown;
       hasVariants: boolean;
       defaultVariantId: string | null;
       perPiecePrice: unknown;
@@ -894,15 +980,13 @@ export class ProductService {
       variantId: string | null;
       hubName?: string;
     }>,
-    deliveryEtaMinutes: number | null = null,
+    etaPreview: DeliveryEtaCalculationResult | null = null,
   ): ProductResponseDto {
     const retailPrice = Number(product.retailPrice);
     const mrp =
       product.mrp != null ? Number(product.mrp) : null;
     const bulkPrice = product.bulkPrice ? Number(product.bulkPrice) : null;
-    const membershipPrice = product.membershipPrice
-      ? Number(product.membershipPrice)
-      : Math.round(retailPrice * 0.95 * 100) / 100;
+    const membershipPrice = null;
     const preferredUrl = pickPreferredMediaUrl(
       product.images.map((img) => img.url),
     );
@@ -982,6 +1066,11 @@ export class ProductService {
       maxOrder: product.maxOrder,
       incrementStep: product.incrementStep ?? 1,
       defaultQuantity: product.defaultQuantity ?? product.minOrder ?? 1,
+      weightPerUnit:
+        product.weightPerUnitKg != null
+          ? Number(product.weightPerUnitKg)
+          : null,
+      logisticsType: product.logisticsType ?? null,
       hasVariants: product.hasVariants || variantCount > 1,
       defaultVariantId: product.defaultVariantId,
       variantCount,
@@ -998,15 +1087,9 @@ export class ProductService {
       rating: averageRating,
       stockLeft,
       availableStock: stockLeft,
-      estimatedDeliveryMinutes: deliveryEtaMinutes,
-      deliveryETA:
-        deliveryEtaMinutes != null
-          ? buildDeliveryMessage(deliveryEtaMinutes)
-          : product.deliveryETA ?? undefined,
-      deliveryMessage:
-        deliveryEtaMinutes != null
-          ? buildDeliveryMessage(deliveryEtaMinutes)
-          : product.deliveryETA ?? undefined,
+      estimatedDeliveryMinutes: etaPreview?.etaMinutes ?? null,
+      deliveryETA: etaPreview?.deliveryMessage ?? undefined,
+      deliveryMessage: etaPreview?.deliveryMessage ?? undefined,
       membershipPrice,
       isBulkAvailable,
       images: product.images.map((img) => {

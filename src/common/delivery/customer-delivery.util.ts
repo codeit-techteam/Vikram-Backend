@@ -5,6 +5,8 @@ export type DeliveryMessageOptions = {
   preorder?: boolean;
   deliveringBy?: string | null;
   serviceable?: boolean;
+  etaMinMinutes?: number;
+  etaMaxMinutes?: number;
 };
 
 export function buildDeliveryMessage(
@@ -19,22 +21,32 @@ export function buildDeliveryMessage(
     return 'Delivery unavailable at this location';
   }
 
-  if (etaMinutes > 0 && etaMinutes <= 30) {
-    return `Delivery in ${etaMinutes} mins`;
-  }
-
-  if (etaMinutes > 30 && etaMinutes <= 90) {
-    return 'Delivery in about 1 hour';
-  }
-
-  if (etaMinutes > 90) {
-    if (options.deliveringBy) {
-      return `Delivery by ${options.deliveringBy}`;
+  if (
+    options.etaMinMinutes != null &&
+    options.etaMaxMinutes != null &&
+    options.etaMinMinutes > 0
+  ) {
+    const min = options.etaMinMinutes;
+    const max = options.etaMaxMinutes;
+    if (max < 60) {
+      return min === max
+        ? `Estimated delivery ~${min} mins`
+        : `Estimated delivery ${min}–${max} mins`;
     }
-    return 'Delivery Today';
+    const minH = Math.round((min / 60) * 10) / 10;
+    const maxH = Math.round((max / 60) * 10) / 10;
+    return minH === maxH
+      ? `Estimated delivery ~${minH} hrs`
+      : `Estimated delivery ${minH}–${maxH} hrs`;
   }
 
-  return 'Fast Delivery Available';
+  if (etaMinutes > 0) {
+    return `Estimated delivery ~${etaMinutes} mins`;
+  }
+  if (!options.serviceable) {
+    return 'Delivery unavailable at this location';
+  }
+  return 'Select delivery location to calculate ETA';
 }
 
 export function buildDeliverySubtitle(
@@ -47,28 +59,19 @@ export function buildDeliverySubtitle(
   if (options.freeDelivery) {
     return 'Free delivery available to your location';
   }
-  return 'Fast delivery available to your location';
+  return 'Delivery available to your location';
 }
 
-const PICKING_MINUTES = 5;
-const PACKING_MINUTES = 5;
-const LOADING_MINUTES = 5;
-const AVG_VEHICLE_SPEED_KMH = 25;
-const TRAFFIC_MULTIPLIER = 1.25;
-const TRAFFIC_BUFFER_MINUTES = 3;
-
+/**
+ * @deprecated Distance-only ETA is not product-aware.
+ * Use DeliveryEtaEngineService / DeliveryService.calculateEta instead.
+ */
 export function computeDeliveryEtaMinutes(distanceKm: number): number {
   const travelMinutes = Math.max(
     1,
-    Math.ceil((distanceKm / AVG_VEHICLE_SPEED_KMH) * 60 * TRAFFIC_MULTIPLIER),
+    Math.ceil((distanceKm / 25) * 60 * 1.25),
   );
-  return (
-    PICKING_MINUTES +
-    PACKING_MINUTES +
-    LOADING_MINUTES +
-    travelMinutes +
-    TRAFFIC_BUFFER_MINUTES
-  );
+  return 25 + travelMinutes;
 }
 
 /** Customer-safe order status labels (no hub / warehouse terminology). */

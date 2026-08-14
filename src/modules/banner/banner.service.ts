@@ -59,6 +59,7 @@ export class BannerService {
       secondaryLinkType: b.secondaryLinkType,
       secondaryLinkTarget: b.secondaryLinkTarget,
       placement: b.placement,
+      targetAudience: b.targetAudience ?? 'ALL',
       displayOrder: b.displayOrder,
       priority: b.priority,
       visibility: b.visibility,

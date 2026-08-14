@@ -24,7 +24,7 @@ import type { CartLoadItemInput } from './engine/delivery-load.types';
 export interface CalculatedDeliveryCharge {
   available: boolean;
   message?: string;
-  vehicleType: DeliveryVehicleType;
+  vehicleType: DeliveryVehicleType | null;
   vehicleDisplayName: string;
   distanceKm: number;
   /** List price from active pricing rule (before free-bike benefit). */
@@ -51,6 +51,7 @@ export interface CalculatedDeliveryCharge {
   capacityLimit: number | null;
   capacityUtilizationPercent: number | null;
   selectionMode: string | null;
+  selectionReason?: string | null;
   requiresBulkQuote: boolean;
   multiVehicle: boolean;
   breakdown?: {
@@ -311,6 +312,7 @@ export class DeliveryPricingService {
     capacityLimit?: number | null;
     capacityUtilizationPercent?: number | null;
     selectionMode?: string | null;
+    selectionReason?: string | null;
   }): Promise<CalculatedDeliveryCharge> {
     const vehicleType = params.vehicleType;
     const distanceKm = toMoney(params.distanceKm);
@@ -351,6 +353,7 @@ export class DeliveryPricingService {
       capacityLimit: params.capacityLimit ?? null,
       capacityUtilizationPercent: params.capacityUtilizationPercent ?? null,
       selectionMode: params.selectionMode ?? null,
+      selectionReason: params.selectionReason ?? null,
       requiresBulkQuote: false,
       multiVehicle: vehicleCount > 1,
       breakdown: {
@@ -469,15 +472,16 @@ export class DeliveryPricingService {
             capacityLimit: selection.capacityLimit,
             capacityUtilizationPercent: selection.capacityUtilizationPercent,
             selectionMode: selection.mode,
+            selectionReason: selection.reason,
           },
         ),
         requiresBulkQuote: selection.requiresBulkQuote,
         multiVehicle: selection.multiVehicle,
         vehicleCount: selection.vehicleCount || 0,
-        vehicleType: selection.vehicleType ?? DeliveryVehicleType.BIKE,
+        vehicleType: selection.vehicleType,
         vehicleDisplayName:
-          selection.vehicleDisplayName ??
-          DELIVERY_VEHICLE_DISPLAY_NAMES[DeliveryVehicleType.BIKE],
+          selection.vehicleDisplayName ?? 'Delivery vehicle unassigned',
+        selectionReason: selection.reason,
       };
     }
 
@@ -494,6 +498,7 @@ export class DeliveryPricingService {
       capacityLimit: selection.capacityLimit,
       capacityUtilizationPercent: selection.capacityUtilizationPercent,
       selectionMode: selection.mode,
+      selectionReason: selection.reason,
     });
   }
 
@@ -505,8 +510,9 @@ export class DeliveryPricingService {
     return {
       available: false,
       message,
-      vehicleType: DeliveryVehicleType.BIKE,
-      vehicleDisplayName: DELIVERY_VEHICLE_DISPLAY_NAMES.BIKE,
+      vehicleType: extras?.vehicleType ?? null,
+      vehicleDisplayName:
+        extras?.vehicleDisplayName ?? 'Delivery vehicle unassigned',
       distanceKm: toMoney(distanceKm || 0),
       listPrice: 0,
       deliveryCharge: 0,
@@ -530,6 +536,7 @@ export class DeliveryPricingService {
       capacityLimit: extras?.capacityLimit ?? null,
       capacityUtilizationPercent: extras?.capacityUtilizationPercent ?? null,
       selectionMode: extras?.selectionMode ?? null,
+      selectionReason: extras?.selectionReason ?? null,
       requiresBulkQuote: extras?.requiresBulkQuote ?? false,
       multiVehicle: extras?.multiVehicle ?? false,
     };

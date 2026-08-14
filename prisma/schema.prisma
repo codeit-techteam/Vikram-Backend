@@ -46,6 +46,36 @@ enum BannerPlacement {
   EMERGENCY_DELIVERY
 }
 
+enum BannerTargetAudience {
+  ALL
+  NEW_CUSTOMERS
+  FREE_BIKE_REMAINING
+  FREE_BIKE_EXHAUSTED
+}
+
+enum DeliveryPromotionPlacement {
+  HOME_TOP_DELIVERY_PROMOTION
+}
+
+enum DeliveryPromotionExhaustedBehavior {
+  HIDE
+  SHOW_ALTERNATE
+}
+
+enum OfferTargetAudience {
+  ALL
+  NEW_CUSTOMERS
+  EXISTING_CUSTOMERS
+  CONTRACTORS
+  MASONS
+  INTERIOR_DESIGNERS
+  ARCHITECTS
+  BUILDERS
+  DEVELOPERS
+  MEMBERSHIP_TIER
+  CUSTOM_SEGMENT
+}
+
 enum BannerType {
   IMAGE
   VIDEO
@@ -450,6 +480,7 @@ enum DeliveryVehicleType {
   THREE_WHEELER_LOADER
   PICK_UP_VAN
   FULL_TRUCK
+  RMC_TRANSIT_MIXER
 }
 
 enum DeliveryPricingStatus {
@@ -670,6 +701,8 @@ model Product {
   volumePerUnitCft Decimal?           @map("volume_per_unit_cft") @db.Decimal(12, 3)
   /// WEIGHT | VOLUME | QUANTITY | MIXED — how load is measured for this SKU
   loadType         String?            @map("load_type") @db.VarChar(20)
+  /// PARCEL | LIGHT_MATERIAL | CEMENT | BRICKS | RMC | SAND | AGGREGATE | …
+  logisticsType    String?            @map("logistics_type") @db.VarChar(40)
   isTransportable  Boolean            @default(true) @map("is_transportable")
   allowDecimalQuantity Boolean        @default(false) @map("allow_decimal_quantity")
   preferredVehicleType DeliveryVehicleType? @map("preferred_vehicle_type")
@@ -767,11 +800,13 @@ model ProductVariant {
 // ─── CMS: Banner, Offer, Video, Announcement ─────────────────────────────────
 
 model Banner {
-  id                   String          @id @default(uuid()) @db.Uuid
-  slug                 String          @unique @db.VarChar(120)
-  title                String          @db.VarChar(200)
-  subtitle             String?         @db.VarChar(300)
-  imageUrl             String          @map("image_url") @db.VarChar(500)
+  id                   String                @id @default(uuid()) @db.Uuid
+  slug                 String                @unique @db.VarChar(120)
+  name                 String?               @db.VarChar(200)
+  description          String?               @db.Text
+  title                String                @db.VarChar(200)
+  subtitle             String?               @db.VarChar(300)
+  imageUrl             String                @map("image_url") @db.VarChar(500)
   mobileUrl            String?         @map("mobile_url") @db.VarChar(500)
   tabletUrl            String?         @map("tablet_url") @db.VarChar(500)
   desktopUrl           String?         @map("desktop_url") @db.VarChar(500)
@@ -790,22 +825,64 @@ model Banner {
   secondaryLinkUrl     String?         @map("secondary_link_url") @db.VarChar(500)
   secondaryLinkType    String?         @map("secondary_link_type") @db.VarChar(50)
   secondaryLinkTarget  String?         @map("secondary_link_target") @db.VarChar(200)
-  placement            BannerPlacement @default(HOME_HERO)
-  displayOrder         Int             @default(0) @map("display_order")
-  priority             Int             @default(0)
-  startsAt             DateTime?       @map("starts_at")
-  endsAt               DateTime?       @map("ends_at")
-  isVisible            Boolean         @default(true) @map("is_visible")
-  visibility           Visibility      @default(PUBLIC)
-  status               EntityStatus    @default(ACTIVE)
-  deletedAt            DateTime?       @map("deleted_at")
-  createdAt            DateTime        @default(now()) @map("created_at")
-  updatedAt            DateTime        @updatedAt @map("updated_at")
+  placement            BannerPlacement       @default(HOME_HERO)
+  targetAudience       BannerTargetAudience  @default(ALL) @map("target_audience")
+  displayOrder         Int                   @default(0) @map("display_order")
+  priority             Int                   @default(0)
+  startsAt             DateTime?             @map("starts_at")
+  endsAt               DateTime?             @map("ends_at")
+  isVisible            Boolean               @default(true) @map("is_visible")
+  visibility           Visibility            @default(PUBLIC)
+  status               EntityStatus          @default(ACTIVE)
+  deletedAt            DateTime?             @map("deleted_at")
+  createdAt            DateTime              @default(now()) @map("created_at")
+  updatedAt            DateTime              @updatedAt @map("updated_at")
 
   @@index([placement, status, isVisible, displayOrder])
   @@index([startsAt, endsAt])
   @@index([deletedAt])
+  @@index([targetAudience])
   @@map("banners")
+}
+
+/// CMS-managed home delivery promo strip. Does not grant free-delivery benefits.
+model DeliveryPromotion {
+  id                  String                              @id @default(uuid()) @db.Uuid
+  slug                String                              @unique @db.VarChar(120)
+  name                String                              @db.VarChar(200)
+  description         String?                             @db.Text
+  headline            String                              @db.VarChar(200)
+  subtitle            String?                             @db.VarChar(300)
+  badge               String?                             @db.VarChar(100)
+  remainingHeadline   String?                             @map("remaining_headline") @db.VarChar(200)
+  exhaustedHeadline   String?                             @map("exhausted_headline") @db.VarChar(200)
+  exhaustedBehavior   DeliveryPromotionExhaustedBehavior  @default(HIDE) @map("exhausted_behavior")
+  bannerImage         String                              @map("banner_image") @db.VarChar(500)
+  mobileBannerImage   String?                             @map("mobile_banner_image") @db.VarChar(500)
+  desktopBannerImage  String?                             @map("desktop_banner_image") @db.VarChar(500)
+  placement           DeliveryPromotionPlacement          @default(HOME_TOP_DELIVERY_PROMOTION)
+  targetAudience      BannerTargetAudience                @default(FREE_BIKE_REMAINING) @map("target_audience")
+  status              EntityStatus                        @default(DRAFT)
+  visibility          Visibility                          @default(HIDDEN)
+  isVisible           Boolean                             @default(false) @map("is_visible")
+  priority            Int                                 @default(10)
+  ctaEnabled          Boolean                             @default(false) @map("cta_enabled")
+  ctaLabel            String?                             @map("cta_label") @db.VarChar(100)
+  ctaType             String?                             @map("cta_type") @db.VarChar(50)
+  ctaValue            String?                             @map("cta_value") @db.VarChar(500)
+  startsAt            DateTime?                           @map("starts_at")
+  endsAt              DateTime?                           @map("ends_at")
+  createdBy           String?                             @map("created_by") @db.Uuid
+  updatedBy           String?                             @map("updated_by") @db.Uuid
+  deletedAt           DateTime?                           @map("deleted_at")
+  createdAt           DateTime                            @default(now()) @map("created_at")
+  updatedAt           DateTime                            @updatedAt @map("updated_at")
+
+  @@index([placement, status, isVisible, priority])
+  @@index([startsAt, endsAt])
+  @@index([deletedAt])
+  @@index([targetAudience])
+  @@map("delivery_promotions")
 }
 
 model Advertisement {
@@ -902,38 +979,45 @@ model HomeSection {
 }
 
 model Offer {
-  id              String       @id @default(uuid()) @db.Uuid
-  slug            String       @unique @db.VarChar(120)
-  title           String       @db.VarChar(200)
-  titleHi         String?      @map("title_hi") @db.VarChar(200)
-  description     String?      @db.Text
-  imageUrl        String?      @map("image_url") @db.VarChar(500)
-  offerType       OfferType    @default(BUNDLE) @map("offer_type")
-  discountLabel   String?      @map("discount_label") @db.VarChar(100)
-  discountValue   Decimal?     @map("discount_value") @db.Decimal(12, 2)
-  discountPercent Decimal?     @map("discount_percent") @db.Decimal(5, 2)
-  bundlePrice     Decimal?     @map("bundle_price") @db.Decimal(12, 2)
-  originalPrice   Decimal?     @map("original_price") @db.Decimal(12, 2)
-  badge           String?      @db.VarChar(100)
-  displayOrder    Int          @default(0) @map("display_order")
-  priority        Int          @default(0)
-  startsAt        DateTime?    @map("starts_at")
-  endsAt          DateTime?    @map("ends_at")
-  isFeatured      Boolean      @default(false) @map("is_featured")
-  isVisible       Boolean      @default(true) @map("is_visible")
-  visibility      Visibility   @default(PUBLIC)
-  status          EntityStatus @default(ACTIVE)
-  metaTitle       String?      @map("meta_title") @db.VarChar(200)
-  metaDesc        String?      @map("meta_desc") @db.VarChar(500)
-  deletedAt       DateTime?    @map("deleted_at")
-  createdAt       DateTime     @default(now()) @map("created_at")
-  updatedAt       DateTime     @updatedAt @map("updated_at")
+  id              String               @id @default(uuid()) @db.Uuid
+  slug            String               @unique @db.VarChar(120)
+  title           String               @db.VarChar(200)
+  titleHi         String?              @map("title_hi") @db.VarChar(200)
+  description     String?              @db.Text
+  imageUrl        String?              @map("image_url") @db.VarChar(500)
+  mobileImageUrl  String?              @map("mobile_image_url") @db.VarChar(500)
+  offerType       OfferType            @default(BUNDLE) @map("offer_type")
+  discountLabel   String?              @map("discount_label") @db.VarChar(100)
+  discountValue   Decimal?             @map("discount_value") @db.Decimal(12, 2)
+  discountPercent Decimal?             @map("discount_percent") @db.Decimal(5, 2)
+  bundlePrice     Decimal?             @map("bundle_price") @db.Decimal(12, 2)
+  originalPrice   Decimal?             @map("original_price") @db.Decimal(12, 2)
+  badge           String?              @db.VarChar(100)
+  ctaLabel        String?              @map("cta_label") @db.VarChar(100)
+  ctaAction       String?              @map("cta_action") @db.VarChar(40)
+  ctaValue        String?              @map("cta_value") @db.VarChar(200)
+  targetAudience  OfferTargetAudience  @default(ALL) @map("target_audience")
+  displayOrder    Int                  @default(0) @map("display_order")
+  priority        Int                  @default(0)
+  startsAt        DateTime?            @map("starts_at")
+  endsAt          DateTime?            @map("ends_at")
+  isFeatured      Boolean              @default(false) @map("is_featured")
+  isVisible       Boolean              @default(true) @map("is_visible")
+  visibility      Visibility           @default(PUBLIC)
+  status          EntityStatus         @default(ACTIVE)
+  metaTitle       String?              @map("meta_title") @db.VarChar(200)
+  metaDesc        String?              @map("meta_desc") @db.VarChar(500)
+  deletedAt       DateTime?            @map("deleted_at")
+  createdAt       DateTime             @default(now()) @map("created_at")
+  updatedAt       DateTime             @updatedAt @map("updated_at")
 
   products OfferProduct[]
 
   @@index([slug])
   @@index([status, isVisible, isFeatured, displayOrder])
   @@index([startsAt, endsAt])
+  @@index([priority, startsAt])
+  @@index([targetAudience])
   @@index([deletedAt])
   @@map("offers")
 }
@@ -1462,6 +1546,18 @@ model Order {
   deliveryFreeReason  String?       @map("delivery_free_reason") @db.VarChar(120)
   deliveryRequiresBulkQuote Boolean @default(false) @map("delivery_requires_bulk_quote")
   deliveryMultiVehicle Boolean      @default(false) @map("delivery_multi_vehicle")
+  deliveryPreparationMinutes Decimal? @map("delivery_preparation_minutes") @db.Decimal(8, 2)
+  deliveryLoadingMinutes     Decimal? @map("delivery_loading_minutes") @db.Decimal(8, 2)
+  deliveryQueueMinutes       Decimal? @map("delivery_queue_minutes") @db.Decimal(8, 2)
+  deliveryTravelMinutes      Decimal? @map("delivery_travel_minutes") @db.Decimal(8, 2)
+  deliveryUnloadingMinutes   Decimal? @map("delivery_unloading_minutes") @db.Decimal(8, 2)
+  deliverySiteAccessMinutes  Decimal? @map("delivery_site_access_minutes") @db.Decimal(8, 2)
+  deliveryBufferMinutes      Decimal? @map("delivery_buffer_minutes") @db.Decimal(8, 2)
+  deliveryEtaMinMinutes      Int?     @map("delivery_eta_min_minutes")
+  deliveryEtaMaxMinutes      Int?     @map("delivery_eta_max_minutes")
+  deliveryEtaConfidence      String?  @map("delivery_eta_confidence") @db.VarChar(20)
+  deliveryLogisticsType      String?  @map("delivery_logistics_type") @db.VarChar(40)
+  deliverySelectionReason    String?  @map("delivery_selection_reason") @db.VarChar(500)
   priorityOrder       Boolean       @default(false) @map("priority_order")
   assignedDriverId    String?       @map("assigned_driver_id") @db.Uuid
   assignedVehicleId   String?       @map("assigned_vehicle_id") @db.Uuid
@@ -3041,6 +3137,15 @@ model DeliveryVehicleConfig {
   active                    Boolean             @default(true)
   /// JSON array of category IDs/slugs; null = all categories allowed
   allowedProductCategories  Json?               @map("allowed_product_categories") @db.JsonB
+  avgLoadingTimeMinutes     Decimal?            @map("avg_loading_time_minutes") @db.Decimal(8, 2)
+  avgUnloadingTimeMinutes   Decimal?            @map("avg_unloading_time_minutes") @db.Decimal(8, 2)
+  driverPreparationTimeMinutes Decimal?         @map("driver_preparation_time_minutes") @db.Decimal(8, 2)
+  operationalBufferMinutes  Decimal?            @map("operational_buffer_minutes") @db.Decimal(8, 2)
+  avgSpeedKmh               Decimal?            @map("avg_speed_kmh") @db.Decimal(8, 2)
+  supportsRmc               Boolean             @default(false) @map("supports_rmc")
+  supportsBulkMaterial      Boolean             @default(false) @map("supports_bulk_material")
+  /// JSON array of logistics type strings; null = unrestricted
+  allowedLogisticsTypes     Json?               @map("allowed_logistics_types") @db.JsonB
   createdBy                 String?             @map("created_by") @db.Uuid
   updatedBy                 String?             @map("updated_by") @db.Uuid
   createdAt                 DateTime            @default(now()) @map("created_at")
@@ -3068,4 +3173,54 @@ model DeliveryEngineConfig {
   updatedAt               DateTime @updatedAt @map("updated_at")
 
   @@map("delivery_engine_configs")
+}
+
+/// Global ETA timing defaults (Admin-configurable).
+model DeliveryEtaConfig {
+  id                            String   @id @default(uuid()) @db.Uuid
+  configKey                     String   @unique @default("DEFAULT") @map("config_key") @db.VarChar(40)
+  defaultPickingMinutes         Decimal  @default(5) @map("default_picking_minutes") @db.Decimal(8, 2)
+  defaultPackingMinutes         Decimal  @default(5) @map("default_packing_minutes") @db.Decimal(8, 2)
+  defaultQueueMinutes           Decimal  @default(0) @map("default_queue_minutes") @db.Decimal(8, 2)
+  defaultSiteAccessMinutes      Decimal  @default(5) @map("default_site_access_minutes") @db.Decimal(8, 2)
+  trafficMultiplier             Decimal  @default(1.25) @map("traffic_multiplier") @db.Decimal(6, 3)
+  trafficDataAvailable          Boolean  @default(false) @map("traffic_data_available")
+  fallbackSpeedKmh              Decimal  @default(25) @map("fallback_speed_kmh") @db.Decimal(8, 2)
+  rmcPlantPreparationMinutes    Decimal  @default(25) @map("rmc_plant_preparation_minutes") @db.Decimal(8, 2)
+  rmcMixerLoadingMinutes        Decimal  @default(15) @map("rmc_mixer_loading_minutes") @db.Decimal(8, 2)
+  rmcPouringMinutesPerCum       Decimal  @default(8) @map("rmc_pouring_minutes_per_cum") @db.Decimal(8, 2)
+  rmcSiteAccessMinutes          Decimal  @default(10) @map("rmc_site_access_minutes") @db.Decimal(8, 2)
+  rmcQueueMinutes               Decimal  @default(10) @map("rmc_queue_minutes") @db.Decimal(8, 2)
+  confidenceHighSpreadMinutes   Int      @default(5) @map("confidence_high_spread_minutes")
+  confidenceMediumSpreadMinutes Int      @default(15) @map("confidence_medium_spread_minutes")
+  confidenceLowSpreadMinutes    Int      @default(30) @map("confidence_low_spread_minutes")
+  updatedBy                     String?  @map("updated_by") @db.Uuid
+  updatedByName                 String?  @map("updated_by_name") @db.VarChar(120)
+  createdAt                     DateTime @default(now()) @map("created_at")
+  updatedAt                     DateTime @updatedAt @map("updated_at")
+
+  @@map("delivery_eta_configs")
+}
+
+/// Loading / unloading rates by logistics type (Admin-configurable).
+/// RATE model: loadingMinutes is BASE overhead; quantity scales via kg/minute rates.
+model DeliveryLoadingRule {
+  id                        String   @id @default(uuid()) @db.Uuid
+  logisticsType             String   @map("logistics_type") @db.VarChar(40)
+  /// RATE | PER_BATCH | FIXED | PER_UNIT
+  model                     String   @default("RATE") @db.VarChar(30)
+  minQuantity               Decimal  @default(0) @map("min_quantity") @db.Decimal(12, 3)
+  maxQuantity               Decimal? @map("max_quantity") @db.Decimal(12, 3)
+  loadingMinutes            Decimal  @map("loading_minutes") @db.Decimal(8, 2)
+  unloadingMinutes          Decimal? @map("unloading_minutes") @db.Decimal(8, 2)
+  preparationMinutes        Decimal? @map("preparation_minutes") @db.Decimal(8, 2)
+  loadingRateKgPerMinute    Decimal? @map("loading_rate_kg_per_minute") @db.Decimal(10, 2)
+  unloadingRateKgPerMinute  Decimal? @map("unloading_rate_kg_per_minute") @db.Decimal(10, 2)
+  priority                  Int      @default(100)
+  active                    Boolean  @default(true)
+  createdAt                 DateTime @default(now()) @map("created_at")
+  updatedAt                 DateTime @updatedAt @map("updated_at")
+
+  @@index([logisticsType, active, priority])
+  @@map("delivery_loading_rules")
 }

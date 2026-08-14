@@ -138,7 +138,28 @@ export class CheckoutResponseDto {
   @ApiProperty({ example: 28 })
   deliveryETA!: number;
 
-  @ApiProperty({ example: 'Delivery in 28 mins' })
+  @ApiPropertyOptional({ example: 25 })
+  deliveryEtaMinMinutes?: number;
+
+  @ApiPropertyOptional({ example: 40 })
+  deliveryEtaMaxMinutes?: number;
+
+  @ApiPropertyOptional({ example: 'CEMENT' })
+  deliveryLogisticsType?: string | null;
+
+  @ApiPropertyOptional({ example: 12 })
+  deliveryPreparationMinutes?: number | null;
+
+  @ApiPropertyOptional({ example: 18 })
+  deliveryLoadingMinutes?: number | null;
+
+  @ApiPropertyOptional({ example: 22 })
+  deliveryTravelMinutes?: number | null;
+
+  @ApiPropertyOptional({ example: 14 })
+  deliveryUnloadingMinutes?: number | null;
+
+  @ApiProperty({ example: 'Estimated delivery 25–40 mins' })
   deliveryMessage!: string;
 
   @ApiPropertyOptional({ example: '5:30 PM' })
@@ -275,6 +296,9 @@ export class CheckoutResponseDto {
 
   @ApiPropertyOptional({ example: false })
   deliveryMultiVehicle?: boolean;
+
+  @ApiPropertyOptional()
+  deliverySelectionReason?: string | null;
 
   @ApiPropertyOptional({ type: Object })
   deliveryBreakdown?: Record<string, unknown> | null;

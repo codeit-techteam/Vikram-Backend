@@ -56,6 +56,7 @@ export class AdminOffersController {
   }
 
   @Patch(':id/activate')
+  @Post(':id/activate')
   @AdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
   @ApiOperation({ summary: 'Activate offer' })
   async activate(@Param('id') id: string, @CurrentAdmin() admin: AuthenticatedAdmin) {
@@ -64,7 +65,18 @@ export class AdminOffersController {
     return { success: true, message: 'Offer activated', data };
   }
 
+  @Patch(':id/publish')
+  @Post(':id/publish')
+  @AdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
+  @ApiOperation({ summary: 'Publish offer' })
+  async publish(@Param('id') id: string, @CurrentAdmin() admin: AuthenticatedAdmin) {
+    const data = await this.offersService.publish(id);
+    await this.auditService.log({ adminUserId: admin.id, adminEmail: admin.email, action: 'PUBLISH', resource: 'Offer', resourceId: id });
+    return { success: true, message: 'Offer published successfully', data };
+  }
+
   @Patch(':id/deactivate')
+  @Post(':id/deactivate')
   @AdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
   @ApiOperation({ summary: 'Deactivate offer' })
   async deactivate(@Param('id') id: string, @CurrentAdmin() admin: AuthenticatedAdmin) {

@@ -3,12 +3,12 @@ import { Type } from 'class-transformer';
 import {
   ArrayMinSize,
   IsArray,
-  IsInt,
   IsNumber,
   IsOptional,
   IsString,
   IsUUID,
   Min,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
 
@@ -19,13 +19,14 @@ export class DeliveryEtaCartItemDto {
 
   @ApiPropertyOptional()
   @IsOptional()
+  @ValidateIf((_, value) => typeof value === 'string' && value.length > 0)
   @IsUUID()
   variantId?: string;
 
-  @ApiProperty({ example: 1, minimum: 1 })
+  @ApiProperty({ example: 1, minimum: 0.01, description: 'Supports decimal qty for RMC' })
   @Type(() => Number)
-  @IsInt()
-  @Min(1)
+  @IsNumber()
+  @Min(0.01)
   quantity!: number;
 }
 
@@ -102,32 +103,76 @@ export class DeliveryEtaBodyDto {
   cartItems?: DeliveryEtaCartItemDto[];
 }
 
-export class DeliveryEtaBreakdownDto {
-  @ApiProperty({ example: 5, description: 'Minutes to pick items' })
+export class DeliveryEtaTimingDto {
+  @ApiProperty({ example: 25 })
+  preparationMinutes!: number;
+
+  @ApiProperty({ example: 5 })
   pickingMinutes!: number;
 
   @ApiProperty({ example: 5 })
   packingMinutes!: number;
 
-  @ApiProperty({ example: 5 })
+  @ApiProperty({ example: 8 })
+  vehicleAssignmentMinutes!: number;
+
+  @ApiProperty({ example: 10 })
+  queueMinutes!: number;
+
+  @ApiProperty({ example: 15 })
   loadingMinutes!: number;
 
-  @ApiProperty({ example: 12 })
+  @ApiProperty({ example: 22 })
   travelMinutes!: number;
 
-  @ApiProperty({ example: 3 })
-  trafficBufferMinutes!: number;
+  @ApiProperty({ example: 20 })
+  unloadingMinutes!: number;
+
+  @ApiProperty({ example: 10 })
+  siteAccessMinutes!: number;
+
+  @ApiProperty({ example: 15 })
+  bufferMinutes!: number;
+
+  @ApiProperty({ example: 25 })
+  plantPreparationMinutes!: number;
+
+  @ApiProperty({ example: 15 })
+  mixerLoadingMinutes!: number;
+}
+
+export class DeliveryEtaFulfillmentSourceDto {
+  @ApiPropertyOptional()
+  id?: string;
+
+  @ApiProperty({ example: 'HUB', enum: ['HUB', 'RMC_PLANT', 'WAREHOUSE'] })
+  type!: string;
+
+  @ApiPropertyOptional()
+  name?: string;
 }
 
 export class DeliveryEtaResponseDto {
   @ApiProperty()
   serviceable!: boolean;
 
-  @ApiProperty({ example: 30, description: 'Total ETA in minutes' })
+  @ApiProperty({ example: 95, description: 'Point ETA in minutes (mid of range)' })
   deliveryETA!: number;
 
-  @ApiProperty({ example: 'Delivery in 30 mins' })
+  @ApiPropertyOptional({ example: 85 })
+  etaMinMinutes?: number;
+
+  @ApiPropertyOptional({ example: 110 })
+  etaMaxMinutes?: number;
+
+  @ApiPropertyOptional({ example: 'MEDIUM', enum: ['HIGH', 'MEDIUM', 'LOW'] })
+  etaConfidence?: 'HIGH' | 'MEDIUM' | 'LOW';
+
+  @ApiProperty({ example: 'Estimated delivery 1.5–2 hrs' })
   deliveryMessage!: string;
+
+  @ApiPropertyOptional({ example: 'Mixer Truck Delivery' })
+  deliveryModeTitle?: string;
 
   @ApiProperty({ example: 'Today' })
   deliveryDay!: 'Today' | 'Tomorrow' | 'Later' | 'Unavailable';
@@ -144,10 +189,10 @@ export class DeliveryEtaResponseDto {
   @ApiPropertyOptional()
   message?: string;
 
-  @ApiPropertyOptional({ example: 'E_LOADER' })
+  @ApiPropertyOptional({ example: 'RMC_TRANSIT_MIXER' })
   deliveryVehicleType?: string;
 
-  @ApiPropertyOptional({ example: 'E-Loader' })
+  @ApiPropertyOptional({ example: 'RMC Transit Mixer' })
   deliveryVehicleDisplayName?: string;
 
   @ApiPropertyOptional({ example: 1 })
@@ -156,12 +201,36 @@ export class DeliveryEtaResponseDto {
   @ApiPropertyOptional({ example: 4.2 })
   deliveryDistanceKm?: number;
 
-  @ApiPropertyOptional({ example: 320 })
+  @ApiPropertyOptional({ example: 2400 })
   deliveryTotalWeightKg?: number | null;
 
-  @ApiPropertyOptional({ example: 320 })
+  @ApiPropertyOptional({ example: 35.3 })
+  deliveryTotalVolumeCft?: number | null;
+
+  @ApiPropertyOptional({ example: 2400 })
   deliveryCapacityUsed?: number | null;
 
-  @ApiPropertyOptional({ example: 500 })
+  @ApiPropertyOptional({ example: 14400 })
   deliveryCapacityLimit?: number | null;
+
+  @ApiPropertyOptional({ example: 'RMC' })
+  deliveryLogisticsType?: string;
+
+  @ApiPropertyOptional({
+    example:
+      'Stone aggregate is classified as heavy/bulk material and is not eligible for Bike delivery.',
+  })
+  deliverySelectionReason?: string;
+
+  @ApiPropertyOptional({ type: DeliveryEtaTimingDto })
+  timing?: DeliveryEtaTimingDto;
+
+  @ApiPropertyOptional()
+      trafficDataAvailable?: boolean;
+
+  @ApiPropertyOptional({ example: 2 })
+  calculationVersion?: number;
+
+  @ApiPropertyOptional({ type: DeliveryEtaFulfillmentSourceDto })
+  fulfillmentSource?: DeliveryEtaFulfillmentSourceDto;
 }

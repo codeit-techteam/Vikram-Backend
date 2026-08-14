@@ -1,6 +1,7 @@
 import {
   BannerPlacement,
   BannerType,
+  EntityStatus,
   HomeSectionType,
   PrismaClient,
   RedirectType,
@@ -40,31 +41,38 @@ export async function seedCmsHome(prisma: PrismaClient): Promise<void> {
     layoutType: string;
   }> = [
     {
-      sectionType: HomeSectionType.HERO_BANNER,
-      title: 'Hero Banner',
-      displayOrder: 1,
-      apiSource: 'cms.banners',
-      layoutType: 'carousel',
-    },
-    {
       sectionType: HomeSectionType.PROMO_BANNER,
       title: 'Home Promo Banner',
-      subtitle: 'Bulk offers and promo carousels (Banner Management → Home Promo)',
-      displayOrder: 2,
+      subtitle: 'CMS promotional banners (Banner Management → Home Promo)',
+      displayOrder: 20,
       apiSource: 'cms.promoBanners',
       layoutType: 'carousel',
     },
     {
+      sectionType: HomeSectionType.HERO_BANNER,
+      title: 'Hero Banner',
+      displayOrder: 2,
+      apiSource: 'cms.banners',
+      layoutType: 'carousel',
+    },
+    {
+      sectionType: HomeSectionType.MEMBERSHIP,
+      title: 'BajriPro Points',
+      displayOrder: 3,
+      apiSource: 'cms.promotions',
+      layoutType: 'card',
+    },
+    {
       sectionType: HomeSectionType.LOYALTY,
       title: 'Loyalty Progress',
-      displayOrder: 3,
+      displayOrder: 4,
       apiSource: 'loyalty',
       layoutType: 'card',
     },
     {
       sectionType: HomeSectionType.MATERIAL_CATEGORIES,
       title: 'Material Categories',
-      displayOrder: 3,
+      displayOrder: 5,
       apiSource: 'categories',
       layoutType: 'horizontal',
     },
@@ -96,13 +104,6 @@ export async function seedCmsHome(prisma: PrismaClient): Promise<void> {
       displayOrder: 7,
       apiSource: 'cms.testimonials',
       layoutType: 'carousel',
-    },
-    {
-      sectionType: HomeSectionType.MEMBERSHIP,
-      title: 'Bajriwala Membership',
-      displayOrder: 8,
-      apiSource: 'cms.promotions',
-      layoutType: 'card',
     },
     {
       sectionType: HomeSectionType.BULK_PROCUREMENT,
@@ -137,7 +138,7 @@ export async function seedCmsHome(prisma: PrismaClient): Promise<void> {
       sectionType: HomeSectionType.FEATURED_PRODUCTS,
       title: 'Featured Products',
       subtitle: 'Hand-picked products for your sites',
-      displayOrder: 20,
+      displayOrder: 19,
       apiSource: 'products.home.featured',
       layoutType: 'horizontal',
     },
@@ -193,7 +194,7 @@ export async function seedCmsHome(prisma: PrismaClient): Promise<void> {
       update: {
         title: section.title,
         subtitle: section.subtitle ?? null,
-        displayOrder: section.displayOrder,
+        // Preserve Super Admin Homepage Layout order across re-seeds.
         apiSource: section.apiSource,
         layoutType: section.layoutType,
         enabled:
@@ -201,8 +202,9 @@ export async function seedCmsHome(prisma: PrismaClient): Promise<void> {
           section.sectionType !== HomeSectionType.FEATURED_COLLECTION &&
           section.sectionType !== HomeSectionType.EMERGENCY_BANNER &&
           section.sectionType !== HomeSectionType.RECOMMENDED &&
-          section.sectionType !== HomeSectionType.OFFER_FOR_YOU &&
-          section.sectionType !== HomeSectionType.PRODUCT_DISCOVERY,
+          section.sectionType !== HomeSectionType.PRODUCT_DISCOVERY &&
+          section.sectionType !== HomeSectionType.LOYALTY &&
+          section.sectionType !== HomeSectionType.MEMBERSHIP,
       },
       create: {
         sectionType: section.sectionType,
@@ -216,8 +218,9 @@ export async function seedCmsHome(prisma: PrismaClient): Promise<void> {
           section.sectionType !== HomeSectionType.FEATURED_COLLECTION &&
           section.sectionType !== HomeSectionType.EMERGENCY_BANNER &&
           section.sectionType !== HomeSectionType.RECOMMENDED &&
-          section.sectionType !== HomeSectionType.OFFER_FOR_YOU &&
-          section.sectionType !== HomeSectionType.PRODUCT_DISCOVERY,
+          section.sectionType !== HomeSectionType.PRODUCT_DISCOVERY &&
+          section.sectionType !== HomeSectionType.LOYALTY &&
+          section.sectionType !== HomeSectionType.MEMBERSHIP,
       },
     });
   }
@@ -348,6 +351,144 @@ export async function seedCmsHome(prisma: PrismaClient): Promise<void> {
     },
   });
 
+  const existingFreeBikePromo = await prisma.banner.findUnique({
+    where: { slug: 'home-promo-3-free-bike-deliveries' },
+  });
+  if (existingFreeBikePromo && !existingFreeBikePromo.deletedAt) {
+    await prisma.banner.update({
+      where: { id: existingFreeBikePromo.id },
+      data: {
+        deletedAt: new Date(),
+        isVisible: false,
+        status: EntityStatus.INACTIVE,
+      },
+    });
+  }
+
+  const homePromoSlides: Array<{
+    slug: string;
+    name: string;
+    title: string;
+    subtitle: string;
+    badge: string;
+    ctaLabel: string;
+    ctaColor: string;
+    backgroundColor: string;
+    imageUrl: string;
+    linkType: string;
+    linkTarget: string;
+    displayOrder: number;
+    priority: number;
+  }> = [
+    {
+      slug: 'home-promo-bulk-order',
+      name: 'Bulk Order',
+      title: 'BULK ORDER | BIGGER SAVINGS!',
+      subtitle: 'Quality you trust, strength you build on.',
+      badge: 'Ideal for contractors',
+      ctaLabel: 'Shop Now',
+      ctaColor: '#111111',
+      backgroundColor: '#FFF6E8',
+      imageUrl:
+        'https://images.unsplash.com/photo-1565008576549-57569a49371d?w=800&q=80',
+      linkType: 'BULK_INQUIRY',
+      linkTarget: '/bulk-procurement',
+      displayOrder: 1,
+      priority: 1,
+    },
+    {
+      slug: 'home-promo-bidder',
+      name: 'Bidder',
+      title: 'BID BETTER | WIN MORE JOBS',
+      subtitle: 'Site-ready materials at contractor prices.',
+      badge: 'For bidders',
+      ctaLabel: 'Get Quote',
+      ctaColor: '#FFFFFF',
+      backgroundColor: '#FFF1E0',
+      imageUrl:
+        'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=800&q=80',
+      linkType: 'BULK_INQUIRY',
+      linkTarget: '/bulk-procurement',
+      displayOrder: 2,
+      priority: 2,
+    },
+    {
+      slug: 'home-promo-saving',
+      name: 'Saving',
+      title: 'FLAT SAVINGS | ON EVERY LOAD',
+      subtitle: 'More quantity. Better rates. Faster delivery.',
+      badge: 'Save more',
+      ctaLabel: 'Order Now',
+      ctaColor: '#FFFFFF',
+      backgroundColor: '#FFF8E1',
+      imageUrl:
+        'https://images.unsplash.com/photo-1541888946425-d81bb19240f5?w=800&q=80',
+      linkType: 'ROUTE',
+      linkTarget: '/(tabs)/catalog',
+      displayOrder: 3,
+      priority: 3,
+    },
+  ];
+
+  for (const slide of homePromoSlides) {
+    const existing = await prisma.banner.findUnique({ where: { slug: slide.slug } });
+    const keepImage =
+      isManagedCdnUrl(existing?.imageUrl) || isManagedCdnUrl(existing?.mobileUrl);
+    const imageUrl = keepImage
+      ? (existing?.mobileUrl || existing?.imageUrl || slide.imageUrl)
+      : slide.imageUrl;
+
+    await prisma.banner.upsert({
+      where: { slug: slide.slug },
+      update: {
+        name: slide.name,
+        title: slide.title,
+        subtitle: slide.subtitle,
+        badge: slide.badge,
+        bannerType: BannerType.IMAGE,
+        ctaLabel: slide.ctaLabel,
+        ctaColor: slide.ctaColor,
+        backgroundColor: slide.backgroundColor,
+        buttonAction: slide.linkType.toLowerCase(),
+        linkType: slide.linkType,
+        linkUrl: slide.linkTarget,
+        linkTarget: slide.linkTarget,
+        placement: BannerPlacement.HOME_PROMO,
+        displayOrder: slide.displayOrder,
+        priority: slide.priority,
+        isVisible: true,
+        status: EntityStatus.ACTIVE,
+        deletedAt: null,
+        ...(keepImage
+          ? {}
+          : { imageUrl, mobileUrl: imageUrl, thumbnailUrl: imageUrl }),
+      },
+      create: {
+        slug: slide.slug,
+        name: slide.name,
+        title: slide.title,
+        subtitle: slide.subtitle,
+        badge: slide.badge,
+        bannerType: BannerType.IMAGE,
+        imageUrl,
+        mobileUrl: imageUrl,
+        thumbnailUrl: imageUrl,
+        ctaLabel: slide.ctaLabel,
+        ctaColor: slide.ctaColor,
+        backgroundColor: slide.backgroundColor,
+        buttonAction: slide.linkType.toLowerCase(),
+        linkType: slide.linkType,
+        linkUrl: slide.linkTarget,
+        linkTarget: slide.linkTarget,
+        placement: BannerPlacement.HOME_PROMO,
+        displayOrder: slide.displayOrder,
+        priority: slide.priority,
+        isVisible: true,
+        status: EntityStatus.ACTIVE,
+      },
+    });
+  }
+
   // Legacy slug only — never clobber R2 storageKey / CDN URLs set by Admin upload.
   const legacyHero = await prisma.video.findFirst({
     where: { slug: 'home-hero-cement', deletedAt: null },
@@ -459,41 +600,14 @@ export async function seedCmsHome(prisma: PrismaClient): Promise<void> {
       subtitle: 'Unlock exclusive benefits for large construction orders.',
       description: 'Bulk Procurement',
       imageUrl: null,
-      buttonText: 'Unlock Benefits',
-      badge: 'Unlock',
-      benefits: [
-        'Unlock Discount up to 15%',
-        'International Trips',
-        'Lucky Draw',
-        'Loyalty Points',
-      ],
+      buttonText: 'Enquire',
+      badge: 'Enquire',
+      benefits: [],
       redirectType: RedirectType.ROUTE,
       redirectId: '/bulk-procurement',
       cardType: 'BULK_PROCUREMENT',
       priority: 9,
       displayOrder: 2,
-    },
-    {
-      slug: 'promo-membership',
-      title: 'Bajriwala Membership',
-      subtitle: 'Unlock premium savings and perks for your sites.',
-      description: '₹299/year',
-      imageUrl: null,
-      buttonText: 'Join Now',
-      badge: 'MEMBERSHIP',
-      benefits: [
-        'Extra Discount',
-        'Free Delivery',
-        'Bulk Discounts',
-        'International Trips',
-        'Lucky Draw',
-        'Loyalty Points',
-      ],
-      redirectType: RedirectType.NONE,
-      redirectId: null,
-      cardType: 'MEMBERSHIP',
-      priority: 8,
-      displayOrder: 3,
     },
     {
       slug: 'promo-priority-express',
@@ -595,9 +709,9 @@ export async function seedCmsHome(prisma: PrismaClient): Promise<void> {
     update: {
       title: 'Bulk Procurement Benefits',
       subtitle: 'Unlock exclusive benefits for large construction orders.',
-      badge: 'Unlock',
+      badge: 'Enquire',
       imageUrl: HERO_IMAGE,
-      ctaLabel: 'Unlock Benefits',
+      ctaLabel: 'Enquire',
       buttonAction: 'route',
       linkType: 'route',
       linkUrl: '/bulk-procurement',
@@ -612,9 +726,9 @@ export async function seedCmsHome(prisma: PrismaClient): Promise<void> {
       slug: 'bulk-procurement-home-card',
       title: 'Bulk Procurement Benefits',
       subtitle: 'Unlock exclusive benefits for large construction orders.',
-      badge: 'Unlock',
+      badge: 'Enquire',
       imageUrl: HERO_IMAGE,
-      ctaLabel: 'Unlock Benefits',
+      ctaLabel: 'Enquire',
       buttonAction: 'route',
       linkType: 'route',
       linkUrl: '/bulk-procurement',
@@ -846,14 +960,6 @@ export async function seedCmsHome(prisma: PrismaClient): Promise<void> {
       displayOrder: 3,
     },
     {
-      slug: 'membership',
-      label: 'Membership',
-      iconKey: 'membership',
-      redirectType: RedirectType.MEMBERSHIP,
-      redirectId: '/membership',
-      displayOrder: 4,
-    },
-    {
       slug: 'track-order',
       label: 'Track Order',
       iconKey: 'track',
@@ -880,6 +986,21 @@ export async function seedCmsHome(prisma: PrismaClient): Promise<void> {
       },
     });
   }
+
+  await prisma.quickAction.updateMany({
+    where: {
+      OR: [
+        { slug: 'membership' },
+        { redirectType: RedirectType.MEMBERSHIP },
+      ],
+    },
+    data: { isVisible: false },
+  });
+
+  await prisma.promotionalCard.updateMany({
+    where: { cardType: 'MEMBERSHIP' },
+    data: { isActive: false },
+  });
 
   console.log(
     'Seeded Home Screen CMS (sections, banners, ads, promotions, testimonials, quick actions).',

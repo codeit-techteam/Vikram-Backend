@@ -14,6 +14,7 @@ import { QueueModule } from './common/queue/queue.module';
 import { BannerModule } from './modules/banner/banner.module';
 import { CategoryModule } from './modules/category/category.module';
 import { CmsModule } from './modules/cms/cms.module';
+import { DeliveryPromotionModule } from './modules/delivery-promotion/delivery-promotion.module';
 import { HomeModule } from './modules/home/home.module';
 import { NotificationModule } from './modules/notification/notification.module';
 import { OfferModule } from './modules/offer/offer.module';
@@ -35,7 +36,6 @@ import { InvoiceModule } from './modules/invoice/invoice.module';
 import { ReviewsModule } from './modules/reviews/reviews.module';
 import { SupportModule } from './modules/support/support.module';
 import { CustomerProfileModule } from './modules/customer-profile/customer-profile.module';
-import { MembershipModule } from './modules/membership/membership.module';
 import { LoyaltyModule } from './modules/loyalty/loyalty.module';
 import { BulkModule } from './modules/bulk/bulk.module';
 import { ExpertCallbackModule } from './modules/expert-callback/expert-callback.module';
@@ -87,6 +87,7 @@ import { StorageModule } from './storage/storage.module';
     OfferModule,
     VideoModule,
     CmsModule,
+    DeliveryPromotionModule,
     HomeModule,
     SearchModule,
     NotificationModule,
@@ -105,7 +106,6 @@ import { StorageModule } from './storage/storage.module';
     InvoiceModule,
     ReviewsModule,
     SupportModule,
-    MembershipModule,
     LoyaltyModule,
     BulkModule,
     ExpertCallbackModule,

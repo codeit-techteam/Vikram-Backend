@@ -20,6 +20,7 @@ import { ROLE_GROUPS } from '../constants/admin-rbac.constants';
 import type { AuthenticatedAdmin } from '../auth/admin-jwt.strategy';
 import { AuditService } from '../audit/audit.service';
 import { DeliveryPricingService } from '../../modules/delivery/delivery-pricing.service';
+import { DeliveryEtaEngineService } from '../../modules/delivery/engine/delivery-eta-engine.service';
 import { DeliveryVehicleSelectionService } from '../../modules/delivery/engine/delivery-vehicle-selection.service';
 import {
   CreateDeliveryPricingDto,
@@ -43,6 +44,7 @@ export class AdminDeliveryPricingController {
   constructor(
     private readonly pricingService: DeliveryPricingService,
     private readonly vehicleSelection: DeliveryVehicleSelectionService,
+    private readonly etaEngine: DeliveryEtaEngineService,
     private readonly auditService: AuditService,
   ) {}
 
@@ -135,6 +137,48 @@ export class AdminDeliveryPricingController {
       newValue: data,
     });
     return { success: true, message: 'Engine config updated', data };
+  }
+
+  @Get('eta-config')
+  @AdminRoles(...ROLE_GROUPS.WAREHOUSE)
+  @ApiOperation({
+    summary: 'ETA timing defaults (prep, RMC plant, buffers, confidence)',
+  })
+  async etaConfig() {
+    const data = await this.etaEngine.getEtaConfig();
+    return { success: true, message: 'Delivery ETA config', data };
+  }
+
+  @Put('eta-config')
+  @AdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
+  @ApiOperation({ summary: 'Update ETA timing defaults' })
+  async updateEtaConfig(
+    @Body() dto: Record<string, number | boolean>,
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+  ) {
+    const before = await this.etaEngine.getEtaConfig();
+    const data = await this.etaEngine.updateEtaConfig(
+      dto as Parameters<DeliveryEtaEngineService['updateEtaConfig']>[0],
+      this.actor(admin),
+    );
+    await this.auditService.log({
+      adminUserId: admin.id,
+      adminEmail: admin.email,
+      action: AuditAction.UPDATE,
+      resource: 'DeliveryEtaConfig',
+      resourceId: 'DEFAULT',
+      oldValue: before,
+      newValue: data,
+    });
+    return { success: true, message: 'ETA config updated', data };
+  }
+
+  @Get('loading-rules')
+  @AdminRoles(...ROLE_GROUPS.WAREHOUSE)
+  @ApiOperation({ summary: 'Loading / unloading time bands by logistics type' })
+  async loadingRules() {
+    const data = await this.etaEngine.listLoadingRules(false);
+    return { success: true, message: 'Delivery loading rules', data };
   }
 
   @Get('benefit-config')

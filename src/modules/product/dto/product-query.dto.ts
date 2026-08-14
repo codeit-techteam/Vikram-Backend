@@ -135,4 +135,19 @@ export class ProductQueryDto extends PaginationQueryDto {
   @IsOptional()
   @IsString()
   hubId?: string;
+
+  @ApiPropertyOptional({ description: 'Customer latitude for catalog ETA preview' })
+  @IsOptional()
+  @Type(() => Number)
+  latitude?: number;
+
+  @ApiPropertyOptional({ description: 'Customer longitude for catalog ETA preview' })
+  @IsOptional()
+  @Type(() => Number)
+  longitude?: number;
+
+  @ApiPropertyOptional({ description: 'Customer pincode for nearest-hub lookup' })
+  @IsOptional()
+  @IsString()
+  pincode?: string;
 }

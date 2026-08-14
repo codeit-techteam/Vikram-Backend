@@ -3,6 +3,8 @@ import {
   BannerPlacement,
   BannerType,
   EntityStatus,
+  HomeSectionType,
+  RedirectType,
 } from '../../../generated/prisma/client';
 import { PrismaService } from '../../common/database/prisma.service';
 import { CacheService } from '../../common/cache/cache.service';
@@ -10,10 +12,12 @@ import { R2StorageService } from '../../storage/r2.service';
 import { CACHE_KEYS, CACHE_TTL } from '../../common/cache/cache.constants';
 import { VISIBLE_WHERE } from '../../common/utils/prisma.util';
 import { normalizeMediaUrl } from '../../common/utils/media-url';
+import { DeliveryPromotionService } from '../delivery-promotion/delivery-promotion.service';
 import {
   CmsAdvertisementDto,
   CmsBannerDto,
   CmsCategoryDto,
+  CmsDeliveryPromotionDto,
   CmsEmergencyBannerDto,
   CmsHomeResponseDto,
   CmsHomeSectionDto,
@@ -51,6 +55,7 @@ export class CmsService {
     private readonly prisma: PrismaService,
     private readonly cache: CacheService,
     private readonly storage: R2StorageService,
+    private readonly deliveryPromotions: DeliveryPromotionService,
   ) {}
 
   async getHome(): Promise<CmsHomeResponseDto> {
@@ -72,6 +77,7 @@ export class CmsService {
       quickActions,
       emergencyBanner,
       categories,
+      deliveryPromotions,
     ] = await Promise.all([
       this.getHomeSections(),
       this.getBanners(),
@@ -83,13 +89,24 @@ export class CmsService {
       this.getQuickActions(),
       this.getEmergencyBanner(),
       this.getCategories(),
+      this.getDeliveryPromotions(),
     ]);
 
     const result: CmsHomeResponseDto = {
       sections,
       banners,
       heroBanners: banners.filter((b) => b.placement === 'HOME_HERO'),
-      promoBanners: banners.filter((b) => b.placement === 'HOME_PROMO'),
+      promoBanners: banners
+        .filter(
+          (b) =>
+            b.placement === 'HOME_PROMO' &&
+            String(b.bannerType).toUpperCase() !== 'VIDEO',
+        )
+        .sort(
+          (a, b) =>
+            (a.priority || 0) - (b.priority || 0) ||
+            a.displayOrder - b.displayOrder,
+        ),
       ads,
       brandAdvertisements: ads,
       catalogs: ads,
@@ -107,7 +124,8 @@ export class CmsService {
         promotions.find((p) => p.cardType === 'BULK_PROCUREMENT') ?? null,
       priorityExpress:
         promotions.find((p) => p.cardType === 'PRIORITY_EXPRESS') ?? null,
-      membership: promotions.find((p) => p.cardType === 'MEMBERSHIP') ?? null,
+      membership: null,
+      deliveryPromotions,
     };
 
     if (useCache) {
@@ -250,6 +268,10 @@ export class CmsService {
     return result;
   }
 
+  async getDeliveryPromotions(): Promise<CmsDeliveryPromotionDto[]> {
+    return this.deliveryPromotions.getEligiblePromotions();
+  }
+
   async getHomeSections(): Promise<CmsHomeSectionDto[]> {
     const cached = await this.cache.get<CmsHomeSectionDto[]>(
       CACHE_KEYS.CMS_HOME_SECTIONS,
@@ -257,7 +279,12 @@ export class CmsService {
     if (cached) return cached;
 
     const sections = await this.prisma.homeSection.findMany({
-      where: { enabled: true },
+      where: {
+        enabled: true,
+        sectionType: {
+          notIn: [HomeSectionType.LOYALTY, HomeSectionType.MEMBERSHIP],
+        },
+      },
       orderBy: [{ displayOrder: 'asc' }],
     });
 
@@ -309,23 +336,78 @@ export class CmsService {
         ...VISIBLE_WHERE,
         ...scheduleFilter(now),
       },
-      orderBy: [{ displayOrder: 'asc' }, { priority: 'desc' }],
-      take: 20,
+      orderBy: [
+        { priority: 'desc' },
+        { startsAt: 'desc' },
+        { updatedAt: 'desc' },
+      ],
+      take: 5,
+      include: {
+        products: {
+          include: {
+            product: {
+              select: {
+                retailPrice: true,
+                entityStatus: true,
+                isVisible: true,
+                deletedAt: true,
+                variants: {
+                  where: { deletedAt: null },
+                  select: { inStock: true, deletedAt: true },
+                },
+              },
+            },
+          },
+        },
+      },
     });
 
-    return offers.map((o) => ({
-      id: o.id,
-      slug: o.slug,
-      title: o.title,
-      description: o.description,
-      imageUrl: media(o.imageUrl),
-      discountLabel: o.discountLabel ?? o.badge,
-      badge: o.badge,
-      offerType: o.offerType,
-      displayOrder: o.displayOrder,
-      priority: o.priority,
-      endsAt: o.endsAt,
-    }));
+    return offers.map((o) => {
+      const available = o.products.filter(
+        (op) =>
+          op.product &&
+          !op.product.deletedAt &&
+          op.product.entityStatus === EntityStatus.ACTIVE &&
+          op.product.isVisible !== false &&
+          (op.product.variants.length === 0 ||
+            op.product.variants.some((v) => v.inStock !== false)),
+      );
+      const prices = available
+        .map((op) => Number(op.product.retailPrice))
+        .filter((price) => Number.isFinite(price) && price > 0);
+      const bundlePrice = o.bundlePrice ? Number(o.bundlePrice) : null;
+      const ctaLabel = o.ctaLabel ?? 'Shop Now';
+      const ctaAction =
+        o.ctaAction ??
+        (ctaLabel.toLowerCase() === 'buy now'
+          ? 'BUY_NOW'
+          : ctaLabel.toLowerCase() === 'view products'
+            ? 'PRODUCTS'
+            : 'OFFER_DETAILS');
+
+      return {
+        id: o.id,
+        slug: o.slug,
+        title: o.title,
+        description: o.description,
+        imageUrl: media(o.mobileImageUrl) || media(o.imageUrl),
+        mobileImageUrl: media(o.mobileImageUrl),
+        discountLabel: o.discountLabel ?? o.badge,
+        discountPercent: o.discountPercent ? Number(o.discountPercent) : null,
+        discountValue: o.discountValue ? Number(o.discountValue) : null,
+        badge: o.badge,
+        ctaLabel,
+        ctaAction,
+        offerType: o.offerType,
+        displayOrder: o.displayOrder,
+        priority: o.priority,
+        startsAt: o.startsAt,
+        endsAt: o.endsAt,
+        startingFrom: bundlePrice ?? (prices.length ? Math.min(...prices) : null),
+        productCount: available.length,
+        isFeatured: o.isFeatured,
+      };
+    });
   }
 
   async getQuickActions(): Promise<CmsQuickActionDto[]> {
@@ -334,6 +416,7 @@ export class CmsService {
       where: {
         deletedAt: null,
         isVisible: true,
+        redirectType: { not: RedirectType.MEMBERSHIP },
         ...scheduleFilter(now),
       },
       orderBy: [{ displayOrder: 'asc' }],
@@ -457,6 +540,7 @@ export class CmsService {
             secondaryLinkType: null,
             secondaryLinkTarget: null,
             placement: 'HOME_HERO_VIDEO',
+            targetAudience: 'ALL',
           };
         }),
       );
@@ -498,6 +582,7 @@ export class CmsService {
     secondaryLinkType: string | null;
     secondaryLinkTarget: string | null;
     placement: BannerPlacement | string;
+    targetAudience?: string | null;
     displayOrder: number;
     priority: number;
     startsAt: Date | null;
@@ -511,7 +596,7 @@ export class CmsService {
       buttonText: b.ctaLabel,
       buttonAction: b.buttonAction ?? b.linkType,
       bannerType: b.bannerType,
-      imageUrl: media(b.mobileUrl || b.imageUrl) ?? '',
+      imageUrl: media(b.mobileUrl || b.imageUrl || b.desktopUrl) ?? '',
       mobileUrl: media(b.mobileUrl),
       tabletUrl: media(b.tabletUrl),
       desktopUrl: media(b.desktopUrl),
@@ -533,6 +618,7 @@ export class CmsService {
       secondaryLinkType: b.secondaryLinkType,
       secondaryLinkTarget: b.secondaryLinkTarget,
       placement: b.placement as string,
+      targetAudience: b.targetAudience ?? 'ALL',
     };
   }
 }

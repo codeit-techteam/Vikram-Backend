@@ -21,6 +21,7 @@ import {
   SearchSuggestionsResponseDto,
 } from './dto/search-response.dto';
 import { normalizeCatalogUnit } from '../catalog/catalog-display';
+import { buildProductSearchClause } from '../catalog/product-search.where';
 
 @Injectable()
 export class SearchService {
@@ -269,7 +270,12 @@ export class SearchService {
           ...PRODUCT_ACTIVE_WHERE,
           OR: [
             { name: { contains: term, mode: 'insensitive' } },
+            { nameHi: { contains: term, mode: 'insensitive' } },
             { brand: { contains: term, mode: 'insensitive' } },
+            { grade: { contains: term, mode: 'insensitive' } },
+            { productType: { contains: term, mode: 'insensitive' } },
+            { sku: { contains: term, mode: 'insensitive' } },
+            { spec: { contains: term, mode: 'insensitive' } },
           ],
         },
         select: {
@@ -329,28 +335,10 @@ export class SearchService {
     term: string,
     categorySlug?: string,
   ): Prisma.ProductWhereInput {
+    const searchClause = buildProductSearchClause(term);
     const where: Prisma.ProductWhereInput = {
       ...PRODUCT_ACTIVE_WHERE,
-      OR: [
-        { name: { contains: term, mode: 'insensitive' } },
-        { nameHi: { contains: term, mode: 'insensitive' } },
-        { brand: { contains: term, mode: 'insensitive' } },
-        { description: { contains: term, mode: 'insensitive' } },
-        { grade: { contains: term, mode: 'insensitive' } },
-        { productType: { contains: term, mode: 'insensitive' } },
-        { metaKeywords: { contains: term, mode: 'insensitive' } },
-        { sku: { contains: term, mode: 'insensitive' } },
-        { category: { name: { contains: term, mode: 'insensitive' } } },
-        { category: { slug: { contains: term, mode: 'insensitive' } } },
-        ...(term.toLowerCase().includes('fly ash') ||
-        term.toLowerCase().includes('grey ash')
-          ? [{ productType: 'GREY_ASH_BRICKS' as const }]
-          : []),
-        ...(term.toLowerCase() === 'rmc' ||
-        term.toLowerCase().includes('ready mix')
-          ? [{ category: { slug: 'rmc' } }]
-          : []),
-      ],
+      ...(searchClause ? searchClause : {}),
     };
 
     if (categorySlug) {

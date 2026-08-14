@@ -58,9 +58,35 @@ export class AdminBannersController {
   @AdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
   @ApiOperation({ summary: 'Update banner' })
   async update(@Param('id') id: string, @Body() dto: UpdateBannerDto, @CurrentAdmin() admin: AuthenticatedAdmin) {
+    const previous = await this.bannersService.findOne(id);
     const data = await this.bannersService.update(id, dto);
-    await this.auditService.log({ adminUserId: admin.id, adminEmail: admin.email, action: 'UPDATE', resource: 'Banner', resourceId: id, newValue: dto });
+    await this.auditService.log({
+      adminUserId: admin.id,
+      adminEmail: admin.email,
+      action: 'UPDATE',
+      resource: 'Banner',
+      resourceId: id,
+      oldValue: previous,
+      newValue: dto,
+    });
     return { success: true, message: 'Banner updated', data };
+  }
+
+  @Post(':id/duplicate')
+  @AdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
+  @ApiOperation({ summary: 'Duplicate banner as draft' })
+  async duplicate(@Param('id') id: string, @CurrentAdmin() admin: AuthenticatedAdmin) {
+    const data = await this.bannersService.duplicate(id);
+    await this.auditService.log({
+      adminUserId: admin.id,
+      adminEmail: admin.email,
+      action: 'CREATE',
+      resource: 'Banner',
+      resourceId: data.id,
+      oldValue: { sourceId: id },
+      newValue: { id: data.id, slug: data.slug },
+    });
+    return { success: true, message: 'Banner duplicated', data };
   }
 
   @Patch(':id/publish')
@@ -86,7 +112,7 @@ export class AdminBannersController {
   @ApiOperation({ summary: 'Delete banner' })
   async remove(@Param('id') id: string, @CurrentAdmin() admin: AuthenticatedAdmin) {
     const data = await this.bannersService.remove(id);
-    await this.auditService.log({ adminUserId: admin.id, adminEmail: admin.email, action: 'DELETE', resource: 'Banner', resourceId: id });
+    await this.auditService.log({ adminUserId: admin.id, adminEmail: admin.email, action: 'DELETE', resource: 'Banner', resourceId: id, oldValue: data });
     return { success: true, message: 'Banner deleted', data };
   }
 }

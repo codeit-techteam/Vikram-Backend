@@ -8,7 +8,6 @@ import { CategoryService } from '../category/category.service';
 import { OfferService } from '../offer/offer.service';
 import { ProductService } from '../product/product.service';
 import { VideoService } from '../video/video.service';
-import { MembershipService } from '../membership/membership.service';
 import { LoyaltyService } from '../loyalty/loyalty.service';
 import { TestimonialsService } from '../testimonials/testimonials.service';
 import { OrdersService } from '../orders/orders.service';
@@ -29,7 +28,6 @@ export class HomeService {
     private readonly categoryService: CategoryService,
     private readonly productService: ProductService,
     private readonly videoService: VideoService,
-    private readonly membershipService: MembershipService,
     private readonly loyaltyService: LoyaltyService,
     private readonly testimonialsService: TestimonialsService,
     private readonly ordersService: OrdersService,
@@ -47,15 +45,14 @@ export class HomeService {
       };
     }
 
-    const [membership, loyalty, lastOrders] = await Promise.all([
-      this.membershipService.getCurrentMembership(customerId),
+    const [loyalty, lastOrders] = await Promise.all([
       this.loyaltyService.getLoyaltySummary(customerId),
       this.ordersService.getRecentOrders(customerId, 3),
     ]);
 
     return {
       ...publicData,
-      membership,
+      membership: null,
       loyalty,
       lastOrders,
     };
@@ -82,7 +79,7 @@ export class HomeService {
       emergencyBanner,
     ] = await Promise.all([
       this.bannerService.findAll('HOME_HERO'),
-      this.offerService.findAll(true),
+      this.offerService.findAll({ featured: true }),
       this.categoryService.findAll(true),
       this.categoryService.findTop(12),
       this.productService.findFeatured(8),

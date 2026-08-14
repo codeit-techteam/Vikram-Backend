@@ -5,6 +5,7 @@ export const DeliveryVehicleType = {
   THREE_WHEELER_LOADER: 'THREE_WHEELER_LOADER',
   PICK_UP_VAN: 'PICK_UP_VAN',
   FULL_TRUCK: 'FULL_TRUCK',
+  RMC_TRANSIT_MIXER: 'RMC_TRANSIT_MIXER',
 } as const;
 
 export type DeliveryVehicleType =
@@ -18,6 +19,7 @@ export const DELIVERY_VEHICLE_DISPLAY_NAMES: Record<DeliveryVehicleType, string>
     THREE_WHEELER_LOADER: '3 Wheeler Loader',
     PICK_UP_VAN: 'Pick Up Van',
     FULL_TRUCK: 'Full Truck',
+    RMC_TRANSIT_MIXER: 'RMC Transit Mixer',
   };
 
 export const DELIVERY_VEHICLE_TYPES = Object.values(
@@ -39,6 +41,7 @@ export const DELIVERY_VEHICLE_QTY_TIERS: ReadonlyArray<{
   { type: DeliveryVehicleType.THREE_WHEELER_LOADER, maxQty: 50 },
   { type: DeliveryVehicleType.PICK_UP_VAN, maxQty: 150 },
   { type: DeliveryVehicleType.FULL_TRUCK, maxQty: Number.POSITIVE_INFINITY },
+  // RMC is never selected via qty tiers — only via allowedVehicleTypes / logistics.
 ];
 
 /** Excel initial seed (runtime DB is source of truth after import). */

@@ -121,6 +121,61 @@ export class UpdateDeliveryVehicleConfigDto {
   @IsOptional()
   @IsBoolean()
   active?: boolean;
+
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  avgLoadingTimeMinutes?: number | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  avgUnloadingTimeMinutes?: number | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  driverPreparationTimeMinutes?: number | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  operationalBufferMinutes?: number | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  avgSpeedKmh?: number | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  supportsRmc?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  supportsBulkMaterial?: boolean;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    type: [String],
+    example: ['CEMENT', 'BRICKS'],
+  })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  allowedLogisticsTypes?: string[] | null;
 }
 
 export class UpdateDeliveryEngineConfigDto {

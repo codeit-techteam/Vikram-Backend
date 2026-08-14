@@ -121,6 +121,8 @@ export class DeliveryVehicleSelectionService {
     priority: number;
     active: boolean;
     allowedProductCategories: unknown;
+    supportsRmc?: boolean;
+    allowedLogisticsTypes?: unknown;
   }): VehicleCapacityView {
     const util = decimalToNumber(row.capacityUtilizationLimit);
     const maxWeight =
@@ -133,6 +135,9 @@ export class DeliveryVehicleSelectionService {
 
     const categories = Array.isArray(row.allowedProductCategories)
       ? (row.allowedProductCategories as string[])
+      : null;
+    const logisticsTypes = Array.isArray(row.allowedLogisticsTypes)
+      ? (row.allowedLogisticsTypes as string[])
       : null;
 
     return {
@@ -151,6 +156,8 @@ export class DeliveryVehicleSelectionService {
       hasConfiguredCapacity:
         maxWeight != null || maxVolume != null || maxQty != null,
       allowedProductCategories: categories,
+      supportsRmc: row.supportsRmc === true,
+      allowedLogisticsTypes: logisticsTypes,
     };
   }
 
@@ -180,6 +187,14 @@ export class DeliveryVehicleSelectionService {
       priority?: number;
       active?: boolean;
       allowedProductCategories?: string[] | null;
+      avgLoadingTimeMinutes?: number | null;
+      avgUnloadingTimeMinutes?: number | null;
+      driverPreparationTimeMinutes?: number | null;
+      operationalBufferMinutes?: number | null;
+      avgSpeedKmh?: number | null;
+      supportsRmc?: boolean;
+      supportsBulkMaterial?: boolean;
+      allowedLogisticsTypes?: string[] | null;
     },
     actor?: { id?: string },
   ) {
@@ -203,6 +218,19 @@ export class DeliveryVehicleSelectionService {
             input.allowedProductCategories === null
               ? Prisma.JsonNull
               : input.allowedProductCategories,
+          avgLoadingTimeMinutes: input.avgLoadingTimeMinutes ?? null,
+          avgUnloadingTimeMinutes: input.avgUnloadingTimeMinutes ?? null,
+          driverPreparationTimeMinutes:
+            input.driverPreparationTimeMinutes ?? null,
+          operationalBufferMinutes: input.operationalBufferMinutes ?? null,
+          avgSpeedKmh: input.avgSpeedKmh ?? null,
+          supportsRmc: input.supportsRmc ?? false,
+          supportsBulkMaterial: input.supportsBulkMaterial ?? false,
+          allowedLogisticsTypes:
+            input.allowedLogisticsTypes === undefined ||
+            input.allowedLogisticsTypes === null
+              ? Prisma.JsonNull
+              : input.allowedLogisticsTypes,
           createdBy: actor?.id ?? null,
           updatedBy: actor?.id ?? null,
         },
@@ -236,6 +264,36 @@ export class DeliveryVehicleSelectionService {
                   : input.allowedProductCategories,
             }
           : {}),
+        ...(input.avgLoadingTimeMinutes !== undefined
+          ? { avgLoadingTimeMinutes: input.avgLoadingTimeMinutes }
+          : {}),
+        ...(input.avgUnloadingTimeMinutes !== undefined
+          ? { avgUnloadingTimeMinutes: input.avgUnloadingTimeMinutes }
+          : {}),
+        ...(input.driverPreparationTimeMinutes !== undefined
+          ? {
+              driverPreparationTimeMinutes:
+                input.driverPreparationTimeMinutes,
+            }
+          : {}),
+        ...(input.operationalBufferMinutes !== undefined
+          ? { operationalBufferMinutes: input.operationalBufferMinutes }
+          : {}),
+        ...(input.avgSpeedKmh !== undefined
+          ? { avgSpeedKmh: input.avgSpeedKmh }
+          : {}),
+        ...(input.supportsRmc != null ? { supportsRmc: input.supportsRmc } : {}),
+        ...(input.supportsBulkMaterial != null
+          ? { supportsBulkMaterial: input.supportsBulkMaterial }
+          : {}),
+        ...(input.allowedLogisticsTypes !== undefined
+          ? {
+              allowedLogisticsTypes:
+                input.allowedLogisticsTypes === null
+                  ? Prisma.JsonNull
+                  : input.allowedLogisticsTypes,
+            }
+          : {}),
         updatedBy: actor?.id ?? null,
       },
     });
@@ -252,6 +310,23 @@ export class DeliveryVehicleSelectionService {
   ): Promise<VehicleSelectionResult> {
     const engine = await this.getEngineConfig();
     const configs = await this.listVehicleConfigs(true);
+    return selectVehicleForLoad(load, configs, engine);
+  }
+
+  /**
+   * Same vehicle as pricing, but AUTO_SPLIT so ETA can still be produced
+   * when the order needs multiple trips instead of failing as a bulk quote.
+   */
+  async selectVehicleForEstimate(
+    load: OrderLoadResult,
+  ): Promise<VehicleSelectionResult> {
+    const engine = await this.getEngineConfig();
+    const configs = await this.listVehicleConfigs(true);
+    const estimated = selectVehicleForLoad(load, configs, {
+      ...engine,
+      multiVehicleMode: 'AUTO_SPLIT',
+    });
+    if (estimated.ok) return estimated;
     return selectVehicleForLoad(load, configs, engine);
   }
 }

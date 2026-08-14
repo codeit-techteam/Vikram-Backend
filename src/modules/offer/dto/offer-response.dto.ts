@@ -21,6 +21,15 @@ export class OfferProductResponseDto {
 
   @ApiProperty()
   price!: number;
+
+  @ApiPropertyOptional()
+  available?: boolean;
+
+  @ApiPropertyOptional()
+  categoryName?: string | null;
+
+  @ApiPropertyOptional()
+  brand?: string | null;
 }
 
 export class OfferResponseDto {
@@ -45,6 +54,9 @@ export class OfferResponseDto {
   @ApiPropertyOptional()
   imageUrl?: string | null;
 
+  @ApiPropertyOptional()
+  mobileImageUrl?: string | null;
+
   @ApiProperty()
   offerType!: string;
 
@@ -64,25 +76,37 @@ export class OfferResponseDto {
   originalPrice?: number | null;
 
   @ApiPropertyOptional()
+  startingFrom?: number | null;
+
+  @ApiPropertyOptional()
   badge?: string | null;
+
+  @ApiPropertyOptional()
+  ctaLabel?: string | null;
+
+  @ApiPropertyOptional()
+  ctaAction?: string | null;
+
+  @ApiPropertyOptional()
+  ctaValue?: string | null;
 
   @ApiProperty()
   priority!: number;
 
-  @ApiPropertyOptional()
-  visibility?: string;
-
   @ApiProperty()
   isFeatured!: boolean;
-
-  @ApiProperty()
-  isVisible!: boolean;
 
   @ApiPropertyOptional()
   startDate?: Date | null;
 
   @ApiPropertyOptional()
   endDate?: Date | null;
+
+  @ApiPropertyOptional()
+  productCount?: number;
+
+  @ApiPropertyOptional({ type: [String] })
+  categories?: string[];
 
   @ApiPropertyOptional({ type: [OfferProductResponseDto] })
   products?: OfferProductResponseDto[];

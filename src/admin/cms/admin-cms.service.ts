@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { HomeSectionType } from '../../../generated/prisma/client';
 import { PrismaService } from '../../common/database/prisma.service';
 import { CacheService } from '../../common/cache/cache.service';
 
@@ -13,6 +14,11 @@ export class AdminCmsService {
     const [sections, banners, offers, videos, ads, quickActions] =
       await Promise.all([
         this.prisma.homeSection.findMany({
+          where: {
+            sectionType: {
+              notIn: [HomeSectionType.LOYALTY, HomeSectionType.MEMBERSHIP],
+            },
+          },
           orderBy: { displayOrder: 'asc' },
         }),
         this.prisma.banner.count({ where: { deletedAt: null } }),

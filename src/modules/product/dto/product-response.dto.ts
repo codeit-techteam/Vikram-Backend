@@ -222,6 +222,15 @@ export class ProductResponseDto {
   @ApiProperty()
   defaultQuantity!: number;
 
+  @ApiPropertyOptional({
+    example: 50,
+    description: 'Weight per sellable unit in kg (logistics).',
+  })
+  weightPerUnit?: number | null;
+
+  @ApiPropertyOptional({ example: 'CEMENT' })
+  logisticsType?: string | null;
+
   @ApiProperty()
   hasVariants!: boolean;
 
@@ -271,7 +280,7 @@ export class ProductResponseDto {
   @ApiPropertyOptional({ type: [ProductVariantResponseDto] })
   variantList?: ProductVariantResponseDto[];
 
-  @ApiPropertyOptional({ example: 'Delivery in 22 mins' })
+  @ApiPropertyOptional({ example: 'Estimated delivery 45–70 mins' })
   deliveryMessage?: string;
 
   @ApiPropertyOptional({ type: [ProductResponseDto] })

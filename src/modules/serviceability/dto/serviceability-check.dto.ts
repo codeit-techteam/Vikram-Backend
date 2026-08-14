@@ -33,7 +33,7 @@ export class ServiceabilityCheckResponseDto {
   @ApiProperty({ description: 'Estimated delivery time in minutes' })
   deliveryETA!: number;
 
-  @ApiProperty({ example: 'Delivery in 23 mins' })
+  @ApiProperty({ example: 'Estimated delivery 45–70 mins' })
   deliveryMessage!: string;
 
   @ApiPropertyOptional({ description: 'Why serviceability failed' })

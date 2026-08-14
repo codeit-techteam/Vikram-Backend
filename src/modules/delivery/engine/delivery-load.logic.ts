@@ -1,5 +1,11 @@
 import { BadRequestException } from '@nestjs/common';
 import type { DeliveryVehicleType } from '../delivery-pricing.constants';
+import {
+  inferLogisticsTypeFromCategory,
+  resolveProductVehicleRestrictions,
+  resolveVolumePerUnitCft,
+  resolveWeightPerUnitKg,
+} from './delivery-material-profile.logic';
 import type {
   CartLoadItemInput,
   OrderLoadResult,
@@ -15,25 +21,31 @@ function intersectVehicleTypes(
   return a.filter((t) => b.includes(t));
 }
 
+function emptyLoad(message: string, missing: string[] = []): OrderLoadResult {
+  return {
+    ok: false,
+    message,
+    missingLogisticsProductIds: missing,
+    totalWeightKg: 0,
+    totalVolumeCft: 0,
+    totalQuantity: 0,
+    lines: [],
+    allowedVehicleTypes: null,
+    preferredVehicleType: null,
+    logisticsTypes: [],
+    hasWeightDimension: false,
+    hasVolumeDimension: false,
+    restrictionReason: null,
+  };
+}
+
 /** Pure load calculation — safe for unit tests (no Prisma). */
 export function calculateOrderLoadPure(
   products: ProductLogisticsSnapshot[],
   cartItems: CartLoadItemInput[],
 ): OrderLoadResult {
   if (!cartItems.length) {
-    return {
-      ok: false,
-      message: 'Cart is empty',
-      missingLogisticsProductIds: [],
-      totalWeightKg: 0,
-      totalVolumeCft: 0,
-      totalQuantity: 0,
-      lines: [],
-      allowedVehicleTypes: null,
-      preferredVehicleType: null,
-      hasWeightDimension: false,
-      hasVolumeDimension: false,
-    };
+    return emptyLoad('Cart is empty');
   }
 
   const byId = new Map(products.map((p) => [p.productId, p]));
@@ -46,6 +58,8 @@ export function calculateOrderLoadPure(
   let preferredVehicleType: DeliveryVehicleType | null = null;
   let hasWeightDimension = false;
   let hasVolumeDimension = false;
+  const logisticsTypes: string[] = [];
+  const reasons: string[] = [];
 
   for (const item of cartItems) {
     if (item.quantity == null || !Number.isFinite(item.quantity)) {
@@ -61,19 +75,10 @@ export function calculateOrderLoadPure(
     }
 
     if (!product.isTransportable) {
-      return {
-        ok: false,
-        message: `Delivery calculation is unavailable for "${product.name}" (not transportable).`,
-        missingLogisticsProductIds: [product.productId],
-        totalWeightKg: 0,
-        totalVolumeCft: 0,
-        totalQuantity: 0,
-        lines: [],
-        allowedVehicleTypes: null,
-        preferredVehicleType: null,
-        hasWeightDimension: false,
-        hasVolumeDimension: false,
-      };
+      return emptyLoad(
+        `Delivery calculation is unavailable for "${product.name}" (not transportable).`,
+        [product.productId],
+      );
     }
 
     const isIntegerQty = Number.isInteger(item.quantity);
@@ -83,20 +88,52 @@ export function calculateOrderLoadPure(
       );
     }
 
-    const hasWeight =
-      product.weightPerUnitKg != null && product.weightPerUnitKg > 0;
-    const hasVolume =
-      product.volumePerUnitCft != null && product.volumePerUnitCft > 0;
+    const logisticsType =
+      product.logisticsType ??
+      inferLogisticsTypeFromCategory(
+        product.categorySlug,
+        product.name,
+        product.unit,
+      );
+
+    if (logisticsType) logisticsTypes.push(logisticsType);
+
+    const restrictions = resolveProductVehicleRestrictions({
+      logisticsType,
+      allowedVehicleTypes: product.allowedVehicleTypes,
+      preferredVehicleType: product.preferredVehicleType,
+    });
+    const productAllowed = restrictions.allowedVehicleTypes;
+    const productPreferred = restrictions.preferredVehicleType;
+    if (restrictions.profileApplied && restrictions.profile) {
+      reasons.push(restrictions.profile.reason);
+    }
+
+    const resolvedWeight = resolveWeightPerUnitKg({
+      weightPerUnitKg: product.weightPerUnitKg,
+      volumePerUnitCft: product.volumePerUnitCft,
+      unit: product.unit,
+      logisticsType,
+      name: product.name,
+    });
+    const resolvedVolume = resolveVolumePerUnitCft({
+      volumePerUnitCft: product.volumePerUnitCft,
+      unit: product.unit,
+      logisticsType,
+    });
+
+    const hasWeight = resolvedWeight.kg != null && resolvedWeight.kg > 0;
+    const hasVolume = resolvedVolume != null && resolvedVolume > 0;
 
     if (!hasWeight && !hasVolume) {
       missingLogisticsProductIds.push(product.productId);
     }
 
     const weightKg = hasWeight
-      ? Number((product.weightPerUnitKg! * item.quantity).toFixed(3))
+      ? Number((resolvedWeight.kg! * item.quantity).toFixed(3))
       : 0;
     const volumeCft = hasVolume
-      ? Number((product.volumePerUnitCft! * item.quantity).toFixed(3))
+      ? Number((resolvedVolume! * item.quantity).toFixed(3))
       : 0;
 
     if (hasWeight) hasWeightDimension = true;
@@ -108,10 +145,10 @@ export function calculateOrderLoadPure(
 
     allowedVehicleTypes = intersectVehicleTypes(
       allowedVehicleTypes,
-      product.allowedVehicleTypes,
+      productAllowed,
     );
-    if (!preferredVehicleType && product.preferredVehicleType) {
-      preferredVehicleType = product.preferredVehicleType;
+    if (!preferredVehicleType && productPreferred) {
+      preferredVehicleType = productPreferred;
     }
 
     lines.push({
@@ -123,8 +160,8 @@ export function calculateOrderLoadPure(
       volumeCft,
       categoryId: product.categoryId,
       categorySlug: product.categorySlug,
-      allowedVehicleTypes: product.allowedVehicleTypes,
-      preferredVehicleType: product.preferredVehicleType,
+      allowedVehicleTypes: productAllowed,
+      preferredVehicleType: productPreferred,
     });
   }
 
@@ -137,7 +174,9 @@ export function calculateOrderLoadPure(
     lines,
     allowedVehicleTypes,
     preferredVehicleType,
+    logisticsTypes: [...new Set(logisticsTypes)],
     hasWeightDimension,
     hasVolumeDimension,
+    restrictionReason: reasons[0] ?? null,
   };
 }

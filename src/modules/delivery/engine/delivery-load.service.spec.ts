@@ -12,6 +12,7 @@ describe('calculateOrderLoadPure', () => {
     weightPerUnitKg: 50,
     volumePerUnitCft: null,
     loadType: 'WEIGHT',
+    logisticsType: 'CEMENT',
     isTransportable: true,
     allowDecimalQuantity: false,
     preferredVehicleType: null,
@@ -27,6 +28,7 @@ describe('calculateOrderLoadPure', () => {
     weightPerUnitKg: null,
     volumePerUnitCft: 1,
     loadType: 'VOLUME',
+    logisticsType: 'SAND',
     isTransportable: true,
     allowDecimalQuantity: true,
     preferredVehicleType: null,
@@ -42,6 +44,7 @@ describe('calculateOrderLoadPure', () => {
     weightPerUnitKg: 2.5,
     volumePerUnitCft: null,
     loadType: 'WEIGHT',
+    logisticsType: 'BRICKS',
     isTransportable: true,
     allowDecimalQuantity: false,
     preferredVehicleType: null,
@@ -98,7 +101,7 @@ describe('calculateOrderLoadPure', () => {
       { productId: 'p-sand', quantity: 20 },
     ]);
     expect(load.ok).toBe(true);
-    expect(load.totalWeightKg).toBe(20 * 50 + 1000 * 2.5);
+    expect(load.totalWeightKg).toBe(20 * 50 + 1000 * 2.5 + 20 * 45);
     expect(load.totalVolumeCft).toBe(20);
     expect(load.totalQuantity).toBe(1040);
     expect(load.allowedVehicleTypes).toEqual([
@@ -111,6 +114,9 @@ describe('calculateOrderLoadPure', () => {
     const noLogistics: ProductLogisticsSnapshot = {
       ...cement,
       productId: 'p-x',
+      name: 'Unknown SKU',
+      categorySlug: 'misc',
+      logisticsType: null,
       weightPerUnitKg: null,
       volumePerUnitCft: null,
     };

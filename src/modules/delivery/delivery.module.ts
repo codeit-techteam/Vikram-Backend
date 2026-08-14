@@ -5,6 +5,7 @@ import { DeliveryService } from './delivery.service';
 import { DeliveryBenefitService } from './delivery-benefit.service';
 import { DeliveryPricingController } from './delivery-pricing.controller';
 import { DeliveryPricingService } from './delivery-pricing.service';
+import { DeliveryEtaEngineService } from './engine/delivery-eta-engine.service';
 import { DeliveryLoadService } from './engine/delivery-load.service';
 import { DeliveryVehicleSelectionService } from './engine/delivery-vehicle-selection.service';
 
@@ -17,6 +18,7 @@ import { DeliveryVehicleSelectionService } from './engine/delivery-vehicle-selec
     DeliveryPricingService,
     DeliveryLoadService,
     DeliveryVehicleSelectionService,
+    DeliveryEtaEngineService,
   ],
   exports: [
     DeliveryService,
@@ -24,6 +26,7 @@ import { DeliveryVehicleSelectionService } from './engine/delivery-vehicle-selec
     DeliveryPricingService,
     DeliveryLoadService,
     DeliveryVehicleSelectionService,
+    DeliveryEtaEngineService,
   ],
 })
 export class DeliveryModule {}

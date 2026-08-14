@@ -28,6 +28,7 @@ function priorityIndex(type: VT): number {
     DeliveryVehicleType.THREE_WHEELER_LOADER,
     DeliveryVehicleType.PICK_UP_VAN,
     DeliveryVehicleType.FULL_TRUCK,
+    DeliveryVehicleType.RMC_TRANSIT_MIXER,
   ];
   return order.indexOf(type);
 }
@@ -55,6 +56,74 @@ function exceedsBulkThreshold(
     return true;
   }
   return false;
+}
+
+function clampToAllowed(
+  candidate: VT,
+  allowed: VT[] | null,
+): VT {
+  if (!allowed || allowed.length === 0) return candidate;
+  if (allowed.includes(candidate)) return candidate;
+  const sorted = [...allowed].sort(
+    (a, b) => priorityIndex(a) - priorityIndex(b),
+  );
+  const minIdx = priorityIndex(candidate);
+  return (
+    sorted.find((t) => priorityIndex(t) >= minIdx) ??
+    sorted[sorted.length - 1]!
+  );
+}
+
+function formatLoadSummary(load: OrderLoadResult): string {
+  if (load.hasWeightDimension && load.totalWeightKg >= 1000) {
+    const mt = load.totalWeightKg / 1000;
+    const label = Number.isInteger(mt) ? `${mt} MT` : `${mt.toFixed(2)} MT`;
+    return `${label} (${load.totalWeightKg} kg)`;
+  }
+  if (load.hasWeightDimension && load.totalWeightKg > 0) {
+    return `${load.totalWeightKg} kg`;
+  }
+  if (load.hasVolumeDimension && load.totalVolumeCft > 0) {
+    return `${load.totalVolumeCft} CFT`;
+  }
+  return `${load.totalQuantity} units`;
+}
+
+function selectionReason(
+  load: OrderLoadResult,
+  vehicleType: VT | null,
+  extra?: string,
+): string {
+  const parts = [
+    load.restrictionReason,
+    extra,
+    vehicleType
+      ? `${DELIVERY_VEHICLE_DISPLAY_NAMES[vehicleType]} selected for ${formatLoadSummary(load)}.`
+      : null,
+  ].filter((p): p is string => !!p);
+  return parts.join(' ');
+}
+
+function unavailableResult(
+  message: string,
+  extras: Partial<VehicleSelectionResult> = {},
+): VehicleSelectionResult {
+  return {
+    ok: false,
+    message,
+    mode: extras.mode ?? 'UNAVAILABLE',
+    vehicleType: extras.vehicleType ?? null,
+    vehicleDisplayName: extras.vehicleDisplayName ?? null,
+    vehicleConfigId: extras.vehicleConfigId ?? null,
+    vehicleCount: extras.vehicleCount ?? 0,
+    capacityUsed: extras.capacityUsed ?? null,
+    capacityLimit: extras.capacityLimit ?? null,
+    capacityUtilizationPercent: extras.capacityUtilizationPercent ?? null,
+    requiresBulkQuote: extras.requiresBulkQuote ?? false,
+    multiVehicle: extras.multiVehicle ?? false,
+    eligibleVehicleTypes: extras.eligibleVehicleTypes ?? [],
+    reason: extras.reason ?? message,
+  };
 }
 
 function canCarry(vehicle: VehicleCapacityView, load: OrderLoadResult): boolean {
@@ -87,6 +156,21 @@ function passesProductRestrictions(
   ) {
     return false;
   }
+
+  const logisticsTypes = load.logisticsTypes ?? [];
+  if (logisticsTypes.includes('RMC')) {
+    if (!vehicle.supportsRmc && vehicle.vehicleType !== DeliveryVehicleType.RMC_TRANSIT_MIXER) {
+      return false;
+    }
+  }
+
+  if (vehicle.allowedLogisticsTypes?.length && logisticsTypes.length > 0) {
+    const ok = logisticsTypes.every((t) =>
+      vehicle.allowedLogisticsTypes!.includes(t),
+    );
+    if (!ok) return false;
+  }
+
   if (vehicle.allowedProductCategories?.length) {
     for (const line of load.lines) {
       const cat = line.categoryId ?? line.categorySlug;
@@ -162,22 +246,25 @@ export function selectVehicleForLoad(
   engine: EngineConfigView,
 ): VehicleSelectionResult {
   if (exceedsBulkThreshold(load, engine)) {
-    return {
-      ok: false,
-      message:
-        'This order exceeds the bulk delivery threshold. Please request a bulk delivery quote.',
-      mode: 'BULK_QUOTE',
-      vehicleType: null,
-      vehicleDisplayName: null,
-      vehicleConfigId: null,
-      vehicleCount: 0,
-      capacityUsed: null,
-      capacityLimit: null,
-      capacityUtilizationPercent: null,
-      requiresBulkQuote: true,
-      multiVehicle: false,
-      eligibleVehicleTypes: [],
-    };
+    return unavailableResult(
+      'This order exceeds the bulk delivery threshold. Please request a bulk delivery quote.',
+      {
+        mode: 'BULK_QUOTE',
+        requiresBulkQuote: true,
+        reason: 'Order exceeds configured bulk delivery threshold.',
+      },
+    );
+  }
+
+  if (load.allowedVehicleTypes && load.allowedVehicleTypes.length === 0) {
+    return unavailableResult(
+      'These items require separate deliveries and cannot share one vehicle.',
+      {
+        reason:
+          load.restrictionReason ??
+          'Mixed cart has no overlapping eligible vehicle types (for example RMC + other materials).',
+      },
+    );
   }
 
   const configured = configs.filter((c) => c.hasConfiguredCapacity);
@@ -185,65 +272,35 @@ export function selectVehicleForLoad(
     configured.length > 0 && (load.hasWeightDimension || load.hasVolumeDimension);
 
   if (!useCapacityEngine) {
-    if (
+    const missingUnrestricted =
       load.missingLogisticsProductIds.length > 0 &&
-      !engine.qtyTierFallbackEnabled
-    ) {
-      return {
-        ok: false,
-        message:
-          'Delivery calculation is unavailable for this product. Logistics configuration is missing.',
-        mode: 'UNAVAILABLE',
-        vehicleType: null,
-        vehicleDisplayName: null,
-        vehicleConfigId: null,
-        vehicleCount: 0,
-        capacityUsed: null,
-        capacityLimit: null,
-        capacityUtilizationPercent: null,
-        requiresBulkQuote: false,
-        multiVehicle: false,
-        eligibleVehicleTypes: [],
-      };
+      (!load.allowedVehicleTypes || load.allowedVehicleTypes.length === 0);
+
+    if (missingUnrestricted) {
+      return unavailableResult(
+        'Delivery option will be confirmed after order review. Product weight is not configured.',
+        {
+          reason:
+            'Product has no weight/volume metadata and no category transport profile. Bike is not assigned by default.',
+        },
+      );
     }
 
-    if (!engine.qtyTierFallbackEnabled) {
-      return {
-        ok: false,
-        message:
-          'Vehicle capacity is not configured. Configure capacities in Admin → Logistics → Delivery Pricing.',
-        mode: 'UNAVAILABLE',
-        vehicleType: null,
-        vehicleDisplayName: null,
-        vehicleConfigId: null,
-        vehicleCount: 0,
-        capacityUsed: null,
-        capacityLimit: null,
-        capacityUtilizationPercent: null,
-        requiresBulkQuote: false,
-        multiVehicle: false,
-        eligibleVehicleTypes: [],
-      };
+    if (!engine.qtyTierFallbackEnabled && !load.allowedVehicleTypes?.length) {
+      return unavailableResult(
+        'Vehicle capacity is not configured. Configure capacities in Admin → Logistics → Delivery Pricing.',
+      );
     }
 
     let vehicleType = resolveDeliveryVehicleForQuantity(load.totalQuantity);
-    if (
-      load.allowedVehicleTypes &&
-      load.allowedVehicleTypes.length > 0 &&
-      !load.allowedVehicleTypes.includes(vehicleType)
-    ) {
-      vehicleType = load.allowedVehicleTypes[0]!;
-    }
+    vehicleType = clampToAllowed(vehicleType, load.allowedVehicleTypes);
     if (
       load.preferredVehicleType &&
       (!load.allowedVehicleTypes ||
-        load.allowedVehicleTypes.includes(load.preferredVehicleType))
+        load.allowedVehicleTypes.includes(load.preferredVehicleType)) &&
+      priorityIndex(load.preferredVehicleType) >= priorityIndex(vehicleType)
     ) {
-      const preferredIdx = priorityIndex(load.preferredVehicleType);
-      const selectedIdx = priorityIndex(vehicleType);
-      if (preferredIdx >= selectedIdx) {
-        vehicleType = load.preferredVehicleType;
-      }
+      vehicleType = load.preferredVehicleType;
     }
 
     const cfg = configs.find((c) => c.vehicleType === vehicleType) ?? null;
@@ -259,7 +316,14 @@ export function selectVehicleForLoad(
       capacityUtilizationPercent: null,
       requiresBulkQuote: false,
       multiVehicle: false,
-      eligibleVehicleTypes: [vehicleType],
+      eligibleVehicleTypes: load.allowedVehicleTypes?.length
+        ? load.allowedVehicleTypes
+        : [vehicleType],
+      reason: selectionReason(
+        load,
+        vehicleType,
+        'Quantity-tier fallback used because vehicle capacity or product weight is not fully configured.',
+      ),
     };
   }
 
@@ -284,6 +348,7 @@ export function selectVehicleForLoad(
       requiresBulkQuote: false,
       multiVehicle: false,
       eligibleVehicleTypes: eligible.map((e) => e.vehicleType),
+      reason: selectionReason(load, selected.vehicleType),
     };
   }
 
@@ -292,40 +357,28 @@ export function selectVehicleForLoad(
     .sort((a, b) => b.priority - a.priority)[0];
 
   if (!largest) {
-    return {
-      ok: false,
-      message: 'No eligible vehicle for this order.',
-      mode: 'UNAVAILABLE',
-      vehicleType: null,
-      vehicleDisplayName: null,
-      vehicleConfigId: null,
-      vehicleCount: 0,
-      capacityUsed: null,
-      capacityLimit: null,
-      capacityUtilizationPercent: null,
-      requiresBulkQuote: false,
-      multiVehicle: false,
-      eligibleVehicleTypes: [],
-    };
+    return unavailableResult(
+      'No eligible vehicle for this order.',
+      {
+        reason:
+          load.restrictionReason ??
+          'No active vehicle is compatible with this material and load.',
+      },
+    );
   }
 
   const count = requiredVehicleCount(largest, load);
   if (count <= 1) {
-    return {
-      ok: false,
-      message: 'No eligible vehicle can safely carry this order.',
-      mode: 'UNAVAILABLE',
-      vehicleType: null,
-      vehicleDisplayName: null,
-      vehicleConfigId: null,
-      vehicleCount: 0,
-      capacityUsed: null,
-      capacityLimit: null,
-      capacityUtilizationPercent: null,
-      requiresBulkQuote: false,
-      multiVehicle: false,
-      eligibleVehicleTypes: [],
-    };
+    return unavailableResult(
+      'No eligible vehicle can safely carry this order.',
+      {
+        reason: selectionReason(
+          load,
+          null,
+          `${largest.displayName} cannot carry this load within configured payload.`,
+        ),
+      },
+    );
   }
 
   if (engine.multiVehicleMode === 'AUTO_SPLIT') {
@@ -345,41 +398,42 @@ export function selectVehicleForLoad(
       requiresBulkQuote: false,
       multiVehicle: true,
       eligibleVehicleTypes: [largest.vehicleType],
+      reason: selectionReason(
+        load,
+        largest.vehicleType,
+        `Load exceeds a single vehicle payload; ${count} trips required.`,
+      ),
     };
   }
 
   if (engine.multiVehicleMode === 'REJECT') {
-    return {
-      ok: false,
-      message: 'Your order exceeds single-vehicle capacity.',
-      mode: 'UNAVAILABLE',
-      vehicleType: null,
-      vehicleDisplayName: null,
-      vehicleConfigId: null,
+    return unavailableResult('Your order exceeds single-vehicle capacity.', {
       vehicleCount: count,
-      capacityUsed: null,
-      capacityLimit: null,
-      capacityUtilizationPercent: null,
-      requiresBulkQuote: false,
       multiVehicle: true,
-      eligibleVehicleTypes: [],
-    };
+      reason: selectionReason(
+        load,
+        largest.vehicleType,
+        `${count} vehicles would be required.`,
+      ),
+    });
   }
 
-  return {
-    ok: false,
-    message:
-      'Your order exceeds single-vehicle capacity. Please request a bulk delivery quote.',
-    mode: 'BULK_QUOTE',
-    vehicleType: largest.vehicleType,
-    vehicleDisplayName: largest.displayName,
-    vehicleConfigId: largest.id,
-    vehicleCount: count,
-    capacityUsed: null,
-    capacityLimit: null,
-    capacityUtilizationPercent: null,
-    requiresBulkQuote: true,
-    multiVehicle: true,
-    eligibleVehicleTypes: [largest.vehicleType],
-  };
+  return unavailableResult(
+    'Your order exceeds single-vehicle capacity. Please request a bulk delivery quote.',
+    {
+      mode: 'BULK_QUOTE',
+      vehicleType: largest.vehicleType,
+      vehicleDisplayName: largest.displayName,
+      vehicleConfigId: largest.id,
+      vehicleCount: count,
+      requiresBulkQuote: true,
+      multiVehicle: true,
+      eligibleVehicleTypes: [largest.vehicleType],
+      reason: selectionReason(
+        load,
+        largest.vehicleType,
+        `${count} trips would be required.`,
+      ),
+    },
+  );
 }

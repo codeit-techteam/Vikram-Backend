@@ -5,7 +5,6 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../common/database/prisma.service';
 import { CartService } from '../cart/cart.service';
-import { MembershipService } from '../membership/membership.service';
 import { LoyaltyService } from '../loyalty/loyalty.service';
 import { LoyaltyTransactionService } from '../loyalty/loyalty-transaction.service';
 import {
@@ -31,7 +30,6 @@ export class CheckoutService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly cartService: CartService,
-    private readonly membershipService: MembershipService,
     private readonly loyaltyService: LoyaltyService,
     private readonly loyaltyTransactionService: LoyaltyTransactionService,
     private readonly coverageService: CoverageService,
@@ -94,9 +92,8 @@ export class CheckoutService {
         ? Number(nearestHub.distanceKm)
         : 0;
 
-    const [membershipSummary, loyaltySummary, redeemablePoints, priced] =
+    const [loyaltySummary, redeemablePoints, priced] =
       await Promise.all([
-        this.membershipService.getCurrentMembership(customerId),
         this.loyaltyService.getLoyaltySummary(customerId),
         this.loyaltyService.getRedeemablePoints(customerId),
         this.deliveryPricingService.calculateFromCart({
@@ -126,28 +123,24 @@ export class CheckoutService {
 
     const vehicleType = priced.vehicleType;
 
-    const hasActiveMembership = membershipSummary.current?.isActive === true;
-    const membershipDiscountPercent = hasActiveMembership ? 5 : 0;
-    const membershipDiscount =
-      Math.round((cart.subtotal * membershipDiscountPercent) / 100 * 100) / 100;
+    const membershipDiscount = 0;
 
     const loadingCharges = LOADING_CHARGE;
     const unloadingCharges = UNLOADING_CHARGE;
 
-    const thresholdOrMembershipFree =
-      hasActiveMembership || cart.subtotal >= FREE_DELIVERY_THRESHOLD;
+    const thresholdFree = cart.subtotal >= FREE_DELIVERY_THRESHOLD;
 
     // Server-calculated — never trust client-supplied deliveryCharge
-    let deliveryCharge = thresholdOrMembershipFree ? 0 : priced.deliveryCharge;
+    let deliveryCharge = thresholdFree ? 0 : priced.deliveryCharge;
     let bikeDeliveryFree =
-      thresholdOrMembershipFree || priced.freeDeliveryApplied;
-    let companyAbsorbedDelivery = thresholdOrMembershipFree
+      thresholdFree || priced.freeDeliveryApplied;
+    let companyAbsorbedDelivery = thresholdFree
       ? 0
       : priced.companyAbsorbedDelivery;
     const freeBikeDeliveriesRemaining =
       priced.freeBikeDeliveriesRemaining ?? 0;
     const freeDeliveryApplied =
-      !thresholdOrMembershipFree && priced.freeDeliveryApplied;
+      !thresholdFree && priced.freeDeliveryApplied;
 
     const orderValueBeforeLoyalty =
       cart.subtotal +
@@ -204,6 +197,13 @@ export class CheckoutService {
       itemCount: cart.itemCount,
       serviceable: deliveryPreview?.serviceable ?? hubAvailable,
       deliveryETA: deliveryPreview?.deliveryETA ?? 0,
+      deliveryEtaMinMinutes: deliveryPreview?.etaMinMinutes,
+      deliveryEtaMaxMinutes: deliveryPreview?.etaMaxMinutes,
+      deliveryLogisticsType: deliveryPreview?.deliveryLogisticsType ?? null,
+      deliveryPreparationMinutes: deliveryPreview?.timing?.preparationMinutes ?? null,
+      deliveryLoadingMinutes: deliveryPreview?.timing?.loadingMinutes ?? null,
+      deliveryTravelMinutes: deliveryPreview?.timing?.travelMinutes ?? null,
+      deliveryUnloadingMinutes: deliveryPreview?.timing?.unloadingMinutes ?? null,
       deliveryMessage:
         deliveryPreview?.deliveryMessage ?? 'Delivery details unavailable',
       deliveringBy: deliveryPreview?.deliveringBy ?? null,
@@ -231,7 +231,7 @@ export class CheckoutService {
       bikeDeliveryFree,
       companyAbsorbedDelivery,
       freeBikeDeliveriesRemaining,
-      deliveryVehicleType: vehicleType,
+      deliveryVehicleType: vehicleType ?? undefined,
       deliveryVehicleDisplayName: priced.vehicleDisplayName,
       deliveryDistanceKm: distanceKm,
       deliveryListPrice: priced.listPrice,
@@ -250,6 +250,7 @@ export class CheckoutService {
       deliveryFreeReason: priced.freeDeliveryReason,
       deliveryRequiresBulkQuote: priced.requiresBulkQuote,
       deliveryMultiVehicle: priced.multiVehicle,
+      deliverySelectionReason: priced.selectionReason ?? null,
       deliveryBreakdown: priced.breakdown ?? null,
     };
   }

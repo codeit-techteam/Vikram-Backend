@@ -125,18 +125,24 @@ export class ServiceabilityService {
       };
     }
 
-    const eta = this.computeEtaMinutes(matched);
-    this.logDebug(latitude, longitude, matched, 'SERVICEABLE');
+    const travelMinutes = this.computeTravelOnlyMinutes(matched);
+    this.logDebug(
+      latitude,
+      longitude,
+      matched,
+      `SERVICEABLE travel=${travelMinutes}m`,
+    );
 
     return {
       serviceable: true,
-      deliveryETA: eta,
-      deliveryMessage: buildDeliveryMessage(eta, { serviceable: true }),
+      deliveryETA: 0,
+      deliveryMessage: 'Delivery available to your location',
       reason: buildDeliverySubtitle(true),
     };
   }
 
-  private computeEtaMinutes(hub: HubCandidate): number {
+  /** Coverage travel estimate — never shown as a product ETA. */
+  private computeTravelOnlyMinutes(hub: HubCandidate): number {
     const travelMinutes = Math.max(
       1,
       Math.ceil(

@@ -8,12 +8,37 @@ import {
   IsEnum,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { BannerType } from '../../../../generated/prisma/client';
+import {
+  BannerTargetAudience,
+  BannerType,
+} from '../../../../generated/prisma/client';
+
+const CTA_LINK_TYPES = [
+  'ROUTE',
+  'PRODUCT',
+  'CATEGORY',
+  'OFFER',
+  'SEARCH',
+  'MEMBERSHIP',
+  'BULK_INQUIRY',
+  'MATERIAL_EXPERT',
+  'EXTERNAL',
+  'WHATSAPP',
+  'BRAND',
+] as const;
 
 export class CreateBannerDto {
   @ApiProperty() @IsString() title!: string;
-  @ApiProperty() @IsString() slug!: string;
-  @ApiProperty() @IsString() imageUrl!: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() slug?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() name?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() description?: string;
+  @ApiPropertyOptional({
+    description:
+      'Product or illustration shown fully visible on the right of the composed home promo card.',
+  })
+  @IsOptional()
+  @IsString()
+  imageUrl?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() subtitle?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() mobileUrl?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() tabletUrl?: string;
@@ -30,13 +55,20 @@ export class CreateBannerDto {
   @ApiPropertyOptional() @IsOptional() @IsString() backgroundColor?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() buttonAction?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() linkUrl?: string;
-  @ApiPropertyOptional() @IsOptional() @IsString() linkType?: string;
+  @ApiPropertyOptional({ enum: CTA_LINK_TYPES })
+  @IsOptional()
+  @IsString()
+  linkType?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() linkTarget?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() secondaryCtaLabel?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() secondaryLinkUrl?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() secondaryLinkType?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() secondaryLinkTarget?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() placement?: string;
+  @ApiPropertyOptional({ enum: BannerTargetAudience })
+  @IsOptional()
+  @IsEnum(BannerTargetAudience)
+  targetAudience?: BannerTargetAudience;
   @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsInt() displayOrder?: number;
   @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsInt() priority?: number;
   @ApiPropertyOptional() @IsOptional() @IsDateString() startsAt?: string;

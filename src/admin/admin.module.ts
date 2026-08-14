@@ -44,8 +44,6 @@ import { AdminHubsController } from './hubs/admin-hubs.controller';
 import { AdminHubsService } from './hubs/admin-hubs.service';
 import { AdminHubOrdersService } from './hubs/admin-hub-orders.service';
 
-// Membership
-import { AdminMembershipController } from './membership/admin-membership.controller';
 import { AdminMembershipService } from './membership/admin-membership.service';
 
 // Loyalty
@@ -63,6 +61,8 @@ import { AdminCategoriesService } from './categories/admin-categories.service';
 // Banners
 import { AdminBannersController } from './banners/admin-banners.controller';
 import { AdminBannersService } from './banners/admin-banners.service';
+import { AdminDeliveryPromotionsController } from './delivery-promotions/admin-delivery-promotions.controller';
+import { AdminDeliveryPromotionsService } from './delivery-promotions/admin-delivery-promotions.service';
 
 // Advertisements
 import { AdminAdvertisementsController } from './advertisements/admin-advertisements.controller';
@@ -196,11 +196,11 @@ import { DeliveryModule } from '../modules/delivery/delivery.module';
     AdminHubManagersController,
     AdminUsersController,
     AdminHubsController,
-    AdminMembershipController,
     AdminLoyaltyController,
     AdminProductsController,
     AdminCategoriesController,
     AdminBannersController,
+    AdminDeliveryPromotionsController,
     AdminAdvertisementsController,
     AdminPromotionalCardsController,
     AdminHomeSectionsController,
@@ -249,6 +249,7 @@ import { DeliveryModule } from '../modules/delivery/delivery.module';
     AdminProductsService,
     AdminCategoriesService,
     AdminBannersService,
+    AdminDeliveryPromotionsService,
     AdminAdvertisementsService,
     AdminPromotionalCardsService,
     AdminHomeSectionsService,

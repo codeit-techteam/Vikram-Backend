@@ -1,6 +1,5 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import {
-  buildDeliveryMessage,
   buildDeliverySubtitle,
 } from '../../common/delivery/customer-delivery.util';
 import { FREE_DELIVERY_THRESHOLD, toMoney } from '../../common/shopping/pricing.util';
@@ -12,25 +11,37 @@ import {
   DeliveryEtaResponseDto,
 } from './dto/delivery-eta.dto';
 import { DeliveryPricingService } from './delivery-pricing.service';
+import { DeliveryEtaEngineService } from './engine/delivery-eta-engine.service';
+import {
+  calculateDeliveryEtaPure,
+  DEFAULT_ETA_CONFIG,
+  formatClockFromMinutes,
+  minutesUntilWorkingHours,
+  parseWorkingHours,
+} from './engine/delivery-eta.logic';
+import type { DeliveryEtaCalculationResult } from './engine/delivery-eta.logic';
+import { DeliveryLoadService } from './engine/delivery-load.service';
+import type {
+  OrderLoadResult,
+  ProductLogisticsSnapshot,
+  VehicleSelectionResult,
+} from './engine/delivery-load.types';
+import { selectVehicleForLoad } from './engine/delivery-vehicle-selection.logic';
+import { DeliveryVehicleSelectionService } from './engine/delivery-vehicle-selection.service';
 
-/** ETA formula constants (minutes / speed). Tunable ops knobs. */
-const PICKING_MINUTES = 5;
-const PACKING_MINUTES = 5;
-const LOADING_MINUTES = 5;
-/** Average last-mile vehicle speed km/h inside city */
-const AVG_VEHICLE_SPEED_KMH = 25;
-/** Traffic multiplier applied to pure travel time */
-const TRAFFIC_MULTIPLIER = 1.25;
-/** Extra buffer minutes */
-const TRAFFIC_BUFFER_MINUTES = 3;
 /** Cap same-day window (minutes from now) */
 const SAME_DAY_CUTOFF_MINUTES = 18 * 60;
 
 @Injectable()
 export class DeliveryService {
+  private readonly logger = new Logger(DeliveryService.name);
+
   constructor(
     private readonly coverageService: CoverageService,
     private readonly deliveryPricingService: DeliveryPricingService,
+    private readonly loadService: DeliveryLoadService,
+    private readonly vehicleSelection: DeliveryVehicleSelectionService,
+    private readonly etaEngine: DeliveryEtaEngineService,
   ) {}
 
   async calculateEtaFromQuery(
@@ -81,7 +92,7 @@ export class DeliveryService {
       return {
         serviceable: false,
         deliveryETA: 0,
-        deliveryMessage: buildDeliveryMessage(0, { serviceable: false }),
+        deliveryMessage: 'Delivery unavailable at this location',
         deliveryDay: 'Unavailable',
         deliveringBy: null,
         deliveryCharge: 0,
@@ -93,23 +104,11 @@ export class DeliveryService {
     }
 
     const distanceKm = Number.isFinite(hub.distanceKm) ? hub.distanceKm : 0;
-    const travelMinutes = Math.max(
-      1,
-      Math.ceil((distanceKm / AVG_VEHICLE_SPEED_KMH) * 60 * TRAFFIC_MULTIPLIER),
-    );
-
-    const estimatedMinutes =
-      PICKING_MINUTES +
-      PACKING_MINUTES +
-      LOADING_MINUTES +
-      travelMinutes +
-      TRAFFIC_BUFFER_MINUTES;
-
     const now = new Date();
-    const deliverAt = new Date(now.getTime() + estimatedMinutes * 60_000);
-    const deliveryDay = this.resolveDeliveryDay(now, deliverAt, estimatedMinutes);
-    const deliveringBy = this.formatTime(deliverAt);
-    const totalQty = items.reduce((sum, i) => sum + (i.quantity || 1), 0);
+    const hubClosedWaitMinutes = minutesUntilWorkingHours(
+      hub.workingHours,
+      now,
+    );
 
     let deliveryCharge = 0;
     let freeDelivery = false;
@@ -118,62 +117,154 @@ export class DeliveryService {
     let vehicleDisplayName: string | undefined;
     let vehicleCount = 1;
     let totalWeightKg: number | null = null;
+    let totalVolumeCft: number | null = null;
     let capacityUsed: number | null = null;
     let capacityLimit: number | null = null;
+    let modeTitle: string | undefined;
+    let logisticsType: string | null = null;
+    let selectionReason: string | undefined;
+    let etaMinutes = 0;
+    let etaMinMinutes = 0;
+    let etaMaxMinutes = 0;
+    let etaConfidence: 'HIGH' | 'MEDIUM' | 'LOW' = 'MEDIUM';
+    let deliveryMessage = 'Add items to see a delivery estimate';
+    let timing: DeliveryEtaResponseDto['timing'] | undefined;
+    let selection: VehicleSelectionResult | null = null;
 
-    try {
-      const priced =
-        items.length > 0
-          ? await this.deliveryPricingService.calculateFromCart({
-              cartItems: items.map((i) => ({
-                productId: i.productId,
-                quantity: i.quantity,
-              })),
+    if (items.length === 0) {
+      modeTitle = 'Delivery estimate';
+      etaConfidence = 'LOW';
+    } else {
+      try {
+        const products = await this.loadService.loadProductsForCart(
+          items.map((i) => ({
+            productId: i.productId,
+            quantity: i.quantity,
+          })),
+        );
+        const load = this.loadService.calculateOrderLoad(
+          products,
+          items.map((i) => ({
+            productId: i.productId,
+            quantity: i.quantity,
+          })),
+        );
+        totalWeightKg = load.totalWeightKg || null;
+        totalVolumeCft = load.totalVolumeCft || null;
+
+        selection = await this.vehicleSelection.selectVehicleForEstimate(load);
+        selectionReason = selection.reason ?? undefined;
+        vehicleType = selection.vehicleType ?? undefined;
+        vehicleDisplayName = selection.vehicleDisplayName ?? undefined;
+        vehicleCount = Math.max(1, selection.vehicleCount || 1);
+        capacityUsed = selection.capacityUsed;
+        capacityLimit = selection.capacityLimit;
+
+        if (selection.vehicleType) {
+          const eta = await this.computeEtaSafe({
+            distanceKm,
+            load,
+            selection,
+            products,
+            hubClosedWaitMinutes,
+            now,
+          });
+          etaMinutes = eta.etaMinutes;
+          etaMinMinutes = eta.etaMinMinutes;
+          etaMaxMinutes = eta.etaMaxMinutes;
+          etaConfidence = eta.etaConfidence;
+          deliveryMessage = eta.deliveryMessage;
+          modeTitle = eta.modeTitle;
+          logisticsType = eta.logisticsType;
+          timing = eta.timing;
+          vehicleDisplayName =
+            vehicleDisplayName ?? selection.vehicleDisplayName ?? undefined;
+        } else {
+          deliveryMessage =
+            selection.message ??
+            'No eligible vehicle exists for this order';
+          modeTitle = 'Delivery vehicle unassigned';
+        }
+
+        if (selection.vehicleType) {
+          try {
+            const priced = await this.deliveryPricingService.calculateCharge({
+              vehicleType: selection.vehicleType,
               distanceKm,
               applyFreeBikeBenefit: false,
-            })
-          : await this.deliveryPricingService.calculateForCartQuantity({
-              quantity: totalQty || 1,
-              distanceKm,
-              applyFreeBikeBenefit: false,
+              vehicleCount: selection.vehicleCount,
+              totalWeightKg: load.totalWeightKg,
+              totalVolumeCft: load.totalVolumeCft,
+              totalQuantity: load.totalQuantity,
+              capacityUsed: selection.capacityUsed,
+              capacityLimit: selection.capacityLimit,
+              capacityUtilizationPercent: selection.capacityUtilizationPercent,
+              selectionMode: selection.mode,
+              selectionReason: selection.reason,
             });
-
-      vehicleType = priced.vehicleType;
-      vehicleDisplayName = priced.vehicleDisplayName;
-      vehicleCount = priced.vehicleCount;
-      totalWeightKg = priced.totalWeightKg;
-      capacityUsed = priced.capacityUsed;
-      capacityLimit = priced.capacityLimit;
-
-      if (priced.requiresBulkQuote) {
-        pricingMessage = priced.message;
-      } else if (priced.available) {
-        deliveryCharge = priced.listPrice;
-      } else {
-        pricingMessage = priced.message;
+            if (priced.available) {
+              deliveryCharge = priced.listPrice;
+            } else {
+              pricingMessage = priced.message;
+            }
+          } catch (err) {
+            this.logger.warn(
+              `Delivery pricing failed after ETA: ${err instanceof Error ? err.message : String(err)}`,
+            );
+            pricingMessage = 'Delivery pricing unavailable';
+          }
+        } else if (selection.message) {
+          pricingMessage = selection.message;
+        }
+      } catch (err) {
+        this.logger.error(
+          `Delivery ETA failed: ${err instanceof Error ? err.message : String(err)}`,
+          err instanceof Error ? err.stack : undefined,
+        );
+        if (etaMinutes <= 0) {
+          deliveryMessage =
+            err instanceof Error && err.message
+              ? err.message
+              : 'Delivery estimate unavailable';
+        }
       }
-    } catch {
-      pricingMessage = 'Delivery pricing unavailable';
     }
 
-    // Membership/threshold free delivery is applied at checkout, not ETA preview
+    if (
+      hubClosedWaitMinutes > 0 &&
+      etaMinutes > 0 &&
+      !/estimated delivery/i.test(deliveryMessage)
+    ) {
+      const parsed = parseWorkingHours(hub.workingHours);
+      const openLabel = parsed
+        ? formatClockFromMinutes(parsed.openMinutes)
+        : 'opening time';
+      const nextDay = hubClosedWaitMinutes >= 12 * 60;
+      deliveryMessage = nextDay
+        ? `Next available delivery: tomorrow ${openLabel}`
+        : `Next available delivery: ${openLabel}`;
+    }
+
     const cartSubtotalHint = 0;
     if (cartSubtotalHint >= FREE_DELIVERY_THRESHOLD) {
       deliveryCharge = 0;
       freeDelivery = true;
     }
 
-    const serviceable = hub.inCoverage && (hub.canFulfill || items.length === 0);
-    const preorder = deliveryDay === 'Tomorrow';
+    const deliverAt = new Date(now.getTime() + etaMinutes * 60_000);
+    const deliveryDay = this.resolveDeliveryDay(now, deliverAt, etaMinutes);
+    const deliveringBy = etaMinutes > 0 ? this.formatTime(deliverAt) : null;
+    const vehicleReady = Boolean(selection?.vehicleType) || items.length === 0;
+    const serviceable = hub.inCoverage && vehicleReady;
 
     return {
       serviceable,
-      deliveryETA: estimatedMinutes,
-      deliveryMessage: buildDeliveryMessage(estimatedMinutes, {
-        deliveringBy,
-        preorder,
-        serviceable,
-      }),
+      deliveryETA: etaMinutes,
+      etaMinMinutes,
+      etaMaxMinutes,
+      etaConfidence,
+      deliveryMessage,
+      deliveryModeTitle: modeTitle,
       deliveryDay,
       deliveringBy,
       deliveryCharge: toMoney(deliveryCharge),
@@ -183,23 +274,138 @@ export class DeliveryService {
       deliveryVehicleCount: vehicleCount,
       deliveryDistanceKm: distanceKm,
       deliveryTotalWeightKg: totalWeightKg,
+      deliveryTotalVolumeCft: totalVolumeCft,
       deliveryCapacityUsed: capacityUsed,
       deliveryCapacityLimit: capacityLimit,
+      deliveryLogisticsType: logisticsType ?? undefined,
+      deliverySelectionReason: selectionReason,
+      timing,
+      trafficDataAvailable: false,
+      calculationVersion: 2,
+      fulfillmentSource: {
+        id: hub.id,
+        type: logisticsType === 'RMC' ? 'RMC_PLANT' : 'HUB',
+        name: hub.name,
+      },
       message: pricingMessage
         ? pricingMessage
         : hub.canFulfill
           ? buildDeliverySubtitle(serviceable, { freeDelivery })
           : items.length > 0
-            ? 'Some items may be unavailable at your location'
+            ? 'Some items may be sourced from a nearby warehouse'
             : undefined,
     };
+  }
+
+  private async computeEtaSafe(input: {
+    distanceKm: number;
+    load: OrderLoadResult;
+    selection: VehicleSelectionResult;
+    products: ProductLogisticsSnapshot[];
+    hubClosedWaitMinutes: number;
+    now: Date;
+  }): Promise<DeliveryEtaCalculationResult> {
+    try {
+      return await this.etaEngine.calculate({
+        distanceKm: input.distanceKm,
+        load: input.load,
+        selection: input.selection,
+        products: input.products,
+        hubClosedWaitMinutes: input.hubClosedWaitMinutes,
+        now: input.now,
+      });
+    } catch (err) {
+      this.logger.warn(
+        `ETA engine fallback used: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      const logisticsType = this.etaEngine.resolveLogisticsType(
+        input.load,
+        input.products,
+      );
+      return calculateDeliveryEtaPure({
+        distanceKm: input.distanceKm,
+        load: input.load,
+        selection: input.selection,
+        logisticsType,
+        etaConfig: DEFAULT_ETA_CONFIG,
+        loadingRules: [],
+        vehicleTiming: null,
+        hubClosedWaitMinutes: input.hubClosedWaitMinutes,
+        now: input.now,
+      });
+    }
+  }
+
+  /**
+   * Product-listing preview using the same engine as /delivery/eta.
+   * Distance is reused (no map API). Quantity is 1 sellable unit.
+   */
+  async previewCatalogEtas(
+    products: ProductLogisticsSnapshot[],
+    distanceKm: number,
+  ): Promise<Map<string, DeliveryEtaCalculationResult>> {
+    const results = new Map<string, DeliveryEtaCalculationResult>();
+    if (
+      products.length === 0 ||
+      !Number.isFinite(distanceKm) ||
+      distanceKm < 0
+    ) {
+      return results;
+    }
+
+    const [etaConfig, loadingRules, vehicleTimings, configs, engine] =
+      await Promise.all([
+        this.etaEngine.getEtaConfig(),
+        this.etaEngine.listLoadingRules(true),
+        this.etaEngine.listVehicleTimings(),
+        this.vehicleSelection.listVehicleConfigs(true),
+        this.vehicleSelection.getEngineConfig(),
+      ]);
+    const timingByType = new Map(
+      vehicleTimings.map((t) => [t.vehicleType, t]),
+    );
+
+    for (const product of products) {
+      if (!product.isTransportable) continue;
+      try {
+        const load = this.loadService.calculateOrderLoad(
+          [product],
+          [{ productId: product.productId, quantity: 1 }],
+        );
+        if (!load.ok) continue;
+        const selection = selectVehicleForLoad(load, configs, engine);
+        if (!selection.ok || !selection.vehicleType) continue;
+        const logisticsType = this.etaEngine.resolveLogisticsType(load, [
+          product,
+        ]);
+        results.set(
+          product.productId,
+          calculateDeliveryEtaPure({
+            distanceKm,
+            load,
+            selection,
+            logisticsType,
+            etaConfig,
+            loadingRules,
+            vehicleTiming: timingByType.get(selection.vehicleType) ?? null,
+          }),
+        );
+      } catch {
+        continue;
+      }
+    }
+
+    return results;
   }
 
   private unavailableResponse(message: string): DeliveryEtaResponseDto {
     return {
       serviceable: false,
       deliveryETA: 0,
-      deliveryMessage: buildDeliveryMessage(0, { serviceable: false }),
+      etaMinMinutes: 0,
+      etaMaxMinutes: 0,
+      etaConfidence: 'LOW',
+      deliveryMessage: 'Delivery unavailable at this location',
       deliveryDay: 'Unavailable',
       deliveringBy: null,
       deliveryCharge: 0,

@@ -18,6 +18,7 @@ import {
 import { PrismaPg } from '@prisma/adapter-pg';
 import pg from 'pg';
 import { seedCmsHome } from './seedCmsHome';
+import { seedDeliveryPromotion } from './seedDeliveryPromotion';
 import { seedDeliveryPricing } from './scripts/seed-delivery-pricing';
 
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
@@ -471,20 +472,29 @@ async function main() {
 
   const offer = await prisma.offer.upsert({
     where: { slug: 'construction-starter-bundle' },
-    update: {},
+    update: {
+      ctaLabel: 'Shop Now',
+      ctaAction: 'OFFER_DETAILS',
+      isVisible: true,
+      status: EntityStatus.ACTIVE,
+    },
     create: {
       slug: 'construction-starter-bundle',
       title: 'Construction Starter Bundle',
       titleHi: 'निर्माण स्टार्टर बंडल',
-      description: 'Cement + RMC + Bricks at a special bundle price',
+      description: 'Save more on essential construction materials.',
       imageUrl:
         'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=800',
       offerType: OfferType.BUNDLE,
       discountLabel: 'SAVE ₹7,000',
       bundlePrice: 45000,
       originalPrice: 52000,
-      badge: 'SAVE ₹7,000',
-      isFeatured: true,
+      badge: 'HOT DEAL',
+      ctaLabel: 'Shop Now',
+      ctaAction: 'OFFER_DETAILS',
+      isFeatured: false,
+      isVisible: true,
+      status: EntityStatus.ACTIVE,
       priority: 10,
       displayOrder: 1,
     },
@@ -1185,7 +1195,7 @@ async function main() {
           accountId: loyaltyAccount.id,
           points: 92,
           type: LoyaltyTransactionType.EARN,
-          reason: 'Seed initial loyalty balance (dev only)',
+          reason: 'Opening BajriPro Points balance',
           referenceId: 'SEED_LOYALTY:9999900001',
           openingPoints: 0,
           closingPoints: 92,
@@ -1384,7 +1394,7 @@ async function main() {
           accountId: reset.id,
           points: sample.points,
           type: LoyaltyTransactionType.EARN,
-          reason: 'Seed initial loyalty balance (dev only)',
+          reason: 'Opening BajriPro Points balance',
           referenceId: `SEED_LOYALTY:${sample.phone}`,
           openingPoints: 0,
           closingPoints: sample.points,
@@ -1415,7 +1425,7 @@ async function main() {
           accountId: account.id,
           points: sample.points,
           type: LoyaltyTransactionType.EARN,
-          reason: 'Seed initial loyalty balance (dev only)',
+          reason: 'Opening BajriPro Points balance',
           referenceId: `SEED_LOYALTY:${sample.phone}`,
           openingPoints: 0,
           closingPoints: sample.points,
@@ -1542,7 +1552,7 @@ async function main() {
         accountId: karanLoyalty.id,
         points: 92,
         type: LoyaltyTransactionType.EARN,
-        reason: 'Seed initial loyalty balance (dev only)',
+        reason: 'Opening BajriPro Points balance',
         referenceId: 'SEED_LOYALTY:karan',
         openingPoints: 0,
         closingPoints: 92,
@@ -1634,6 +1644,7 @@ async function main() {
   console.log('Seeded membership plans, loyalty, bulk enquiry, and testimonials.');
 
   await seedCmsHome(prisma);
+  await seedDeliveryPromotion(prisma);
   await seedDeliveryPricing(prisma);
 
   // ── Admin Users (3 RBAC roles) ─────────────────────────────────────────────

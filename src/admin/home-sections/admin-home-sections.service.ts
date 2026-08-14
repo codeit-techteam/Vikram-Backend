@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { HomeSectionType } from '../../../generated/prisma/client';
 import { PrismaService } from '../../common/database/prisma.service';
 import { CacheService } from '../../common/cache/cache.service';
 import type { UpdateHomeSectionDto } from './dto/admin-home-sections.dto';
@@ -12,6 +13,11 @@ export class AdminHomeSectionsService {
 
   findAll() {
     return this.prisma.homeSection.findMany({
+      where: {
+        sectionType: {
+          notIn: [HomeSectionType.LOYALTY, HomeSectionType.MEMBERSHIP],
+        },
+      },
       orderBy: [{ displayOrder: 'asc' }],
     });
   }

@@ -9,7 +9,9 @@ import type {
   ProductLogisticsSnapshot,
 } from './delivery-load.types';
 
-function parseAllowedVehicleTypes(value: unknown): DeliveryVehicleType[] | null {
+export function parseAllowedVehicleTypes(
+  value: unknown,
+): DeliveryVehicleType[] | null {
   if (value == null) return null;
   if (!Array.isArray(value)) return null;
   const allowed = Object.values(DeliveryVehicleType) as string[];
@@ -46,6 +48,7 @@ export class DeliveryLoadService {
         weightPerUnitKg: true,
         volumePerUnitCft: true,
         loadType: true,
+        logisticsType: true,
         isTransportable: true,
         allowDecimalQuantity: true,
         preferredVehicleType: true,
@@ -65,6 +68,7 @@ export class DeliveryLoadService {
       volumePerUnitCft:
         p.volumePerUnitCft != null ? decimalToNumber(p.volumePerUnitCft) : null,
       loadType: p.loadType,
+      logisticsType: p.logisticsType,
       isTransportable: p.isTransportable,
       allowDecimalQuantity: p.allowDecimalQuantity,
       preferredVehicleType: p.preferredVehicleType,

@@ -245,6 +245,14 @@ export class OrdersService {
             deliveryRequiresBulkQuote:
               checkout.deliveryRequiresBulkQuote ?? false,
             deliveryMultiVehicle: checkout.deliveryMultiVehicle ?? false,
+            deliverySelectionReason: checkout.deliverySelectionReason ?? null,
+            deliveryEtaMinMinutes: checkout.deliveryEtaMinMinutes ?? null,
+            deliveryEtaMaxMinutes: checkout.deliveryEtaMaxMinutes ?? null,
+            deliveryLogisticsType: checkout.deliveryLogisticsType ?? null,
+            deliveryPreparationMinutes: checkout.deliveryPreparationMinutes ?? null,
+            deliveryLoadingMinutes: checkout.deliveryLoadingMinutes ?? null,
+            deliveryTravelMinutes: checkout.deliveryTravelMinutes ?? null,
+            deliveryUnloadingMinutes: checkout.deliveryUnloadingMinutes ?? null,
             notes: dto.notes ?? null,
             deliveryAddress: {
               id: checkout.address.id,

@@ -116,7 +116,7 @@ export class CustomerAuthService {
           type: NotificationType.LOYALTY,
           label: 'LOYALTY',
           title: 'Welcome bonus credited',
-          body: '50 loyalty points have been added to your account.',
+          body: '50 BajriPro Points have been added to your account.',
           actionLabel: 'View Loyalty',
           actionRoute: '/account/loyalty',
           actionVariant: 'outline',
@@ -267,7 +267,7 @@ export class CustomerAuthService {
       loyaltyAccount?: { tier: string } | null;
     },
   ): CustomerMeDto {
-    const planName = customer.activeMembership?.plan.name ?? null;
+    const planName = null;
     const loyaltyTier = customer.loyaltyAccount?.tier ?? null;
     const source = (planName ?? loyaltyTier ?? '').toUpperCase();
     let membership: string | null = null;

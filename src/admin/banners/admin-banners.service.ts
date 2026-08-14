@@ -1,5 +1,11 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
+import {
+  BannerTargetAudience,
   BannerType,
   EntityStatus,
   Visibility,
@@ -41,8 +47,16 @@ export class AdminBannersService {
     const banner = await this.prisma.banner.create({
       data: {
         title: dto.title,
-        slug: dto.slug,
-        imageUrl: dto.imageUrl,
+        slug:
+          dto.slug?.trim() ||
+          `${dto.title
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-|-$/g, '')
+            .slice(0, 80)}-${Date.now().toString(36)}`,
+        name: dto.name,
+        description: dto.description,
+        imageUrl: dto.imageUrl ?? '',
         subtitle: dto.subtitle,
         mobileUrl: dto.mobileUrl,
         tabletUrl: dto.tabletUrl,
@@ -63,13 +77,14 @@ export class AdminBannersService {
         secondaryLinkType: dto.secondaryLinkType,
         secondaryLinkTarget: dto.secondaryLinkTarget,
         placement: (dto.placement as any) ?? 'HOME_HERO',
+        targetAudience: dto.targetAudience ?? BannerTargetAudience.ALL,
         displayOrder: dto.displayOrder ?? 0,
         priority: dto.priority ?? 0,
         startsAt: dto.startsAt ? new Date(dto.startsAt) : undefined,
         endsAt: dto.endsAt ? new Date(dto.endsAt) : undefined,
         status: publish ? EntityStatus.ACTIVE : EntityStatus.DRAFT,
         isVisible: publish,
-        visibility: Visibility.PUBLIC,
+        visibility: this.resolveVisibility(publish, dto.startsAt),
       },
     });
     await this.cache.invalidateBanners();
@@ -83,6 +98,8 @@ export class AdminBannersService {
       data: {
         ...(dto.title !== undefined && { title: dto.title }),
         ...(dto.slug !== undefined && { slug: dto.slug }),
+        ...(dto.name !== undefined && { name: dto.name }),
+        ...(dto.description !== undefined && { description: dto.description }),
         ...(dto.imageUrl !== undefined && { imageUrl: dto.imageUrl }),
         ...(dto.subtitle !== undefined && { subtitle: dto.subtitle }),
         ...(dto.mobileUrl !== undefined && { mobileUrl: dto.mobileUrl }),
@@ -114,6 +131,9 @@ export class AdminBannersService {
           secondaryLinkTarget: dto.secondaryLinkTarget,
         }),
         ...(dto.placement !== undefined && { placement: dto.placement as any }),
+        ...(dto.targetAudience !== undefined && {
+          targetAudience: dto.targetAudience,
+        }),
         ...(dto.displayOrder !== undefined && { displayOrder: dto.displayOrder }),
         ...(dto.priority !== undefined && { priority: dto.priority }),
         ...(dto.startsAt !== undefined && {
@@ -121,6 +141,15 @@ export class AdminBannersService {
         }),
         ...(dto.endsAt !== undefined && {
           endsAt: dto.endsAt ? new Date(dto.endsAt) : null,
+        }),
+        ...(dto.publish === true && {
+          status: EntityStatus.ACTIVE,
+          isVisible: true,
+          visibility: this.resolveVisibility(true, dto.startsAt),
+        }),
+        ...(dto.publish === false && {
+          status: EntityStatus.DRAFT,
+          isVisible: false,
         }),
       },
     });
@@ -162,7 +191,17 @@ export class AdminBannersService {
   }
 
   async publish(id: string) {
-    await this.findOne(id);
+    const existing = await this.findOne(id);
+    const hasImage = Boolean(
+      existing.imageUrl?.trim() ||
+        existing.mobileUrl?.trim() ||
+        existing.desktopUrl?.trim(),
+    );
+    if (!hasImage) {
+      throw new BadRequestException(
+        'Upload a product or illustration before publishing. It appears fully visible on the right of the home promo card.',
+      );
+    }
     const banner = await this.prisma.banner.update({
       where: { id },
       data: {
@@ -190,11 +229,79 @@ export class AdminBannersService {
       items.map((item) =>
         this.prisma.banner.update({
           where: { id: item.id },
-          data: { displayOrder: item.displayOrder },
+          data: {
+            displayOrder: item.displayOrder,
+            priority: item.displayOrder,
+          },
         }),
       ),
     );
     await this.cache.invalidateBanners();
     return { reordered: items.length };
+  }
+
+  async duplicate(id: string) {
+    const source = await this.findOne(id);
+    const slug = await this.uniqueCopySlug(source.slug);
+    const banner = await this.prisma.banner.create({
+      data: {
+        slug,
+        name: source.name ? `${source.name} (copy)` : null,
+        description: source.description,
+        title: source.title,
+        subtitle: source.subtitle,
+        imageUrl: source.imageUrl,
+        mobileUrl: source.mobileUrl,
+        tabletUrl: source.tabletUrl,
+        desktopUrl: source.desktopUrl,
+        videoUrl: source.videoUrl,
+        thumbnailUrl: source.thumbnailUrl,
+        badge: source.badge,
+        bannerType: source.bannerType,
+        ctaLabel: source.ctaLabel,
+        ctaColor: source.ctaColor,
+        backgroundColor: source.backgroundColor,
+        buttonAction: source.buttonAction,
+        linkUrl: source.linkUrl,
+        linkType: source.linkType,
+        linkTarget: source.linkTarget,
+        secondaryCtaLabel: source.secondaryCtaLabel,
+        secondaryLinkUrl: source.secondaryLinkUrl,
+        secondaryLinkType: source.secondaryLinkType,
+        secondaryLinkTarget: source.secondaryLinkTarget,
+        placement: source.placement,
+        targetAudience: source.targetAudience,
+        displayOrder: source.displayOrder + 1,
+        priority: source.priority,
+        startsAt: source.startsAt,
+        endsAt: source.endsAt,
+        status: EntityStatus.DRAFT,
+        isVisible: false,
+        visibility: Visibility.HIDDEN,
+      },
+    });
+    await this.cache.invalidateBanners();
+    return banner;
+  }
+
+  private resolveVisibility(publish: boolean, startsAt?: string): Visibility {
+    if (!publish) return Visibility.HIDDEN;
+    if (startsAt && new Date(startsAt).getTime() > Date.now()) {
+      return Visibility.SCHEDULED;
+    }
+    return Visibility.PUBLIC;
+  }
+
+  private async uniqueCopySlug(base: string): Promise<string> {
+    const trimmed = base.replace(/-copy(-\d+)?$/, '').slice(0, 100);
+    for (let i = 1; i < 50; i += 1) {
+      const slug = i === 1 ? `${trimmed}-copy` : `${trimmed}-copy-${i}`;
+      const existing = await this.prisma.banner.findUnique({
+        where: { slug },
+        select: { id: true },
+      });
+      if (!existing) return slug;
+    }
+    return `${trimmed}-copy-${Date.now()}`;
   }
 }

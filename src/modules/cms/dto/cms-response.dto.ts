@@ -1,3 +1,7 @@
+import { CmsDeliveryPromotionDto } from '../../delivery-promotion/dto/delivery-promotion-response.dto';
+
+export { CmsDeliveryPromotionDto };
+
 export class CmsBannerDto {
   id!: string;
   title!: string;
@@ -27,6 +31,7 @@ export class CmsBannerDto {
   secondaryLinkType!: string | null;
   secondaryLinkTarget!: string | null;
   placement!: string;
+  targetAudience!: string;
 }
 
 export class CmsAdvertisementDto {
@@ -96,12 +101,21 @@ export class CmsOfferDto {
   title!: string;
   description!: string | null;
   imageUrl!: string | null;
+  mobileImageUrl!: string | null;
   discountLabel!: string | null;
+  discountPercent!: number | null;
+  discountValue!: number | null;
   badge!: string | null;
+  ctaLabel!: string | null;
+  ctaAction!: string | null;
   offerType!: string;
   displayOrder!: number;
   priority!: number;
+  startsAt!: Date | null;
   endsAt!: Date | null;
+  startingFrom!: number | null;
+  productCount!: number;
+  isFeatured!: boolean;
 }
 
 export class CmsQuickActionDto {
@@ -161,4 +175,5 @@ export class CmsHomeResponseDto {
   bulkProcurement!: CmsPromotionDto | null;
   priorityExpress!: CmsPromotionDto | null;
   membership!: CmsPromotionDto | null;
+  deliveryPromotions!: CmsDeliveryPromotionDto[];
 }

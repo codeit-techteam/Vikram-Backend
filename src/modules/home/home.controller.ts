@@ -19,7 +19,7 @@ export class HomeController {
   @ApiOperation({
     summary: 'Aggregated home screen data',
     description:
-      'Single API for the Customer APP home screen. Public content is cached as `home:default` (TTL 300s). When a valid JWT is provided, also returns membership, loyalty, and lastOrders.',
+        'Single API for the Customer APP home screen. Public content is cached as `home:default` (TTL 300s). When a valid JWT is provided, also returns loyalty and lastOrders.',
   })
   @ApiResponse({
     status: 200,

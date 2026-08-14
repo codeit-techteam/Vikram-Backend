@@ -397,7 +397,7 @@ export class LoyaltyTransactionService {
     }
   }
 
-  /** Registration welcome bonus — disabled (0). First-order bonus is the only +50. */
+  /** Registration welcome bonus (+50 BajriPro Points, once). Idempotent via WELCOME_BONUS ref. */
   async creditWelcomeBonus(
     customerId: string,
     tx?: Prisma.TransactionClient,
@@ -410,7 +410,7 @@ export class LoyaltyTransactionService {
       customerId,
       type: LoyaltyTransactionType.EARN,
       points: LOYALTY_WELCOME_BONUS_POINTS,
-      reason: 'Welcome loyalty bonus',
+      reason: 'Welcome BajriPro Points bonus',
       referenceId: LOYALTY_REF.WELCOME_BONUS,
       expiresAt,
       trackLot: true,
@@ -424,19 +424,22 @@ export class LoyaltyTransactionService {
     return this.recordEntry(input);
   }
 
-  /** First successfully completed (DELIVERED) order bonus (+50). Idempotent. */
+  /** First successfully completed (DELIVERED) order bonus. Disabled when points = 0. Idempotent. */
   async creditFirstOrderBonus(
     customerId: string,
     orderId: string,
     orderNumber: string,
     tx?: Prisma.TransactionClient,
   ): Promise<LoyaltyLedgerEntryResult | null> {
+    if (LOYALTY_FIRST_ORDER_BONUS_POINTS <= 0) {
+      return null;
+    }
     const expiresAt = addMonths(new Date(), LOYALTY_POINTS_EXPIRY_MONTHS);
     const input: LoyaltyLedgerEntryInput = {
       customerId,
       type: LoyaltyTransactionType.EARN,
       points: LOYALTY_FIRST_ORDER_BONUS_POINTS,
-      reason: `First order loyalty bonus (${orderNumber})`,
+      reason: `First order BajriPro Points bonus (${orderNumber})`,
       referenceId: LOYALTY_REF.FIRST_ORDER_BONUS,
       referenceOrderId: orderId,
       expiresAt,

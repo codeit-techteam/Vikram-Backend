@@ -370,14 +370,10 @@ export class CustomerService {
       tier: string;
     } | null;
   }): ProfileResponseDto {
-    const planName = customer.activeMembership?.plan.name ?? null;
     const membershipTier = this.resolveMembershipTier(
-      planName,
+      null,
       customer.loyaltyAccount?.tier,
     );
-    const benefits = Array.isArray(customer.activeMembership?.plan.benefits)
-      ? (customer.activeMembership!.plan.benefits as string[])
-      : [];
 
     return {
       id: customer.id,
@@ -418,16 +414,7 @@ export class CustomerService {
         jurisdiction: customer.profile?.jurisdiction ?? null,
         pan: customer.profile?.panNumber ?? null,
       },
-      membershipDetails: customer.activeMembership
-        ? {
-            id: customer.activeMembership.id,
-            tier: membershipTier,
-            planName,
-            status: customer.activeMembership.status,
-            expiryDate: customer.activeMembership.expiryDate.toISOString(),
-            benefits,
-          }
-        : null,
+      membershipDetails: null,
       wallet: {
         balance: customer.loyaltyAccount?.availablePoints ?? 0,
         availablePoints: customer.loyaltyAccount?.availablePoints ?? 0,

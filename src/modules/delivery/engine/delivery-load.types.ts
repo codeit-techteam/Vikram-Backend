@@ -17,6 +17,7 @@ export interface ProductLogisticsSnapshot {
   weightPerUnitKg: number | null;
   volumePerUnitCft: number | null;
   loadType: string | null;
+  logisticsType: string | null;
   isTransportable: boolean;
   allowDecimalQuantity: boolean;
   preferredVehicleType: DeliveryVehicleType | null;
@@ -47,8 +48,10 @@ export interface OrderLoadResult {
   /** Intersection of product vehicle restrictions (null = unrestricted). */
   allowedVehicleTypes: DeliveryVehicleType[] | null;
   preferredVehicleType: DeliveryVehicleType | null;
+  logisticsTypes: string[];
   hasWeightDimension: boolean;
   hasVolumeDimension: boolean;
+  restrictionReason: string | null;
 }
 
 export interface VehicleCapacityView {
@@ -66,6 +69,8 @@ export interface VehicleCapacityView {
   active: boolean;
   hasConfiguredCapacity: boolean;
   allowedProductCategories: string[] | null;
+  supportsRmc: boolean;
+  allowedLogisticsTypes: string[] | null;
 }
 
 export interface VehicleSelectionResult {
@@ -82,4 +87,5 @@ export interface VehicleSelectionResult {
   requiresBulkQuote: boolean;
   multiVehicle: boolean;
   eligibleVehicleTypes: DeliveryVehicleType[];
+  reason: string | null;
 }
