@@ -648,6 +648,14 @@ export class ProductService {
       ];
       this.mergeOrFilter(where, offerOr);
     }
+    if (query.ids) {
+      const ids = query.ids
+        .split(',')
+        .map((id) => id.trim())
+        .filter(Boolean)
+        .slice(0, 100);
+      if (ids.length) where.id = { in: ids };
+    }
     if (query.brand) where.brand = { equals: query.brand, mode: 'insensitive' };
     const productTypeRaw = query.productType ?? query.brickType;
     const productType =

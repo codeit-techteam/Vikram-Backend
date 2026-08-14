@@ -14,6 +14,21 @@ import { CacheService } from '../../common/cache/cache.service';
 import { R2StorageService } from '../../storage/r2.service';
 import { MEDIA_FOLDERS } from '../../storage/media-folders';
 import type { CreateVideoDto, UpdateVideoDto } from './dto/admin-videos.dto';
+import { resolveVideoCta } from './video-cta.util';
+
+function persistCta(fields: {
+  linkType?: string | null;
+  linkUrl?: string | null;
+  linkTarget?: string | null;
+}) {
+  const cta = resolveVideoCta(fields);
+  return {
+    linkType: cta.linkType,
+    linkUrl: cta.linkUrl,
+    linkTarget:
+      cta.linkTarget && cta.linkTarget.length <= 200 ? cta.linkTarget : null,
+  };
+}
 
 function mapPlacement(value?: string | null): VideoPlacement {
   const raw = (value || 'HOME_HERO_VIDEO').toUpperCase();
@@ -72,6 +87,11 @@ export class AdminVideosService {
       publicUrl?: string | null;
       thumbnailUrl?: string | null;
       thumbnailKey?: string | null;
+      linkType?: string | null;
+      linkUrl?: string | null;
+      linkTarget?: string | null;
+      placement?: VideoPlacement | string;
+      published?: boolean;
     },
   >(row: T) {
     const readableVideo = row.storageKey
@@ -107,6 +127,7 @@ export class AdminVideosService {
 
     const placement = mapPlacement(dto.placement);
     const publish = Boolean(dto.publish);
+    const cta = persistCta(dto);
 
     const video = await this.prisma.video.create({
       data: {
@@ -117,7 +138,7 @@ export class AdminVideosService {
         description: dto.description,
         thumbnailUrl: dto.thumbnailUrl,
         placement,
-        linkUrl: dto.linkUrl,
+        ...cta,
         ctaLabel: dto.ctaLabel ?? 'Shop Now',
         duration: dto.duration,
         displayOrder: dto.displayOrder ?? 0,
@@ -148,7 +169,9 @@ export class AdminVideosService {
       slug?: string;
       description?: string;
       placement?: string;
+      linkType?: string;
       linkUrl?: string;
+      linkTarget?: string;
       ctaLabel?: string;
       priority?: number;
       displayOrder?: number;
@@ -196,6 +219,7 @@ export class AdminVideosService {
       fields.publish === '1';
 
     const placement = mapPlacement(fields.placement);
+    const cta = persistCta(fields);
 
     const video = await this.prisma.video.create({
       data: {
@@ -210,7 +234,7 @@ export class AdminVideosService {
         mimeType: uploaded.mimeType,
         sizeBytes: BigInt(uploaded.size),
         placement,
-        linkUrl: fields.linkUrl,
+        ...cta,
         ctaLabel: fields.ctaLabel ?? 'Shop Now',
         duration: fields.duration ? Number(fields.duration) : null,
         displayOrder: fields.displayOrder ? Number(fields.displayOrder) : 0,
@@ -251,7 +275,14 @@ export class AdminVideosService {
           thumbnailUrl: dto.thumbnailUrl,
         }),
         ...(placement && { placement }),
-        ...(dto.linkUrl !== undefined && { linkUrl: dto.linkUrl }),
+        ...((dto.linkType !== undefined ||
+          dto.linkUrl !== undefined ||
+          dto.linkTarget !== undefined) &&
+          persistCta({
+            linkType: dto.linkType,
+            linkUrl: dto.linkUrl,
+            linkTarget: dto.linkTarget,
+          })),
         ...(dto.ctaLabel !== undefined && { ctaLabel: dto.ctaLabel }),
         ...(dto.duration !== undefined && { duration: dto.duration }),
         ...(dto.displayOrder !== undefined && {
@@ -272,7 +303,10 @@ export class AdminVideosService {
       },
     });
 
-    if (video.published && this.isHeroPlacement(video.placement)) {
+    if (
+      video.published &&
+      this.isHeroPlacement(mapPlacement(String(video.placement ?? '')))
+    ) {
       await this.demoteOtherHeroes(video.id);
       await this.syncHeroVideoBanner(video.id);
     }
@@ -283,6 +317,9 @@ export class AdminVideosService {
 
   async remove(id: string) {
     const existing = await this.findOne(id);
+    const wasLiveHero =
+      Boolean(existing.published) &&
+      this.isHeroPlacement(mapPlacement(String(existing.placement ?? '')));
     if (existing.storageKey) {
       try {
         await this.storage.deleteFile(existing.storageKey);
@@ -301,6 +338,9 @@ export class AdminVideosService {
       where: { id },
       data: { deletedAt: new Date(), published: false, isVisible: false },
     });
+    if (wasLiveHero) {
+      await this.promoteNextHero(id);
+    }
     await this.cache.invalidateVideos();
     return this.serialize(video);
   }
@@ -316,7 +356,7 @@ export class AdminVideosService {
         visibility: Visibility.PUBLIC,
       },
     });
-    if (this.isHeroPlacement(existing.placement)) {
+    if (this.isHeroPlacement(mapPlacement(String(existing.placement ?? '')))) {
       await this.demoteOtherHeroes(id);
       await this.syncHeroVideoBanner(id);
     }
@@ -325,7 +365,10 @@ export class AdminVideosService {
   }
 
   async unpublish(id: string) {
-    await this.findOne(id);
+    const existing = await this.findOne(id);
+    const wasLiveHero =
+      Boolean(existing.published) &&
+      this.isHeroPlacement(mapPlacement(String(existing.placement ?? '')));
     const video = await this.prisma.video.update({
       where: { id },
       data: {
@@ -334,12 +377,18 @@ export class AdminVideosService {
         published: false,
       },
     });
+    if (wasLiveHero) {
+      await this.promoteNextHero(id);
+    }
     await this.cache.invalidateVideos();
     return this.serialize(video);
   }
 
   async archive(id: string) {
-    await this.findOne(id);
+    const existing = await this.findOne(id);
+    const wasLiveHero =
+      Boolean(existing.published) &&
+      this.isHeroPlacement(mapPlacement(String(existing.placement ?? '')));
     const video = await this.prisma.video.update({
       where: { id },
       data: {
@@ -348,6 +397,9 @@ export class AdminVideosService {
         published: false,
       },
     });
+    if (wasLiveHero) {
+      await this.promoteNextHero(id);
+    }
     await this.cache.invalidateVideos();
     return this.serialize(video);
   }
@@ -378,7 +430,7 @@ export class AdminVideosService {
     );
   }
 
-  /** Newest published hero replaces previous heroes. */
+  /** Newest published hero replaces previous heroes (kept so delete can restore them). */
   private async demoteOtherHeroes(keepId: string) {
     await this.prisma.video.updateMany({
       where: {
@@ -397,6 +449,58 @@ export class AdminVideosService {
     });
   }
 
+  /** After the live hero is deleted/unpublished, restore the previous home video. */
+  private async promoteNextHero(exceptId: string) {
+    const next = await this.prisma.video.findFirst({
+      where: {
+        deletedAt: null,
+        id: { not: exceptId },
+        placement: {
+          in: [VideoPlacement.HOME, VideoPlacement.HOME_HERO_VIDEO],
+        },
+        OR: [
+          { storageKey: { not: null } },
+          { videoUrl: { not: '' } },
+          { publicUrl: { not: null } },
+        ],
+      },
+      orderBy: [{ updatedAt: 'desc' }, { priority: 'desc' }],
+    });
+
+    if (!next) {
+      await this.hideHeroVideoBanner();
+      return;
+    }
+
+    await this.prisma.video.update({
+      where: { id: next.id },
+      data: {
+        status: EntityStatus.ACTIVE,
+        isVisible: true,
+        published: true,
+        visibility: Visibility.PUBLIC,
+      },
+    });
+    await this.demoteOtherHeroes(next.id);
+    await this.syncHeroVideoBanner(next.id);
+  }
+
+  private async hideHeroVideoBanner() {
+    const existing = await this.prisma.banner.findFirst({
+      where: { slug: 'home-hero-video-banner' },
+    });
+    if (!existing) return;
+    await this.prisma.banner.update({
+      where: { id: existing.id },
+      data: {
+        isVisible: false,
+        status: EntityStatus.INACTIVE,
+        videoUrl: null,
+      },
+    });
+    await this.cache.invalidateBanners();
+  }
+
   /** Keep VIDEO banner in sync so legacy videoBanners consumers stay current. */
   private async syncHeroVideoBanner(videoId: string) {
     const video = await this.findOne(videoId);
@@ -404,21 +508,25 @@ export class AdminVideosService {
     const existing = await this.prisma.banner.findFirst({
       where: { slug },
     });
+    const cta = resolveVideoCta({
+      linkType: video.linkType,
+      linkUrl: video.linkUrl,
+      linkTarget: video.linkTarget,
+    });
+    const playbackUrl = video.publicUrl || video.videoUrl;
 
     const data = {
       title: video.title,
       subtitle: video.description,
-      imageUrl:
-        video.thumbnailUrl ||
-        'https://images.unsplash.com/photo-1541888946425-d81bb19240f5?w=800&q=80',
-      videoUrl: video.publicUrl || video.videoUrl,
-      thumbnailUrl: video.thumbnailUrl,
+      imageUrl: playbackUrl || '',
+      videoUrl: playbackUrl,
+      thumbnailUrl: null,
       bannerType: 'VIDEO' as const,
       placement: 'HOME_PROMO' as const,
       ctaLabel: video.ctaLabel || 'Shop Now',
-      linkUrl: video.linkUrl,
-      linkType: video.linkUrl ? 'ROUTE' : null,
-      linkTarget: video.linkUrl,
+      linkUrl: cta.linkUrl,
+      linkType: cta.linkType,
+      linkTarget: cta.linkTarget,
       isVisible: video.published,
       status: video.published ? EntityStatus.ACTIVE : EntityStatus.DRAFT,
       priority: video.priority,

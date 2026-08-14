@@ -9,6 +9,7 @@ import {
   customerOfferWhere,
   isOfferProductAvailable,
   mapCtaAction,
+  resolveStartingFrom,
 } from './offer-eligibility.logic';
 
 const PRODUCT_SELECT = {
@@ -28,7 +29,7 @@ const PRODUCT_SELECT = {
   },
   variants: {
     where: { deletedAt: null },
-    select: { inStock: true, deletedAt: true },
+    select: { inStock: true, deletedAt: true, price: true },
   },
 } as const;
 
@@ -67,7 +68,11 @@ type OfferRow = {
       deletedAt: Date | null;
       category: { name: string } | null;
       images: Array<{ url: string }>;
-      variants: Array<{ inStock: boolean; deletedAt: Date | null }>;
+      variants: Array<{
+        inStock: boolean;
+        deletedAt: Date | null;
+        price?: unknown;
+      }>;
     };
   }>;
 };
@@ -157,11 +162,11 @@ export class OfferService {
     const availableProducts = (offer.products ?? []).filter((op) =>
       isOfferProductAvailable(op.product),
     );
-    const prices = availableProducts
-      .map((op) => Number(op.product.retailPrice))
-      .filter((price) => Number.isFinite(price) && price > 0);
     const bundlePrice = offer.bundlePrice ? Number(offer.bundlePrice) : null;
-    const startingFrom = bundlePrice ?? (prices.length ? Math.min(...prices) : null);
+    const startingFrom = resolveStartingFrom(
+      bundlePrice,
+      availableProducts.map((op) => op.product),
+    );
 
     const dto: OfferResponseDto = {
       id: offer.id,

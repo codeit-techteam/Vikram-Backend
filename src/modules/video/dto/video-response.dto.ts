@@ -29,7 +29,13 @@ export class VideoResponseDto {
   linkUrl?: string | null;
 
   @ApiPropertyOptional()
+  linkType?: string | null;
+
+  @ApiPropertyOptional()
   linkTarget?: string | null;
+
+  @ApiPropertyOptional()
+  ctaLabel?: string | null;
 
   @ApiPropertyOptional()
   duration?: number | null;

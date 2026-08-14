@@ -13,6 +13,8 @@ import { CACHE_KEYS, CACHE_TTL } from '../../common/cache/cache.constants';
 import { VISIBLE_WHERE } from '../../common/utils/prisma.util';
 import { normalizeMediaUrl } from '../../common/utils/media-url';
 import { DeliveryPromotionService } from '../delivery-promotion/delivery-promotion.service';
+import { resolveStartingFrom } from '../offer/offer-eligibility.logic';
+import { resolveVideoCta } from '../../admin/videos/video-cta.util';
 import {
   CmsAdvertisementDto,
   CmsBannerDto,
@@ -95,7 +97,17 @@ export class CmsService {
     const result: CmsHomeResponseDto = {
       sections,
       banners,
-      heroBanners: banners.filter((b) => b.placement === 'HOME_HERO'),
+      heroBanners: banners
+        .filter(
+          (b) =>
+            b.placement === 'HOME_HERO' &&
+            String(b.bannerType).toUpperCase() !== 'VIDEO',
+        )
+        .sort(
+          (a, b) =>
+            (a.priority || 0) - (b.priority || 0) ||
+            a.displayOrder - b.displayOrder,
+        ),
       promoBanners: banners
         .filter(
           (b) =>
@@ -353,7 +365,7 @@ export class CmsService {
                 deletedAt: true,
                 variants: {
                   where: { deletedAt: null },
-                  select: { inStock: true, deletedAt: true },
+                  select: { inStock: true, deletedAt: true, price: true },
                 },
               },
             },
@@ -372,9 +384,6 @@ export class CmsService {
           (op.product.variants.length === 0 ||
             op.product.variants.some((v) => v.inStock !== false)),
       );
-      const prices = available
-        .map((op) => Number(op.product.retailPrice))
-        .filter((price) => Number.isFinite(price) && price > 0);
       const bundlePrice = o.bundlePrice ? Number(o.bundlePrice) : null;
       const ctaLabel = o.ctaLabel ?? 'Shop Now';
       const ctaAction =
@@ -403,7 +412,10 @@ export class CmsService {
         priority: o.priority,
         startsAt: o.startsAt,
         endsAt: o.endsAt,
-        startingFrom: bundlePrice ?? (prices.length ? Math.min(...prices) : null),
+        startingFrom: resolveStartingFrom(
+          bundlePrice,
+          available.map((op) => op.product),
+        ),
         productCount: available.length,
         isFeatured: o.isFeatured,
       };
@@ -485,9 +497,36 @@ export class CmsService {
 
   private async getVideoBanners(): Promise<CmsBannerDto[]> {
     const now = new Date();
+    let videos = await this.findPublishedHeroVideos(now);
 
-    // Prefer R2-backed Video records for HOME hero
-    const videos = await this.prisma.video.findMany({
+    if (videos.length === 0) {
+      const restored = await this.restoreUnpublishedHero();
+      if (restored) {
+        videos = await this.findPublishedHeroVideos(now);
+      }
+    }
+
+    if (videos.length > 0) {
+      return Promise.all(videos.map((v, index) => this.mapVideoBanner(v, index)));
+    }
+
+    const banners = await this.prisma.banner.findMany({
+      where: {
+        ...VISIBLE_WHERE,
+        bannerType: BannerType.VIDEO,
+        videoUrl: { not: null },
+        ...scheduleFilter(now),
+      },
+      orderBy: [{ displayOrder: 'asc' }, { priority: 'desc' }],
+    });
+
+    return banners
+      .map((b) => this.mapBanner(b))
+      .filter((b) => Boolean(b.videoUrl));
+  }
+
+  private findPublishedHeroVideos(now: Date) {
+    return this.prisma.video.findMany({
       where: {
         deletedAt: null,
         published: true,
@@ -501,61 +540,94 @@ export class CmsService {
       },
       orderBy: [{ priority: 'desc' }, { displayOrder: 'asc' }, { updatedAt: 'desc' }],
     });
+  }
 
-    if (videos.length > 0) {
-      return Promise.all(
-        videos.map(async (v, index) => {
-          const videoUrl = await this.storage.resolveReadableUrl(
-            v.publicUrl || v.videoUrl,
-            v.storageKey,
-          );
-          const thumbnailUrl = v.thumbnailKey
-            ? await this.storage.resolveReadableUrl(
-                v.thumbnailUrl || '',
-                v.thumbnailKey,
-              )
-            : media(v.thumbnailUrl);
-
-          return {
-            id: v.id,
-            title: v.title,
-            subtitle: v.description,
-            buttonText: v.ctaLabel || 'Shop Now',
-            buttonAction: v.linkUrl ? 'route' : null,
-            bannerType: BannerType.VIDEO,
-            imageUrl: thumbnailUrl ?? '',
-            videoUrl,
-            thumbnailUrl,
-            badge: null,
-            priority: v.priority,
-            displayOrder: v.displayOrder || index,
-            isActive: true,
-            startDate: v.scheduledAt,
-            endDate: v.expiresAt,
-            linkUrl: v.linkUrl,
-            linkType: v.linkUrl ? 'ROUTE' : null,
-            linkTarget: v.linkTarget || v.linkUrl,
-            secondaryButtonText: null,
-            secondaryLinkUrl: null,
-            secondaryLinkType: null,
-            secondaryLinkTarget: null,
-            placement: 'HOME_HERO_VIDEO',
-            targetAudience: 'ALL',
-          };
-        }),
-      );
-    }
-
-    const banners = await this.prisma.banner.findMany({
+  /**
+   * If a newer hero was deleted/unpublished and nothing is live, republish
+   * the previous playable home video so Admin and the Customer App stay in sync.
+   */
+  private async restoreUnpublishedHero() {
+    const next = await this.prisma.video.findFirst({
       where: {
-        ...VISIBLE_WHERE,
-        bannerType: BannerType.VIDEO,
-        ...scheduleFilter(now),
+        deletedAt: null,
+        placement: { in: ['HOME', 'HOME_HERO_VIDEO'] },
+        OR: [
+          { storageKey: { not: null } },
+          { videoUrl: { not: '' } },
+          { publicUrl: { not: null } },
+        ],
       },
-      orderBy: [{ displayOrder: 'asc' }, { priority: 'desc' }],
+      orderBy: [{ updatedAt: 'desc' }, { priority: 'desc' }],
+    });
+    if (!next) return null;
+
+    const restored = await this.prisma.video.update({
+      where: { id: next.id },
+      data: {
+        published: true,
+        isVisible: true,
+        status: EntityStatus.ACTIVE,
+      },
+    });
+    await this.cache.invalidateVideos();
+    return restored;
+  }
+
+  private async mapVideoBanner(
+    v: {
+      id: string;
+      title: string;
+      description: string | null;
+      ctaLabel: string | null;
+      linkType?: string | null;
+      linkUrl: string | null;
+      linkTarget: string | null;
+      publicUrl: string | null;
+      videoUrl: string;
+      storageKey: string | null;
+      priority: number;
+      displayOrder: number;
+      scheduledAt: Date | null;
+      expiresAt: Date | null;
+    },
+    index: number,
+  ): Promise<CmsBannerDto> {
+    const videoUrl = await this.storage.resolveReadableUrl(
+      v.publicUrl || v.videoUrl,
+      v.storageKey,
+    );
+    const cta = resolveVideoCta({
+      linkType: v.linkType,
+      linkUrl: v.linkUrl,
+      linkTarget: v.linkTarget,
     });
 
-    return banners.map((b) => this.mapBanner(b));
+    return {
+      id: v.id,
+      title: v.title,
+      subtitle: v.description,
+      buttonText: v.ctaLabel || 'Shop Now',
+      buttonAction: cta.linkType,
+      bannerType: BannerType.VIDEO,
+      imageUrl: '',
+      videoUrl,
+      thumbnailUrl: null,
+      badge: null,
+      priority: v.priority,
+      displayOrder: v.displayOrder || index,
+      isActive: true,
+      startDate: v.scheduledAt,
+      endDate: v.expiresAt,
+      linkUrl: cta.linkUrl,
+      linkType: cta.linkType,
+      linkTarget: cta.linkTarget,
+      secondaryButtonText: null,
+      secondaryLinkUrl: null,
+      secondaryLinkType: null,
+      secondaryLinkTarget: null,
+      placement: 'HOME_HERO_VIDEO',
+      targetAudience: 'ALL',
+    };
   }
 
   private mapBanner(b: {
@@ -601,7 +673,8 @@ export class CmsService {
       tabletUrl: media(b.tabletUrl),
       desktopUrl: media(b.desktopUrl),
       videoUrl: media(b.videoUrl),
-      thumbnailUrl: media(b.thumbnailUrl),
+      thumbnailUrl:
+        b.bannerType === BannerType.VIDEO ? null : media(b.thumbnailUrl),
       badge: b.badge,
       ctaColor: b.ctaColor,
       backgroundColor: b.backgroundColor,

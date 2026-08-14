@@ -78,6 +78,8 @@ export class AdminVideosController {
         description: { type: 'string' },
         placement: { type: 'string' },
         linkUrl: { type: 'string' },
+        linkType: { type: 'string' },
+        linkTarget: { type: 'string' },
         ctaLabel: { type: 'string' },
         priority: { type: 'string' },
         publish: { type: 'string' },
@@ -110,7 +112,9 @@ export class AdminVideosController {
       slug?: string;
       description?: string;
       placement?: string;
+      linkType?: string;
       linkUrl?: string;
+      linkTarget?: string;
       ctaLabel?: string;
       priority?: string;
       displayOrder?: string;

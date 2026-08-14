@@ -18,6 +18,7 @@ import {
   parseOfferStartAt,
   resolveLifecycleStatus,
   schedulesOverlap,
+  slugifyOfferTitle,
 } from '../../modules/offer/offer-eligibility.logic';
 
 @Injectable()
@@ -154,7 +155,7 @@ export class AdminOffersService {
     const offer = await this.prisma.offer.create({
       data: {
         title: dto.title,
-        slug: dto.slug,
+        slug: await this.uniqueSlug(dto.slug || slugifyOfferTitle(dto.title)),
         description: dto.description,
         imageUrl: dto.imageUrl,
         mobileImageUrl: dto.mobileImageUrl,
@@ -310,5 +311,15 @@ export class AdminOffersService {
     }
     await this.cache.invalidateOffers();
     return this.findOne(offerId);
+  }
+
+  private async uniqueSlug(base: string): Promise<string> {
+    const trimmed = (base || 'offer').slice(0, 80) || 'offer';
+    const existing = await this.prisma.offer.findUnique({
+      where: { slug: trimmed },
+      select: { id: true },
+    });
+    if (!existing) return trimmed;
+    return `${trimmed}-${Date.now().toString(36)}`.slice(0, 100);
   }
 }

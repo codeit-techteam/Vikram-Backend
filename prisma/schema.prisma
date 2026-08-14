@@ -1053,6 +1053,7 @@ model Video {
   sizeBytes    BigInt?        @map("size_bytes")
   duration     Int?
   placement    VideoPlacement @default(HOME_HERO_VIDEO)
+  linkType     String?        @map("link_type") @db.VarChar(50)
   linkUrl      String?        @map("link_url") @db.VarChar(1000)
   linkTarget   String?        @map("link_target") @db.VarChar(200)
   ctaLabel     String?        @map("cta_label") @db.VarChar(100)

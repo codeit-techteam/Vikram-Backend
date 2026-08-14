@@ -35,7 +35,7 @@ export class CreateBannerDto {
   @ApiPropertyOptional() @IsOptional() @IsString() description?: string;
   @ApiPropertyOptional({
     description:
-      'Product or illustration shown fully visible on the right of the composed home promo card.',
+      'HOME_HERO: full-bleed home carousel artwork. HOME_PROMO: product or illustration on the right of the composed card.',
   })
   @IsOptional()
   @IsString()

@@ -17,7 +17,9 @@ export class CreateVideoDto {
   @ApiPropertyOptional() @IsOptional() @IsString() description?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() thumbnailUrl?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() placement?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() linkType?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() linkUrl?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() linkTarget?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() ctaLabel?: string;
   @ApiPropertyOptional() @IsOptional() @IsInt() duration?: number;
   @ApiPropertyOptional() @IsOptional() @IsInt() displayOrder?: number;
@@ -33,7 +35,9 @@ export class UpdateVideoDto {
   @ApiPropertyOptional() @IsOptional() @IsString() description?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() thumbnailUrl?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() placement?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() linkType?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() linkUrl?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() linkTarget?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() ctaLabel?: string;
   @ApiPropertyOptional() @IsOptional() @IsInt() duration?: number;
   @ApiPropertyOptional() @IsOptional() @IsInt() displayOrder?: number;

@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform, Type } from 'class-transformer';
 import {
   IsString,
   IsOptional,
@@ -11,13 +12,13 @@ import {
   Min,
   Max,
   MaxLength,
+  ValidateIf,
 } from 'class-validator';
-import { Type } from 'class-transformer';
 import { OfferTargetAudience } from '../../../../generated/prisma/client';
 
 export class CreateOfferDto {
   @ApiProperty() @IsString() title!: string;
-  @ApiProperty() @IsString() slug!: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() slug?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() description?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() imageUrl?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() mobileImageUrl?: string;
@@ -28,7 +29,17 @@ export class CreateOfferDto {
   @ApiPropertyOptional() @IsOptional() @IsNumber() discountValue?: number;
   @ApiPropertyOptional() @IsOptional() @IsNumber() discountPercent?: number;
   @ApiPropertyOptional() @IsOptional() @IsString() discountLabel?: string;
-  @ApiPropertyOptional() @IsOptional() @IsNumber() bundlePrice?: number;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (value === '' || value === undefined) return undefined;
+    if (value === null) return null;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : value;
+  })
+  @ValidateIf((_, value) => value !== null && value !== undefined)
+  @IsNumber()
+  bundlePrice?: number | null;
   @ApiPropertyOptional() @IsOptional() @IsNumber() originalPrice?: number;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) badge?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) ctaLabel?: string;
@@ -55,7 +66,17 @@ export class UpdateOfferDto {
   @ApiPropertyOptional() @IsOptional() @IsNumber() discountValue?: number;
   @ApiPropertyOptional() @IsOptional() @IsNumber() discountPercent?: number;
   @ApiPropertyOptional() @IsOptional() @IsString() discountLabel?: string;
-  @ApiPropertyOptional() @IsOptional() @IsNumber() bundlePrice?: number;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (value === '' || value === undefined) return undefined;
+    if (value === null) return null;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : value;
+  })
+  @ValidateIf((_, value) => value !== null && value !== undefined)
+  @IsNumber()
+  bundlePrice?: number | null;
   @ApiPropertyOptional() @IsOptional() @IsNumber() originalPrice?: number;
   @ApiPropertyOptional() @IsOptional() @IsString() badge?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() ctaLabel?: string;

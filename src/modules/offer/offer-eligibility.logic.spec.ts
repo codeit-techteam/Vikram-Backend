@@ -4,7 +4,9 @@ import {
   parseOfferEndAt,
   parseOfferStartAt,
   resolveLifecycleStatus,
+  resolveStartingFrom,
   schedulesOverlap,
+  slugifyOfferTitle,
 } from './offer-eligibility.logic';
 
 describe('offer eligibility', () => {
@@ -117,5 +119,28 @@ describe('offer eligibility', () => {
         parseOfferEndAt('2026-08-31'),
       ),
     ).toBe(false);
+  });
+
+  it('uses admin bundle price for startingFrom when set', () => {
+    expect(
+      resolveStartingFrom(8, [
+        { retailPrice: 45000, variants: [{ price: 195 }] },
+      ]),
+    ).toBe(8);
+  });
+
+  it('falls back to cheapest variant then retail', () => {
+    expect(
+      resolveStartingFrom(null, [
+        { retailPrice: 45000, variants: [{ price: 195 }, { price: 45 }] },
+        { retailPrice: 220, variants: [] },
+      ]),
+    ).toBe(45);
+  });
+
+  it('slugifies offer titles for internal URLs', () => {
+    expect(slugifyOfferTitle('Offer on Fevicol Items')).toBe(
+      'offer-on-fevicol-items',
+    );
   });
 });

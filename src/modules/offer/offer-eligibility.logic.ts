@@ -98,6 +98,42 @@ export function isOfferProductAvailable(product: {
   return variants.some((variant) => variant.inStock !== false && !variant.deletedAt);
 }
 
+export function slugifyOfferTitle(title: string): string {
+  return (
+    title
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '')
+      .slice(0, 80) || 'offer'
+  );
+}
+
+/** Admin-set display price wins; otherwise cheapest variant, then retail. */
+export function resolveStartingFrom(
+  bundlePrice: unknown,
+  products: Array<{
+    retailPrice?: unknown;
+    variants?: Array<{ price?: unknown }>;
+  }>,
+): number | null {
+  const bundle = Number(bundlePrice);
+  if (Number.isFinite(bundle) && bundle > 0) return bundle;
+
+  const prices: number[] = [];
+  for (const product of products) {
+    for (const variant of product.variants ?? []) {
+      const price = Number(variant.price);
+      if (Number.isFinite(price) && price > 0) prices.push(price);
+    }
+    const retail = Number(product.retailPrice);
+    if (Number.isFinite(retail) && retail > 0) prices.push(retail);
+  }
+  return prices.length ? Math.min(...prices) : null;
+}
+
 export function schedulesOverlap(
   aStart: Date | null,
   aEnd: Date | null,

@@ -100,11 +100,14 @@ export class AdminBannersService {
         ...(dto.slug !== undefined && { slug: dto.slug }),
         ...(dto.name !== undefined && { name: dto.name }),
         ...(dto.description !== undefined && { description: dto.description }),
-        ...(dto.imageUrl !== undefined && { imageUrl: dto.imageUrl }),
         ...(dto.subtitle !== undefined && { subtitle: dto.subtitle }),
-        ...(dto.mobileUrl !== undefined && { mobileUrl: dto.mobileUrl }),
+        ...(dto.imageUrl !== undefined &&
+          dto.imageUrl.trim() !== '' && { imageUrl: dto.imageUrl }),
+        ...(dto.mobileUrl !== undefined &&
+          dto.mobileUrl.trim() !== '' && { mobileUrl: dto.mobileUrl }),
         ...(dto.tabletUrl !== undefined && { tabletUrl: dto.tabletUrl }),
-        ...(dto.desktopUrl !== undefined && { desktopUrl: dto.desktopUrl }),
+        ...(dto.desktopUrl !== undefined &&
+          dto.desktopUrl.trim() !== '' && { desktopUrl: dto.desktopUrl }),
         ...(dto.videoUrl !== undefined && { videoUrl: dto.videoUrl }),
         ...(dto.thumbnailUrl !== undefined && { thumbnailUrl: dto.thumbnailUrl }),
         ...(dto.badge !== undefined && { badge: dto.badge }),
