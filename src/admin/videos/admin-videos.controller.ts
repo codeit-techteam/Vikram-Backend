@@ -8,11 +8,15 @@ import {
   Patch,
   Post,
   Query,
+  UploadedFile,
   UploadedFiles,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
-import { FileFieldsInterceptor } from '@nestjs/platform-express';
+import {
+  FileFieldsInterceptor,
+  FileInterceptor,
+} from '@nestjs/platform-express';
 import {
   ApiBearerAuth,
   ApiBody,
@@ -152,6 +156,36 @@ export class AdminVideosController {
       newValue: { title: data.title, storageKey: data.storageKey },
     });
     return { success: true, message: 'Video uploaded', data };
+  }
+
+  @Post(':id/replace')
+  @AdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
+  @ApiOperation({ summary: 'Replace the video file for an existing CMS record' })
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: 500 * 1024 * 1024 },
+    }),
+  )
+  async replace(
+    @Param('id') id: string,
+    @UploadedFile() file: Express.Multer.File,
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+  ) {
+    if (!file) {
+      throw new BadRequestException('video file is required');
+    }
+    const data = await this.videosService.replaceFile(id, file);
+    await this.auditService.log({
+      adminUserId: admin.id,
+      adminEmail: admin.email,
+      action: 'UPDATE',
+      resource: 'Video',
+      resourceId: id,
+      newValue: { storageKey: data.storageKey },
+    });
+    return { success: true, message: 'Video file replaced', data };
   }
 
   @Post()

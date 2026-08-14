@@ -258,6 +258,45 @@ export class AdminVideosService {
     return this.serialize(video);
   }
 
+  async replaceFile(id: string, file: Express.Multer.File) {
+    if (!file) throw new BadRequestException('video file is required');
+    const existing = await this.findOne(id);
+    const folder =
+      mapPlacement(String(existing.placement ?? '')) === VideoPlacement.TUTORIALS
+        ? MEDIA_FOLDERS.VIDEOS_TUTORIALS
+        : MEDIA_FOLDERS.VIDEOS_HOME;
+
+    const uploaded = await this.storage.uploadMulterFile(file, folder);
+    if (existing.storageKey && existing.storageKey !== uploaded.key) {
+      try {
+        await this.storage.deleteFile(existing.storageKey);
+      } catch {
+        // Keep the new object even if the old key cannot be deleted
+      }
+    }
+
+    const video = await this.prisma.video.update({
+      where: { id },
+      data: {
+        storageKey: uploaded.key,
+        videoUrl: uploaded.publicUrl,
+        publicUrl: uploaded.publicUrl,
+        mimeType: uploaded.mimeType,
+        sizeBytes: BigInt(uploaded.size),
+      },
+    });
+
+    if (
+      video.published &&
+      this.isHeroPlacement(mapPlacement(String(video.placement ?? '')))
+    ) {
+      await this.syncHeroVideoBanner(id);
+    }
+
+    await this.cache.invalidateVideos();
+    return this.serialize(video);
+  }
+
   async update(id: string, dto: UpdateVideoDto) {
     await this.findOne(id);
     const placement = dto.placement ? mapPlacement(dto.placement) : undefined;
