@@ -9,6 +9,7 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import {
+  BannerPlacement,
   BannerTargetAudience,
   BannerType,
 } from '../../../../generated/prisma/client';
@@ -64,7 +65,10 @@ export class CreateBannerDto {
   @ApiPropertyOptional() @IsOptional() @IsString() secondaryLinkUrl?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() secondaryLinkType?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() secondaryLinkTarget?: string;
-  @ApiPropertyOptional() @IsOptional() @IsString() placement?: string;
+  @ApiPropertyOptional({ enum: BannerPlacement })
+  @IsOptional()
+  @IsEnum(BannerPlacement)
+  placement?: BannerPlacement;
   @ApiPropertyOptional({ enum: BannerTargetAudience })
   @IsOptional()
   @IsEnum(BannerTargetAudience)

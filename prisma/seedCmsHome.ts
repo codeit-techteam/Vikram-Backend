@@ -254,15 +254,24 @@ export async function seedCmsHome(prisma: PrismaClient): Promise<void> {
   ];
 
   for (const banner of heroBanners) {
+    const existing = await prisma.banner.findUnique({
+      where: { slug: banner.slug },
+    });
+    const keepImage =
+      isManagedCdnUrl(existing?.imageUrl) ||
+      isManagedCdnUrl(existing?.mobileUrl) ||
+      isManagedCdnUrl(existing?.desktopUrl);
+    const imageUrl = keepImage
+      ? (existing?.mobileUrl || existing?.imageUrl || HERO_IMAGE)
+      : HERO_IMAGE;
+
     await prisma.banner.upsert({
       where: { slug: banner.slug },
       update: {
         title: banner.title,
         subtitle: banner.subtitle,
         badge: banner.badge,
-        bannerType: BannerType.CAROUSEL,
-        imageUrl: HERO_IMAGE,
-        mobileUrl: HERO_IMAGE,
+        bannerType: BannerType.IMAGE,
         ctaLabel: 'Shop Now',
         buttonAction: 'route',
         linkType: 'route',
@@ -276,15 +285,19 @@ export async function seedCmsHome(prisma: PrismaClient): Promise<void> {
         displayOrder: banner.displayOrder,
         priority: banner.priority,
         isVisible: true,
+        ...(keepImage
+          ? {}
+          : { imageUrl, mobileUrl: imageUrl, thumbnailUrl: imageUrl }),
       },
       create: {
         slug: banner.slug,
         title: banner.title,
         subtitle: banner.subtitle,
         badge: banner.badge,
-        bannerType: BannerType.CAROUSEL,
-        imageUrl: HERO_IMAGE,
-        mobileUrl: HERO_IMAGE,
+        bannerType: BannerType.IMAGE,
+        imageUrl,
+        mobileUrl: imageUrl,
+        thumbnailUrl: imageUrl,
         ctaLabel: 'Shop Now',
         buttonAction: 'route',
         linkType: 'route',

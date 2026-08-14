@@ -76,7 +76,7 @@ export class AdminBannersService {
         secondaryLinkUrl: dto.secondaryLinkUrl,
         secondaryLinkType: dto.secondaryLinkType,
         secondaryLinkTarget: dto.secondaryLinkTarget,
-        placement: (dto.placement as any) ?? 'HOME_HERO',
+        placement: dto.placement ?? 'HOME_HERO',
         targetAudience: dto.targetAudience ?? BannerTargetAudience.ALL,
         displayOrder: dto.displayOrder ?? 0,
         priority: dto.priority ?? 0,
@@ -130,7 +130,7 @@ export class AdminBannersService {
         ...(dto.secondaryLinkTarget !== undefined && {
           secondaryLinkTarget: dto.secondaryLinkTarget,
         }),
-        ...(dto.placement !== undefined && { placement: dto.placement as any }),
+        ...(dto.placement !== undefined && { placement: dto.placement }),
         ...(dto.targetAudience !== undefined && {
           targetAudience: dto.targetAudience,
         }),
@@ -198,8 +198,11 @@ export class AdminBannersService {
         existing.desktopUrl?.trim(),
     );
     if (!hasImage) {
+      const isHero = existing.placement === 'HOME_HERO';
       throw new BadRequestException(
-        'Upload a product or illustration before publishing. It appears fully visible on the right of the home promo card.',
+        isHero
+          ? 'Upload a full hero banner image before publishing. It fills the home carousel in the app.'
+          : 'Upload a product or illustration before publishing. It appears fully visible on the right of the home promo card.',
       );
     }
     const banner = await this.prisma.banner.update({
