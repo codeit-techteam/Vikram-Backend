@@ -10,7 +10,8 @@ import { OrderEventsService } from '../../modules/orders/order-events.service';
 import { LoyaltyTransactionService } from '../../modules/loyalty/loyalty-transaction.service';
 import { DeliveryBenefitService } from '../../modules/delivery/delivery-benefit.service';
 import type { AdminOrderQueryDto, UpdateOrderStatusDto, CancelOrderDto } from './dto/admin-orders.dto';
-import type { OrderStatus } from '../../../generated/prisma/client';
+import { mapAdminRoutingView } from '../../modules/coverage/hub-routing.logic';
+import { OrderStatus } from '../../../generated/prisma/client';
 
 @Injectable()
 export class AdminOrdersService {
@@ -39,7 +40,12 @@ export class AdminOrdersService {
     }
 
     if (query.customerId) where['customerId'] = query.customerId;
-    if (query.hubId) where['hubId'] = query.hubId;
+    if (query.unassigned === true || query.bucket === 'unassigned') {
+      where['hubId'] = null;
+      where['orderStatus'] = OrderStatus.AWAITING_HUB_ALLOCATION;
+    } else if (query.hubId) {
+      where['hubId'] = query.hubId;
+    }
     if (query.fromDate || query.toDate) {
       where['createdAt'] = {
         ...(query.fromDate && { gte: new Date(query.fromDate) }),
@@ -111,6 +117,7 @@ export class AdminOrdersService {
             name: order.hub.name,
           }
         : null,
+      routing: mapAdminRoutingView(order),
     }));
 
     return { data: mapped, meta: { page, limit, total, totalPages: Math.ceil(total / limit) } };
@@ -200,6 +207,7 @@ export class AdminOrdersService {
         expectedDelivery: order.expectedDeliveryAt?.toISOString() ?? null,
         orderAgeHours: Math.round(ageMs / (1000 * 60 * 60) * 10) / 10,
       },
+      routing: mapAdminRoutingView(order),
       timeline: order.timeline.map((entry) => ({
         ...entry,
         statusLabel: getOrderStatusLabel(entry.status),
@@ -262,7 +270,11 @@ export class AdminOrdersService {
     const [updated] = await this.prisma.$transaction([
       this.prisma.order.update({
         where: { id },
-        data: { hubId, orderStatus: 'HUB_ASSIGNED' },
+        data: {
+          hubId,
+          orderStatus: 'HUB_ASSIGNED',
+          hubAssignmentReason: 'ASSIGNED',
+        },
       }),
       this.prisma.orderTimeline.create({
         data: {

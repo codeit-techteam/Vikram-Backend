@@ -264,30 +264,16 @@ export class CustomerAuthService {
       activeMembership?: {
         plan: { name: string };
       } | null;
-      loyaltyAccount?: { tier: string } | null;
+      loyaltyAccount?: { availablePoints?: number } | null;
     },
   ): CustomerMeDto {
-    const planName = null;
-    const loyaltyTier = customer.loyaltyAccount?.tier ?? null;
-    const source = (planName ?? loyaltyTier ?? '').toUpperCase();
-    let membership: string | null = null;
-    if (source.includes('PLATINUM') || source.includes('ENTERPRISE')) {
-      membership = 'PLATINUM';
-    } else if (source.includes('GOLD')) {
-      membership = 'GOLD';
-    } else if (source.includes('SILVER')) {
-      membership = 'SILVER';
-    } else if (source) {
-      membership = source;
-    }
-
     return {
       id: customer.id,
       phone: customer.phone,
       email: customer.email,
       name: customer.fullName,
       fullName: customer.fullName,
-      membership,
+      membership: null,
       profileImage: customer.profile?.profileImage ?? null,
       companyName: customer.profile?.companyName ?? null,
       isVerified: customer.isVerified,

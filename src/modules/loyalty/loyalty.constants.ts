@@ -1,5 +1,3 @@
-import { LoyaltyTier } from '../../../generated/prisma/client';
-
 /** 1 loyalty point = ₹0.01 at redemption */
 export const LOYALTY_POINT_VALUE_INR = 0.01;
 
@@ -32,54 +30,6 @@ export const LOYALTY_REF = {
 
 export const FREE_BIKE_DELIVERIES_ALLOWED = 3;
 export const BIKE_DELIVERY_COMPANY_COST = 99;
-
-export const TIER_THRESHOLDS: Record<LoyaltyTier, number> = {
-  BRONZE: 0,
-  SILVER: 500,
-  GOLD: 2000,
-  PLATINUM: 5000,
-};
-
-export const TIER_ORDER: LoyaltyTier[] = [
-  LoyaltyTier.BRONZE,
-  LoyaltyTier.SILVER,
-  LoyaltyTier.GOLD,
-  LoyaltyTier.PLATINUM,
-];
-
-export function resolveTierFromPoints(points: number): LoyaltyTier {
-  if (points >= TIER_THRESHOLDS.PLATINUM) return LoyaltyTier.PLATINUM;
-  if (points >= TIER_THRESHOLDS.GOLD) return LoyaltyTier.GOLD;
-  if (points >= TIER_THRESHOLDS.SILVER) return LoyaltyTier.SILVER;
-  return LoyaltyTier.BRONZE;
-}
-
-export function getNextTierInfo(currentPoints: number): {
-  nextTier: LoyaltyTier | null;
-  pointsToNextTier: number;
-  tierProgress: number;
-} {
-  const currentTier = resolveTierFromPoints(currentPoints);
-  const currentIndex = TIER_ORDER.indexOf(currentTier);
-
-  if (currentIndex >= TIER_ORDER.length - 1) {
-    return { nextTier: null, pointsToNextTier: 0, tierProgress: 100 };
-  }
-
-  const nextTier = TIER_ORDER[currentIndex + 1];
-  const nextThreshold = TIER_THRESHOLDS[nextTier];
-  const currentThreshold = TIER_THRESHOLDS[currentTier];
-  const span = nextThreshold - currentThreshold;
-  const progressInTier = currentPoints - currentThreshold;
-  const tierProgress =
-    span > 0 ? Math.min(100, Math.round((progressInTier / span) * 100)) : 0;
-
-  return {
-    nextTier,
-    pointsToNextTier: Math.max(0, nextThreshold - currentPoints),
-    tierProgress,
-  };
-}
 
 /** floor(eligibleAmount / 100) — 1 point per ₹100 spent */
 export function calculateEarnPoints(eligibleAmountInr: number): number {

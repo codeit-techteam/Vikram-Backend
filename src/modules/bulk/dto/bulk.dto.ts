@@ -16,6 +16,7 @@ import {
   MaxLength,
   Min,
   MinLength,
+  ValidateNested,
 } from 'class-validator';
 import {
   BulkDeliveryRequirement,
@@ -23,6 +24,25 @@ import {
   BulkPreferredContact,
   BulkQuotationStatus,
 } from '../../../../generated/prisma/client';
+
+export class BulkMaterialQuantityDto {
+  @ApiProperty({ example: 'cement' })
+  @IsString()
+  @MaxLength(120)
+  slug!: string;
+
+  @ApiProperty({ example: 50, description: 'Estimated quantity for this material' })
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 3 })
+  @Min(0.001)
+  quantity!: number;
+
+  @ApiProperty({ example: 'Bags' })
+  @IsString()
+  @MinLength(1)
+  @MaxLength(50)
+  unit!: string;
+}
 
 export class CreateBulkEnquiryDto {
   @ApiPropertyOptional({ format: 'uuid' })
@@ -76,6 +96,17 @@ export class CreateBulkEnquiryDto {
   @IsString()
   @MaxLength(200)
   materialTypeLabel?: string;
+
+  @ApiPropertyOptional({
+    type: [BulkMaterialQuantityDto],
+    description:
+      'Per-material quantity and unit. Required when multiple categories are selected.',
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => BulkMaterialQuantityDto)
+  materialQuantities?: BulkMaterialQuantityDto[];
 
   @ApiProperty({ example: 500, description: 'Estimated quantity (> 0, decimals allowed)' })
   @Type(() => Number)
@@ -151,7 +182,10 @@ export class CreateBulkEnquiryDto {
   @MaxLength(1000)
   additionalNotes?: string;
 
-  @ApiPropertyOptional({ enum: BulkPreferredContact, default: BulkPreferredContact.BOTH })
+  @ApiPropertyOptional({
+    enum: BulkPreferredContact,
+    default: BulkPreferredContact.CALL,
+  })
   @IsOptional()
   @IsEnum(BulkPreferredContact)
   preferredContact?: BulkPreferredContact;
@@ -310,7 +344,13 @@ export class BulkEnquiryResponseDto {
   isMixedLoad!: boolean;
 
   @ApiPropertyOptional()
-  materialCategories?: Array<{ id: string; slug: string; name: string }> | null;
+  materialCategories?: Array<{
+    id: string;
+    slug: string;
+    name: string;
+    quantity?: number;
+    unit?: string;
+  }> | null;
 
   @ApiPropertyOptional()
   productType?: string | null;

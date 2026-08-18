@@ -150,6 +150,7 @@ export class BulkService {
 
     const resolved = await this.resolveCategories(dto);
     this.validateBrickFields(resolved.primarySlug, dto, resolved.categoriesJson);
+    const withQty = this.applyMaterialQuantities(resolved.categoriesJson, dto);
 
     const companyName =
       dto.companyName?.trim() ||
@@ -213,9 +214,9 @@ export class BulkService {
           materialCategoryName: resolved.primary?.name ?? null,
           isMixedLoad: resolved.isMixedLoad,
           materialCategoriesJson:
-            resolved.categoriesJson === null
+            withQty.categoriesJson === null
               ? undefined
-              : resolved.categoriesJson,
+              : withQty.categoriesJson,
           productType,
           grade,
           materialTypeLabel: dto.materialTypeLabel?.trim() || null,
@@ -231,14 +232,17 @@ export class BulkService {
           addressId: dto.addressId ?? null,
           additionalNotes: dto.additionalNotes?.trim() || null,
           remarks: dto.additionalNotes?.trim() || null,
-          expectedQuantity: dto.estimatedQuantity,
-          expectedUnit: normalizeUnit(dto.unit),
+          expectedQuantity: withQty.expectedQuantity,
+          expectedUnit: withQty.expectedUnit,
           deliveryRequirement: dto.deliveryRequirement,
           deliveryDate: dto.deliveryDate
             ? new Date(dto.deliveryDate)
             : null,
           preferredContact:
-            dto.preferredContact ?? BulkPreferredContact.BOTH,
+            dto.preferredContact &&
+            dto.preferredContact !== BulkPreferredContact.BOTH
+              ? dto.preferredContact
+              : BulkPreferredContact.CALL,
           status: initialStatus,
           assignedExecutiveId: autoAssign?.id ?? null,
           assignedExecutive: autoAssign?.fullName ?? null,
@@ -597,6 +601,66 @@ export class BulkService {
     };
   }
 
+  private applyMaterialQuantities(
+    categoriesJson: Prisma.InputJsonValue | null,
+    dto: CreateBulkEnquiryDto,
+  ): {
+    categoriesJson: Prisma.InputJsonValue | null;
+    expectedQuantity: number;
+    expectedUnit: string;
+  } {
+    const lines = (dto.materialQuantities ?? []).map((line) => ({
+      slug: line.slug.trim().toLowerCase(),
+      quantity: line.quantity,
+      unit: normalizeUnit(line.unit),
+    }));
+
+    if (lines.length === 0) {
+      return {
+        categoriesJson,
+        expectedQuantity: dto.estimatedQuantity,
+        expectedUnit: normalizeUnit(dto.unit),
+      };
+    }
+
+    if (Array.isArray(categoriesJson) && categoriesJson.length > 0) {
+      const cats = categoriesJson as Array<{
+        id: string;
+        slug: string;
+        name: string;
+      }>;
+      const bySlug = new Map(lines.map((line) => [line.slug, line]));
+      for (const cat of cats) {
+        if (!bySlug.has(cat.slug.toLowerCase())) {
+          throw new BadRequestException(
+            `Quantity and unit are required for ${cat.name}`,
+          );
+        }
+      }
+
+      const merged = cats.map((cat) => {
+        const line = bySlug.get(cat.slug.toLowerCase())!;
+        return {
+          ...cat,
+          quantity: line.quantity,
+          unit: line.unit,
+        };
+      });
+
+      return {
+        categoriesJson: merged,
+        expectedQuantity: merged[0].quantity,
+        expectedUnit: merged[0].unit,
+      };
+    }
+
+    return {
+      categoriesJson,
+      expectedQuantity: lines[0].quantity,
+      expectedUnit: lines[0].unit,
+    };
+  }
+
   private validateBrickFields(
     primarySlug: string | null,
     dto: CreateBulkEnquiryDto,
@@ -646,6 +710,8 @@ export class BulkService {
           id: string;
           slug: string;
           name: string;
+          quantity?: number;
+          unit?: string;
         }>)
       : null;
 

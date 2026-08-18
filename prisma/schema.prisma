@@ -315,13 +315,6 @@ enum LoyaltyTransactionType {
   ADJUSTMENT
 }
 
-enum LoyaltyTier {
-  BRONZE
-  SILVER
-  GOLD
-  PLATINUM
-}
-
 enum BulkEnquiryStatus {
   NEW
   ASSIGNED
@@ -1514,6 +1507,10 @@ model Order {
   customerId      String        @map("customer_id") @db.Uuid
   addressId       String        @map("address_id") @db.Uuid
   hubId           String?       @map("hub_id") @db.Uuid
+  /// ASSIGNED | NO_SERVICEABLE_HUB | LOCATION_MISSING | LOCATION_INVALID | INVENTORY_UNAVAILABLE | HUB_NOT_CONFIGURED | HUB_INACTIVE
+  hubAssignmentReason String?   @map("hub_assignment_reason") @db.VarChar(60)
+  /// Snapshot of routing decision at order creation (never retroactively updated).
+  hubRoutingSnapshot  Json?     @map("hub_routing_snapshot") @db.JsonB
   orderStatus     OrderStatus   @default(PENDING) @map("order_status")
   paymentMethod   PaymentMethod @default(CASH) @map("payment_method")
   paymentStatus   PaymentStatus @default(PENDING) @map("payment_status")
@@ -1613,6 +1610,7 @@ model Order {
   @@index([customerId, orderStatus, createdAt(sort: Desc)])
   @@index([customerId, createdAt(sort: Desc)])
   @@index([hubId, orderStatus])
+  @@index([hubAssignmentReason])
   @@index([assignedDriverId])
   @@index([assignedVehicleId])
   @@index([assignedLoaderId])
@@ -1970,7 +1968,6 @@ model LoyaltyAccount {
   currentPoints   Int         @default(0) @map("current_points")
   redeemedPoints  Int         @default(0) @map("redeemed_points")
   availablePoints Int         @default(0) @map("available_points")
-  tier            LoyaltyTier @default(BRONZE)
   createdAt       DateTime    @default(now()) @map("created_at")
   updatedAt       DateTime    @updatedAt @map("updated_at")
 
@@ -2070,7 +2067,7 @@ model BulkEnquiry {
   materialCategorySlug     String?                  @map("material_category_slug") @db.VarChar(120)
   materialCategoryName     String?                  @map("material_category_name") @db.VarChar(200)
   isMixedLoad              Boolean                  @default(false) @map("is_mixed_load")
-  /// For Mixed Load: [{ id, slug, name }]
+  /// For Mixed Load: [{ id, slug, name, quantity?, unit? }]
   materialCategoriesJson   Json?                    @map("material_categories_json") @db.JsonB
   productType              String?                  @map("product_type") @db.VarChar(50)
   grade                    String?                  @db.VarChar(50)

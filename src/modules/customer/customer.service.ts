@@ -367,14 +367,8 @@ export class CustomerService {
       availablePoints: number;
       currentPoints: number;
       redeemedPoints: number;
-      tier: string;
     } | null;
   }): ProfileResponseDto {
-    const membershipTier = this.resolveMembershipTier(
-      null,
-      customer.loyaltyAccount?.tier,
-    );
-
     return {
       id: customer.id,
       phone: customer.phone,
@@ -395,7 +389,7 @@ export class CustomerService {
       panNumber: customer.profile?.panNumber,
       businessType: customer.profile?.businessType,
       profileImage: customer.profile?.profileImage,
-      membership: membershipTier,
+      membership: null,
       role: customer.role
         ? {
             id: customer.role.id,
@@ -419,26 +413,10 @@ export class CustomerService {
         balance: customer.loyaltyAccount?.availablePoints ?? 0,
         availablePoints: customer.loyaltyAccount?.availablePoints ?? 0,
         redeemedPoints: customer.loyaltyAccount?.redeemedPoints ?? 0,
-        tier: customer.loyaltyAccount?.tier ?? null,
       },
       addresses: (customer.addresses ?? []).map((a) => this.mapAddress(a)),
       createdAt: customer.createdAt.toISOString(),
     };
-  }
-
-  private resolveMembershipTier(
-    planName: string | null,
-    loyaltyTier?: string | null,
-  ): string | null {
-    const source = (planName ?? loyaltyTier ?? '').toUpperCase();
-    if (!source) return null;
-    if (source.includes('PLATINUM') || source.includes('ENTERPRISE')) {
-      return 'PLATINUM';
-    }
-    if (source.includes('GOLD')) return 'GOLD';
-    if (source.includes('SILVER')) return 'SILVER';
-    if (source.includes('BRONZE')) return 'BRONZE';
-    return source;
   }
 
   private mapAddress(address: {

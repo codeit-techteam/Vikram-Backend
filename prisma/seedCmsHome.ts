@@ -64,7 +64,7 @@ export async function seedCmsHome(prisma: PrismaClient): Promise<void> {
     },
     {
       sectionType: HomeSectionType.LOYALTY,
-      title: 'Loyalty Progress',
+      title: 'BajriPro Points',
       displayOrder: 4,
       apiSource: 'loyalty',
       layoutType: 'card',

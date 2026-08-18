@@ -4,7 +4,6 @@ import {
   BannerPlacement,
   BulkEnquiryStatus,
   EntityStatus,
-  LoyaltyTier,
   LoyaltyTransactionType,
   MembershipStatus,
   NotificationType,
@@ -1153,7 +1152,6 @@ async function main() {
       currentPoints: 92,
       availablePoints: 92,
       redeemedPoints: 0,
-      tier: LoyaltyTier.BRONZE,
     },
   });
 
@@ -1172,7 +1170,6 @@ async function main() {
         currentPoints: 92,
         availablePoints: 92,
         redeemedPoints: 0,
-        tier: LoyaltyTier.BRONZE,
       },
     });
   }
@@ -1348,19 +1345,18 @@ async function main() {
     });
   }
 
-  const loyaltyTierSamples: Array<{
+  const loyaltySamples: Array<{
     phone: string;
     name: string;
-    tier: LoyaltyTier;
     points: number;
   }> = [
     // Dev-only sample accounts (ledger-backed). Re-seed does not overwrite balances.
-    { phone: '9999900010', name: 'Bronze Member', tier: LoyaltyTier.BRONZE, points: 120 },
-    { phone: '9999900011', name: 'Silver Member', tier: LoyaltyTier.SILVER, points: 650 },
-    { phone: '9999900012', name: 'Gold Member', tier: LoyaltyTier.GOLD, points: 2200 },
+    { phone: '9999900010', name: 'Points Sample A', points: 120 },
+    { phone: '9999900011', name: 'Points Sample B', points: 650 },
+    { phone: '9999900012', name: 'Points Sample C', points: 2200 },
   ];
 
-  for (const sample of loyaltyTierSamples) {
+  for (const sample of loyaltySamples) {
     const customer = await prisma.customer.upsert({
       where: { phone: sample.phone },
       update: { fullName: sample.name },
@@ -1383,7 +1379,6 @@ async function main() {
       const reset = await prisma.loyaltyAccount.update({
         where: { id: existingAccount.id },
         data: {
-          tier: LoyaltyTier.GOLD,
           currentPoints: sample.points,
           availablePoints: sample.points,
           redeemedPoints: 0,
@@ -1413,7 +1408,6 @@ async function main() {
       const account = await prisma.loyaltyAccount.create({
         data: {
           customerId: customer.id,
-          tier: sample.tier,
           currentPoints: sample.points,
           availablePoints: sample.points,
           redeemedPoints: 0,
@@ -1519,7 +1513,6 @@ async function main() {
     karanLoyalty = await prisma.loyaltyAccount.create({
       data: {
         customerId: karan.id,
-        tier: LoyaltyTier.BRONZE,
         currentPoints: 92,
         availablePoints: 92,
         redeemedPoints: 0,
@@ -1532,7 +1525,6 @@ async function main() {
     karanLoyalty = await prisma.loyaltyAccount.update({
       where: { id: karanLoyalty.id },
       data: {
-        tier: LoyaltyTier.BRONZE,
         currentPoints: 92,
         availablePoints: 92,
         redeemedPoints: 0,

@@ -1,20 +1,14 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
-import {
-  LoyaltyTier,
-  LoyaltyTransactionType,
-  Prisma,
-} from '../../../generated/prisma/client';
+import { LoyaltyTransactionType, Prisma } from '../../../generated/prisma/client';
 import { PrismaService } from '../../common/database/prisma.service';
 import { LoyaltyTransactionService } from '../../modules/loyalty/loyalty-transaction.service';
 import {
   addMonths,
   availableValueInr,
-  getNextTierInfo,
   LOYALTY_POINT_VALUE_INR,
   LOYALTY_POINTS_EXPIRY_MONTHS,
   LOYALTY_REF,
   FREE_BIKE_DELIVERIES_ALLOWED,
-  resolveTierFromPoints,
 } from '../../modules/loyalty/loyalty.constants';
 import { DeliveryBenefitService } from '../../modules/delivery/delivery-benefit.service';
 import type {
@@ -51,10 +45,6 @@ export class AdminLoyaltyService {
     const search = query.search?.trim();
 
     const where: Prisma.LoyaltyAccountWhereInput = {};
-
-    if (query.tier) {
-      where.tier = query.tier as LoyaltyTier;
-    }
 
     if (search) {
       where.OR = [
@@ -104,16 +94,10 @@ export class AdminLoyaltyService {
 
     return {
       data: data.map((account) => {
-        const tier = resolveTierFromPoints(account.currentPoints);
-        const tierInfo = getNextTierInfo(account.currentPoints);
         return {
           ...account,
-          tier,
           lifetimeEarned: account.currentPoints,
           lifetimeRedeemed: account.redeemedPoints,
-          nextTier: tierInfo.nextTier,
-          pointsToNextTier: tierInfo.pointsToNextTier,
-          tierProgress: tierInfo.tierProgress,
           customerCity: account.customer.addresses[0]?.city ?? null,
           customerCompany: account.customer.profile?.companyName ?? null,
         };
@@ -160,21 +144,14 @@ export class AdminLoyaltyService {
         }),
       ]);
 
-    const tier = resolveTierFromPoints(account.currentPoints);
-    const tierInfo = getNextTierInfo(account.currentPoints);
-
     return {
       ...account,
-      tier,
       redeemablePoints,
       availablePoints: redeemablePoints,
       availableValue: availableValueInr(redeemablePoints),
       lifetimeEarned: account.currentPoints,
       lifetimeRedeemed: account.redeemedPoints,
       pointValueInr: LOYALTY_POINT_VALUE_INR,
-      nextTier: tierInfo.nextTier,
-      pointsToNextTier: tierInfo.pointsToNextTier,
-      tierProgress: tierInfo.tierProgress,
       customerCity: account.customer.addresses[0]?.city ?? null,
       customerCompany: account.customer.profile?.companyName ?? null,
       firstOrderBonusClaimed: !!firstOrderBonus,
@@ -202,7 +179,6 @@ export class AdminLoyaltyService {
       redeemedPoints,
       activeAccounts,
       topCustomersCount,
-      tierDistribution,
     ] = await Promise.all([
       this.prisma.loyaltyTransaction.aggregate({
         where: issuedWhere,
@@ -214,11 +190,7 @@ export class AdminLoyaltyService {
       }),
       this.prisma.loyaltyAccount.count(),
       this.prisma.loyaltyAccount.count({
-        where: { tier: { in: [LoyaltyTier.GOLD, LoyaltyTier.PLATINUM] } },
-      }),
-      this.prisma.loyaltyAccount.groupBy({
-        by: ['tier'],
-        _count: { tier: true },
+        where: { availablePoints: { gt: 0 } },
       }),
     ]);
 
@@ -231,10 +203,6 @@ export class AdminLoyaltyService {
       activeAccounts,
       topCustomersCount,
       topCustomers: topCustomersCount,
-      tierDistribution: tierDistribution.map((row) => ({
-        tier: row.tier,
-        count: row._count.tier,
-      })),
     };
   }
 
@@ -254,7 +222,6 @@ export class AdminLoyaltyService {
       customerId: account.customerId,
       customerName: account.customer.fullName,
       customerPhone: account.customer.phone,
-      tier: resolveTierFromPoints(account.currentPoints),
       currentPoints: account.currentPoints,
       availablePoints: account.availablePoints,
     }));

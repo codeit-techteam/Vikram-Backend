@@ -16,6 +16,10 @@ import { PrismaService } from '../../common/database/prisma.service';
 import { HubDashboardService } from '../../hub/dashboard/hub-dashboard.service';
 import { HubInventoryRepository } from '../../hub/repositories/hub-inventory.repository';
 import { AuditService } from '../audit/audit.service';
+import {
+  isValidCoordinates,
+  isValidServiceRadiusKm,
+} from '../../common/geo/geo.util';
 import type {
   AdminHubOrdersQueryDto,
   AdminHubQueryDto,
@@ -948,6 +952,14 @@ export class AdminHubsService {
     const hub = await this.getHubOrThrow(id);
     const { isActive, status } = this.resolveOperationalAction(dto.action);
 
+    const pendingUnfulfilled = await this.prisma.order.count({
+      where: {
+        hubId: id,
+        deletedAt: null,
+        orderStatus: { in: PENDING_STATUSES },
+      },
+    });
+
     const updated = await this.prisma.hub.update({
       where: { id },
       data: { isActive, status },
@@ -963,10 +975,17 @@ export class AdminHubsService {
       newValue: { action: dto.action, isActive, status },
     });
 
+    const warning =
+      !isActive && pendingUnfulfilled > 0
+        ? `${pendingUnfulfilled} pending/unfulfilled order(s) remain assigned to this hub. Existing orders are unchanged; new orders will not be routed here.`
+        : null;
+
     return {
       ...this.mapHub(updated),
       action: dto.action,
       operationalStatus: this.deriveOperationalStatus(updated.isActive, updated.status),
+      pendingUnfulfilledOrders: pendingUnfulfilled,
+      warning,
     };
   }
 
@@ -1856,6 +1875,10 @@ export class AdminHubsService {
       isActive: hub.isActive,
       status: hub.status,
       operationalStatus: this.deriveOperationalStatus(hub.isActive, hub.status),
+      routingReady: this.isHubRoutable(hub),
+      routingWarning: this.isHubRoutable(hub)
+        ? null
+        : 'Hub location/radius incomplete',
       createdAt: hub.createdAt,
       updatedAt: hub.updatedAt,
       deletedAt: hub.deletedAt ?? null,
@@ -1874,6 +1897,9 @@ export class AdminHubsService {
       phone: string | null;
       email: string | null;
       capacity: number | null;
+      latitude?: Prisma.Decimal | number | null;
+      longitude?: Prisma.Decimal | number | null;
+      serviceRadiusKm?: Prisma.Decimal | number | null;
       isActive: boolean;
       status: EntityStatus;
       createdAt: Date;
@@ -1949,7 +1975,37 @@ export class AdminHubsService {
       vehicleCount: hub._count.vehicles,
       createdAt: hub.createdAt,
       updatedAt: hub.updatedAt ?? hub.createdAt,
+      routingReady: this.isHubRoutable(hub),
+      routingWarning: this.isHubRoutable(hub)
+        ? null
+        : 'Hub location/radius incomplete',
     };
+  }
+
+  private isHubRoutable(hub: {
+    latitude?: Prisma.Decimal | number | null;
+    longitude?: Prisma.Decimal | number | null;
+    serviceRadiusKm?: Prisma.Decimal | number | null;
+  }): boolean {
+    const lat =
+      hub.latitude != null
+        ? typeof hub.latitude === 'number'
+          ? hub.latitude
+          : Number(hub.latitude)
+        : null;
+    const lng =
+      hub.longitude != null
+        ? typeof hub.longitude === 'number'
+          ? hub.longitude
+          : Number(hub.longitude)
+        : null;
+    const radius =
+      hub.serviceRadiusKm != null
+        ? typeof hub.serviceRadiusKm === 'number'
+          ? hub.serviceRadiusKm
+          : Number(hub.serviceRadiusKm)
+        : null;
+    return isValidCoordinates(lat, lng) && isValidServiceRadiusKm(radius);
   }
 
   private async getNetworkMetricsByHub(hubIds: string[]) {

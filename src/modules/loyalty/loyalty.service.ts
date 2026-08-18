@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { LoyaltyTier } from '../../../generated/prisma/client';
 import { PrismaService } from '../../common/database/prisma.service';
 import { CacheService } from '../../common/cache/cache.service';
 import { CACHE_KEYS, CACHE_TTL } from '../../common/cache/cache.constants';
@@ -35,7 +34,6 @@ export class LoyaltyService {
         currentPoints: 0,
         redeemedPoints: 0,
         availablePoints: 0,
-        tier: LoyaltyTier.BRONZE,
       },
       update: {},
     });

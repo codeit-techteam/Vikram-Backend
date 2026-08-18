@@ -1,5 +1,6 @@
 import {
   IsArray,
+  IsBoolean,
   IsDateString,
   IsEnum,
   IsInt,
@@ -9,7 +10,7 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   RequisitionPriority,
@@ -99,23 +100,27 @@ export class CreateRequisitionDto {
   @IsEnum(RequisitionReason)
   reason!: RequisitionReason;
 
-  @ApiProperty()
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsDateString()
-  expectedDate!: string;
+  expectedDate?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
   remarks?: string;
 
-  @ApiProperty({ type: [RequisitionItemInputDto] })
+  @ApiPropertyOptional({ type: [RequisitionItemInputDto] })
+  @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => RequisitionItemInputDto)
-  items!: RequisitionItemInputDto[];
+  items?: RequisitionItemInputDto[];
 
   @ApiPropertyOptional({ description: 'If true, submit immediately after create' })
   @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true')
+  @IsBoolean()
   submit?: boolean;
 }
 

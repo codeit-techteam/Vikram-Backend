@@ -9,7 +9,7 @@ jest.mock('../../../generated/prisma/client', () => ({
     UPDATE: 'UPDATE',
     ASSIGN: 'ASSIGN',
   },
-  LoyaltyTier: { BRONZE: 'BRONZE' },
+  LoyaltyTransactionType: { EARN: 'EARN' },
   NotificationType: { PAYMENT: 'PAYMENT' },
   OrderStatus: {
     PENDING: 'PENDING',

@@ -406,7 +406,7 @@ export class HubOrdersService {
 
   async accept(hubId: string, orderId: string, dto: HubOrderActionDto, updatedBy: string) {
     const order = await this.orderRepo.findHubOrder(orderId, hubId);
-    const allowed: OrderStatus[] = ['HUB_ASSIGNED', 'CONFIRMED', 'PENDING', 'AWAITING_HUB_ALLOCATION'];
+    const allowed: OrderStatus[] = ['HUB_ASSIGNED', 'CONFIRMED', 'PENDING'];
     if (!allowed.includes(order.orderStatus)) {
       throw new BadRequestException('Order cannot be accepted in current status');
     }

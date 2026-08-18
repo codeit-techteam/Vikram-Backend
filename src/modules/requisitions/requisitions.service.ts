@@ -136,6 +136,23 @@ export class RequisitionsService {
     return warehouse;
   }
 
+  private async assertHubOperational(hubId: string, label = 'Hub') {
+    const hub = await this.prisma.hub.findFirst({
+      where: { id: hubId, deletedAt: null },
+    });
+    if (!hub) {
+      throw new NotFoundException(`${label} not found`);
+    }
+    if (!hub.isActive || hub.status !== 'ACTIVE') {
+      throw new BadRequestException(
+        label === 'Hub'
+          ? 'Destination Hub is inactive.'
+          : `${label} is inactive.`,
+      );
+    }
+    return hub;
+  }
+
   private async nextRequestNo(hubCode: string): Promise<string> {
     const year = new Date().getFullYear();
     const prefix = this.hubCodePrefix(hubCode);
@@ -174,11 +191,11 @@ export class RequisitionsService {
 
   private mapStatusForHubUi(status: RequisitionStatus): string {
     const map: Record<RequisitionStatus, string> = {
-      DRAFT: 'pending',
+      DRAFT: 'draft',
       SUBMITTED: 'pending',
       PENDING_APPROVAL: 'pending',
       APPROVED: 'approved',
-      REJECTED: 'pending',
+      REJECTED: 'rejected',
       ALLOCATED: 'allocated',
       DISPATCHED: 'delivered',
       IN_TRANSIT: 'in_transit',
@@ -223,6 +240,8 @@ export class RequisitionsService {
       rawStatus: row.status,
       expectedDate: row.expectedDate,
       reason: row.reason,
+      rejectionReason: row.rejectionReason,
+      warehouseName: row.warehouseHub?.name ?? MAIN_WAREHOUSE.name,
       timeline: row.timeline.map((step) => ({
         id: step.id,
         title: step.title,
@@ -388,10 +407,20 @@ export class RequisitionsService {
       | 'received'
       | 'dispatched' = 'in_transit';
 
+    const remainingQty = row.items.reduce((sum, item) => {
+      const dispatched = Number(
+        item.allocatedQty ?? item.approvedQty ?? item.requestedQty,
+      );
+      const received = Number(item.receivedQty ?? 0);
+      return sum + Math.max(0, dispatched - received);
+    }, 0);
+    const fullyReceived =
+      row.status === 'COMPLETED' ||
+      (row.status === 'RECEIVED' && remainingQty <= 0);
+
     if (row.status === 'ALLOCATED') status = 'ready';
+    else if (fullyReceived) status = 'received';
     else if (row.status === 'DISPATCHED') status = 'dispatched';
-    else if (row.status === 'COMPLETED' || row.status === 'RECEIVED')
-      status = 'received';
     else if (isDelayed) status = 'delayed';
     else if (isToday) status = 'arriving_today';
     else status = 'in_transit';
@@ -950,18 +979,25 @@ export class RequisitionsService {
   }
 
   async create(hubId: string, actor: ActorContext, dto: CreateRequisitionDto) {
-    if (!dto.items?.length) {
+    const submitting = Boolean(dto.submit);
+    const items = (dto.items ?? []).filter((item) => item.requestedQty > 0);
+
+    if (submitting && !items.length) {
       throw new BadRequestException('At least one material is required');
     }
+    if (submitting && items.some((item) => item.requestedQty <= 0)) {
+      throw new BadRequestException('Requested quantity must be greater than 0');
+    }
 
-    const hub = await this.prisma.hub.findUnique({ where: { id: hubId } });
-    if (!hub) throw new NotFoundException('Hub not found');
-
+    const hub = await this.assertHubOperational(hubId);
     const warehouseHub = await this.resolveWarehouseHub();
     const requestNo = await this.nextRequestNo(hub.code);
+    const expectedDate = dto.expectedDate
+      ? new Date(dto.expectedDate)
+      : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
     const itemRows = await Promise.all(
-      dto.items.map(async (item) => {
+      items.map(async (item) => {
         const product = await this.prisma.product.findUnique({
           where: { id: item.productId },
         });
@@ -1000,13 +1036,13 @@ export class RequisitionsService {
         warehouseId: MAIN_WAREHOUSE.id,
         warehouseHubId: warehouseHub.id,
         priority: dto.priority,
-        status: dto.submit ? 'PENDING_APPROVAL' : 'DRAFT',
+        status: submitting ? 'PENDING_APPROVAL' : 'DRAFT',
         reason: dto.reason,
-        expectedDate: new Date(dto.expectedDate),
+        expectedDate,
         remarks: dto.remarks,
         requestedBy: actor.id,
         requestedByName: actor.name,
-        submittedAt: dto.submit ? new Date() : null,
+        submittedAt: submitting ? new Date() : null,
         totalItems: totals.totalItems,
         totalQty: totals.totalQty,
         totalValue: totals.totalValue,
@@ -1017,7 +1053,7 @@ export class RequisitionsService {
 
     await this.seedTimeline(requisition.id);
 
-    if (dto.submit) {
+    if (submitting) {
       await this.activateTimelineStep(
         requisition.id,
         'Submitted',
@@ -1025,6 +1061,11 @@ export class RequisitionsService {
       );
       await this.writeAudit(requisition.id, actor, 'SUBMIT', null, {
         status: 'PENDING_APPROVAL',
+      });
+    } else {
+      await this.writeAudit(requisition.id, actor, 'CREATE_DRAFT', null, {
+        status: 'DRAFT',
+        requestNo,
       });
     }
 
@@ -1114,12 +1155,19 @@ export class RequisitionsService {
   }
 
   async submit(id: string, hubId: string, actor: ActorContext) {
+    await this.assertHubOperational(hubId);
     const existing = await this.findOneRaw(id, hubId);
+    if (existing.status === 'REJECTED') {
+      throw new BadRequestException('Rejected requisition cannot be submitted');
+    }
     if (!['DRAFT', 'SUBMITTED'].includes(existing.status)) {
       throw new BadRequestException('Requisition already submitted');
     }
     if (!existing.items.length) {
       throw new BadRequestException('Add at least one material before submitting');
+    }
+    if (existing.items.some((item) => item.requestedQty <= 0)) {
+      throw new BadRequestException('Requested quantity must be greater than 0');
     }
 
     const updated = await this.prisma.requisition.update({
@@ -1217,55 +1265,101 @@ export class RequisitionsService {
   async getStats(hubId?: string) {
     const baseWhere: Prisma.RequisitionWhereInput = hubId ? { hubId } : {};
 
-    const [openRequests, approvedRequests, delayedRequests, pendingApproval] =
-      await Promise.all([
-        this.prisma.requisition.count({
-          where: {
-            ...baseWhere,
-            status: {
-              in: ['SUBMITTED', 'PENDING_APPROVAL', 'APPROVED', 'ALLOCATED', 'DISPATCHED', 'IN_TRANSIT'],
-            },
+    const [
+      drafts,
+      openRequests,
+      approvedRequests,
+      delayedRequests,
+      pendingApproval,
+      awaitingAllocation,
+      allocated,
+      inTransit,
+      pendingReceipt,
+      completed,
+      rejected,
+    ] = await Promise.all([
+      this.prisma.requisition.count({
+        where: { ...baseWhere, status: 'DRAFT' },
+      }),
+      this.prisma.requisition.count({
+        where: {
+          ...baseWhere,
+          status: {
+            in: ['SUBMITTED', 'PENDING_APPROVAL', 'APPROVED', 'ALLOCATED', 'DISPATCHED', 'IN_TRANSIT'],
           },
-        }),
-        this.prisma.requisition.count({
-          where: { ...baseWhere, status: 'APPROVED' },
-        }),
-        this.prisma.requisition.count({
-          where: {
-            ...baseWhere,
-            status: { in: ['PENDING_APPROVAL', 'IN_TRANSIT'] },
-            expectedDate: { lt: new Date() },
-          },
-        }),
-        this.prisma.requisition.count({
-          where: { ...baseWhere, status: 'PENDING_APPROVAL' },
-        }),
-      ]);
+        },
+      }),
+      this.prisma.requisition.count({
+        where: { ...baseWhere, status: 'APPROVED' },
+      }),
+      this.prisma.requisition.count({
+        where: {
+          ...baseWhere,
+          status: { in: ['PENDING_APPROVAL', 'IN_TRANSIT'] },
+          expectedDate: { lt: new Date() },
+        },
+      }),
+      this.prisma.requisition.count({
+        where: {
+          ...baseWhere,
+          status: { in: ['SUBMITTED', 'PENDING_APPROVAL'] },
+        },
+      }),
+      this.prisma.requisition.count({
+        where: { ...baseWhere, status: 'APPROVED' },
+      }),
+      this.prisma.requisition.count({
+        where: { ...baseWhere, status: 'ALLOCATED' },
+      }),
+      this.prisma.requisition.count({
+        where: { ...baseWhere, status: { in: ['DISPATCHED', 'IN_TRANSIT'] } },
+      }),
+      this.prisma.requisition.count({
+        where: { ...baseWhere, status: 'RECEIVED' },
+      }),
+      this.prisma.requisition.count({
+        where: { ...baseWhere, status: { in: ['RECEIVED', 'COMPLETED'] } },
+      }),
+      this.prisma.requisition.count({
+        where: { ...baseWhere, status: 'REJECTED' },
+      }),
+    ]);
 
     return {
       openRequests: { value: openRequests, badge: openRequests > 0 ? `+${openRequests} active` : 'None' },
       approvedRequests: { value: approvedRequests, badge: 'Stable' },
       delayedRequests: { value: delayedRequests, badge: delayedRequests > 0 ? 'Critical' : 'On track' },
+      drafts,
       pendingApproval,
       pendingRequests: pendingApproval,
       criticalRequests: delayedRequests,
-      awaitingAllocation: await this.prisma.requisition.count({
-        where: { ...baseWhere, status: 'APPROVED' },
-      }),
-      inTransit: await this.prisma.requisition.count({
-        where: { ...baseWhere, status: { in: ['DISPATCHED', 'IN_TRANSIT'] } },
-      }),
-      completed: await this.prisma.requisition.count({
-        where: { ...baseWhere, status: { in: ['RECEIVED', 'COMPLETED'] } },
-      }),
-      rejected: await this.prisma.requisition.count({
-        where: { ...baseWhere, status: 'REJECTED' },
-      }),
+      awaitingAllocation,
+      allocated,
+      inTransit,
+      pendingReceipt,
+      received: completed,
+      completed,
+      rejected,
     };
+  }
+
+  async findLatestDraft(hubId: string, actorId: string) {
+    const row = await this.prisma.requisition.findFirst({
+      where: { hubId, status: 'DRAFT', requestedBy: actorId },
+      orderBy: { updatedAt: 'desc' },
+      include: this.requisitionInclude(),
+    });
+    return row ? this.mapDetail(row) : null;
   }
 
   async approve(id: string, actor: ActorContext, dto: ApproveRequisitionDto) {
     const existing = await this.findOneRaw(id);
+    if (existing.status === 'APPROVED') {
+      throw new BadRequestException('Requisition has already been approved.');
+    }
+    if (existing.status === 'REJECTED') {
+      throw new BadRequestException('Rejected requisition cannot be approved.');
+    }
     if (!['PENDING_APPROVAL', 'SUBMITTED'].includes(existing.status)) {
       throw new BadRequestException('Only pending requisitions can be approved');
     }
@@ -1345,11 +1439,15 @@ export class RequisitionsService {
 
   async allocate(id: string, actor: ActorContext, dto: AllocateRequisitionDto) {
     const existing = await this.findOneRaw(id);
+    if (existing.status === 'ALLOCATED') {
+      throw new BadRequestException('Requisition has already been allocated.');
+    }
     if (existing.status !== 'APPROVED') {
       throw new BadRequestException('Only approved requisitions can be allocated');
     }
 
     const warehouseHub = await this.resolveWarehouseHub();
+    await this.assertHubOperational(warehouseHub.id, 'Source warehouse');
 
     const updated = await this.prisma.$transaction(async (tx) => {
       for (const item of dto.items) {
@@ -1554,11 +1652,20 @@ export class RequisitionsService {
 
   async dispatch(id: string, actor: ActorContext, dto: DispatchRequisitionDto) {
     const existing = await this.findOneRaw(id);
+    if (
+      ['DISPATCHED', 'IN_TRANSIT', 'RECEIVED', 'COMPLETED'].includes(
+        existing.status,
+      )
+    ) {
+      throw new BadRequestException('Transfer has already been dispatched.');
+    }
     if (existing.status !== 'ALLOCATED') {
       throw new BadRequestException('Only allocated requisitions can be dispatched');
     }
 
+    await this.assertHubOperational(existing.hubId);
     const warehouseHub = await this.resolveWarehouseHub();
+    await this.assertHubOperational(warehouseHub.id, 'Source warehouse');
     let vehicleRegistration = existing.vehicleRegistration;
     let driverName = existing.driverName;
     const vehicleId = dto.vehicleId ?? existing.vehicleId;
@@ -1693,36 +1800,83 @@ export class RequisitionsService {
     actor: ActorContext,
     dto: ReceiveRequisitionDto,
   ) {
-    const existing = await this.findOneRaw(id, hubId);
-    if (!['IN_TRANSIT', 'DISPATCHED'].includes(existing.status)) {
-      throw new BadRequestException('Requisition is not ready for receiving');
-    }
-
-    for (const item of dto.items) {
-      const row = existing.items.find((i) => i.id === item.itemId);
-      if (!row) {
-        throw new BadRequestException(`Unknown item: ${item.itemId}`);
-      }
-      const dispatched = Number(
-        row.allocatedQty ?? row.approvedQty ?? row.requestedQty,
+    await this.assertHubOperational(hubId);
+    const header = await this.findOneRaw(id);
+    if (header.hubId !== hubId) {
+      throw new ForbiddenException(
+        'You are not authorized to receive this transfer.',
       );
-      if (item.receivedQty > dispatched) {
-        throw new BadRequestException(
-          `Received quantity cannot exceed dispatched quantity for ${row.productName}`,
-        );
-      }
-      if (item.receivedQty < dispatched) {
-        const shortage =
-          item.shortageQty ?? dispatched - item.receivedQty;
-        if (!item.remarks?.trim() && shortage > 0) {
-          throw new BadRequestException(
-            `Shortage reason/remarks required for ${row.productName}`,
-          );
-        }
-      }
     }
+    const requisitionId = header.id;
 
     const updated = await this.prisma.$transaction(async (tx) => {
+      const lockedRows = await tx.$queryRaw<
+        Array<{ id: string; status: string; hub_id: string }>
+      >`
+        SELECT id, status, hub_id
+        FROM requisitions
+        WHERE id = ${requisitionId}::uuid
+        FOR UPDATE
+      `;
+      const locked = lockedRows[0];
+      if (!locked) {
+        throw new NotFoundException('Requisition not found');
+      }
+      if (locked.hub_id !== hubId) {
+        throw new ForbiddenException(
+          'You are not authorized to receive this transfer.',
+        );
+      }
+
+      const existing = await tx.requisition.findUnique({
+        where: { id: requisitionId },
+        include: this.requisitionInclude(),
+      });
+      if (!existing) {
+        throw new NotFoundException('Requisition not found');
+      }
+
+      const remainingBefore = existing.items.reduce((sum, item) => {
+        const dispatched = Number(
+          item.allocatedQty ?? item.approvedQty ?? item.requestedQty,
+        );
+        return sum + Math.max(0, dispatched - Number(item.receivedQty ?? 0));
+      }, 0);
+
+      if (existing.status === 'COMPLETED' || remainingBefore <= 0) {
+        throw new BadRequestException('Transfer already fully received.');
+      }
+      if (
+        !['IN_TRANSIT', 'DISPATCHED', 'RECEIVED'].includes(existing.status)
+      ) {
+        throw new BadRequestException('Requisition is not ready for receiving');
+      }
+
+      for (const item of dto.items) {
+        const row = existing.items.find((i) => i.id === item.itemId);
+        if (!row) {
+          throw new BadRequestException(`Unknown item: ${item.itemId}`);
+        }
+        const dispatched = Number(
+          row.allocatedQty ?? row.approvedQty ?? row.requestedQty,
+        );
+        const alreadyReceived = Number(row.receivedQty ?? 0);
+        const remaining = Math.max(0, dispatched - alreadyReceived);
+        if (item.receivedQty > remaining) {
+          throw new BadRequestException(
+            `Received quantity cannot exceed dispatched quantity for ${row.productName}`,
+          );
+        }
+        if (item.receivedQty < remaining) {
+          const shortage = item.shortageQty ?? remaining - item.receivedQty;
+          if (!item.remarks?.trim() && shortage > 0) {
+            throw new BadRequestException(
+              `Shortage reason/remarks required for ${row.productName}`,
+            );
+          }
+        }
+      }
+
       const year = new Date().getFullYear();
       const receiptCount = await tx.requisition.count({
         where: {
@@ -1739,26 +1893,38 @@ export class RequisitionsService {
         const dispatched = Number(
           row.allocatedQty ?? row.approvedQty ?? row.requestedQty,
         );
+        const alreadyReceived = Number(row.receivedQty ?? 0);
+        const remaining = Math.max(0, dispatched - alreadyReceived);
+        const newReceived = alreadyReceived + item.receivedQty;
+        const newDamage = Number(row.damageQty ?? 0) + Number(item.damageQty ?? 0);
+        const newMissing =
+          Number(row.missingQty ?? 0) + Number(item.missingQty ?? 0);
         const shortageQty =
-          item.shortageQty ?? Math.max(0, dispatched - item.receivedQty);
+          item.shortageQty ?? Math.max(0, remaining - item.receivedQty);
 
         await tx.requisitionItem.update({
           where: { id: item.itemId },
           data: {
-            receivedQty: item.receivedQty,
+            receivedQty: newReceived,
             shortageQty,
-            damageQty: item.damageQty ?? 0,
-            missingQty: item.missingQty ?? 0,
-            remarks: item.remarks,
-            status: 'RECEIVED',
+            damageQty: newDamage,
+            missingQty: newMissing,
+            remarks: item.remarks ?? row.remarks,
+            status: newReceived >= dispatched ? 'COMPLETED' : 'RECEIVED',
           },
         });
 
         if (item.receivedQty > 0) {
-          const existingInv = await tx.hubInventory.findUnique({
-            where: { hubId_productId: { hubId, productId: row.productId } },
-          });
-          const openingQty = existingInv?.availableQty ?? 0;
+          const lockedInv = await tx.$queryRaw<
+            Array<{ id: string; available_qty: number }>
+          >`
+            SELECT id, available_qty
+            FROM hub_inventory
+            WHERE hub_id = ${hubId}::uuid
+              AND product_id = ${row.productId}::uuid
+            FOR UPDATE
+          `;
+          const openingQty = lockedInv[0]?.available_qty ?? 0;
 
           await tx.hubInventory.upsert({
             where: {
@@ -1777,7 +1943,7 @@ export class RequisitionsService {
             {
               hubId,
               productId: row.productId,
-              requisitionId: id,
+              requisitionId: requisitionId,
               type: 'REQUISITION_RECEIVE',
               quantity: item.receivedQty,
               openingQty,
@@ -1791,9 +1957,23 @@ export class RequisitionsService {
         }
       }
 
+      const refreshedItems = await tx.requisitionItem.findMany({
+        where: { requisitionId },
+      });
+      const remainingAfter = refreshedItems.reduce((sum, item) => {
+        const dispatched = Number(
+          item.allocatedQty ?? item.approvedQty ?? item.requestedQty,
+        );
+        return sum + Math.max(0, dispatched - Number(item.receivedQty ?? 0));
+      }, 0);
+      const hasShortage = remainingAfter > 0;
+      const previousDocuments = Array.isArray(existing.receivingDocuments)
+        ? (existing.receivingDocuments as Array<Record<string, unknown>>)
+        : [];
       const documents = [
+        ...previousDocuments,
         ...(dto.documents ?? []).map((doc, index) => ({
-          id: `doc-${index}`,
+          id: `doc-${Date.now()}-${index}`,
           url: doc.url,
           name: doc.name ?? `Document ${index + 1}`,
           type: doc.type ?? 'OTHER',
@@ -1811,19 +1991,12 @@ export class RequisitionsService {
         },
       ];
 
-      const hasShortage = dto.items.some((item) => {
-        const row = existing.items.find((i) => i.id === item.itemId);
-        if (!row) return false;
-        const dispatched = Number(
-          row.allocatedQty ?? row.approvedQty ?? row.requestedQty,
-        );
-        const shortageQty =
-          item.shortageQty ?? Math.max(0, dispatched - item.receivedQty);
-        return shortageQty > 0 || item.receivedQty < dispatched;
-      });
+      const previousPhotos = Array.isArray(existing.receivingPhotos)
+        ? (existing.receivingPhotos as Array<Record<string, unknown>>)
+        : [];
 
       return tx.requisition.update({
-        where: { id },
+        where: { id: requisitionId },
         data: {
           status: hasShortage ? 'RECEIVED' : 'COMPLETED',
           receivedBy: actor.id,
@@ -1832,53 +2005,52 @@ export class RequisitionsService {
           ...(hasShortage ? {} : { completedAt: new Date() }),
           ...(dto.photoUrls?.length
             ? {
-                receivingPhotos: dto.photoUrls.map((url, index) => ({
-                  id: `photo-${index}`,
-                  url,
-                  uploadedAt: new Date().toISOString(),
-                })),
+                receivingPhotos: [
+                  ...previousPhotos,
+                  ...dto.photoUrls.map((url, index) => ({
+                    id: `photo-${Date.now()}-${index}`,
+                    url,
+                    uploadedAt: new Date().toISOString(),
+                  })),
+                ] as Prisma.InputJsonValue,
               }
             : {}),
-          receivingDocuments: documents,
+          receivingDocuments: documents as Prisma.InputJsonValue,
         },
         include: this.requisitionInclude(),
       });
     });
 
     const finalStatus = updated.status;
-    await this.activateTimelineStep(id, 'Hub Received', actor.name);
+    await this.activateTimelineStep(requisitionId, 'Hub Received', actor.name);
     if (finalStatus === 'COMPLETED') {
-      await this.activateTimelineStep(id, 'Completed');
+      await this.activateTimelineStep(requisitionId, 'Completed');
     }
-    await this.writeAudit(id, actor, 'RECEIVE', existing.status, finalStatus);
+    await this.writeAudit(requisitionId, actor, 'RECEIVE', 'IN_TRANSIT', finalStatus);
 
-    const shortageLines = dto.items
-      .map((item) => {
-        const row = existing.items.find((i) => i.id === item.itemId);
-        if (!row) return null;
+    const shortageLines = updated.items
+      .map((row) => {
         const dispatched = Number(
           row.allocatedQty ?? row.approvedQty ?? row.requestedQty,
         );
-        const shortage = Math.max(0, dispatched - item.receivedQty);
+        const shortage = Math.max(0, dispatched - Number(row.receivedQty ?? 0));
         if (shortage <= 0) return null;
-        return `${row.productName}: shortage ${shortage} ${row.unit}`;
+        return `${row.productName}: remaining ${shortage} ${row.unit}`;
       })
       .filter(Boolean);
 
-    // Notify central warehouse admins via hub notification is hub-scoped;
-    // still notify destination hub and include shortage in message for ops.
     await this.notifyHub(
-      existing.hubId,
+      updated.hubId,
       finalStatus === 'COMPLETED'
         ? 'Delivery Received'
         : 'Partial Delivery Received',
       finalStatus === 'COMPLETED'
-        ? `${existing.requestNo} received and completed. Inventory updated.`
-        : `${existing.requestNo} partially received. ${shortageLines.join('; ')}`,
+        ? `${updated.requestNo} received and completed. Inventory updated.`
+        : `${updated.requestNo} partially received. ${shortageLines.join('; ')}`,
       `/transfers`,
     );
     if (dto.comment) {
-      await this.addComment(id, actor, { message: dto.comment });
+      await this.addComment(requisitionId, actor, { message: dto.comment });
     }
 
     return this.mapDetail(updated);
@@ -1948,6 +2120,8 @@ export class RequisitionsService {
           currentStock: row.availableQty,
           minimumStock: row.minimumStock || row.lowStockThreshold,
           warehouseStock: warehouseStock.available,
+          warehouseName: warehouseHub.name,
+          warehouseId: warehouseHub.id,
           unit: row.product.unit,
           unitPrice: Number(row.product.retailPrice),
           lowStock: row.availableQty <= (row.minimumStock || row.lowStockThreshold),

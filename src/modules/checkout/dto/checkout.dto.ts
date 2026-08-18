@@ -165,6 +165,12 @@ export class CheckoutResponseDto {
   @ApiPropertyOptional({ example: '5:30 PM' })
   deliveringBy?: string | null;
 
+  @ApiPropertyOptional({
+    example: 'Kalyani Hub',
+    description: 'Hub serving this location when serviceable',
+  })
+  fulfillmentHubName?: string | null;
+
   @ApiProperty({
     example: 'Ready for order placement',
     description: 'Human-readable checkout readiness message',

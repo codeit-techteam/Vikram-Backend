@@ -3,11 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import {
-  LoyaltyTier,
-  LoyaltyTransactionType,
-  Prisma,
-} from '../../../generated/prisma/client';
+import { LoyaltyTransactionType, Prisma } from '../../../generated/prisma/client';
 import { PrismaService } from '../../common/database/prisma.service';
 import { CacheService } from '../../common/cache/cache.service';
 import { CACHE_KEYS } from '../../common/cache/cache.constants';
@@ -16,7 +12,6 @@ import {
   availableValueInr,
   calculateEarnPoints,
   calculateMaxRedeemablePoints,
-  getNextTierInfo,
   isRedemptionEligible,
   LOYALTY_FIRST_ORDER_BONUS_POINTS,
   LOYALTY_MAX_ORDER_REDEEM_PERCENT,
@@ -26,7 +21,6 @@ import {
   LOYALTY_REF,
   LOYALTY_WELCOME_BONUS_POINTS,
   pointsToDiscountAmount,
-  resolveTierFromPoints,
 } from './loyalty.constants';
 
 export interface LoyaltyLedgerEntryInput {
@@ -87,7 +81,6 @@ export class LoyaltyTransactionService {
         currentPoints: 0,
         redeemedPoints: 0,
         availablePoints: 0,
-        tier: LoyaltyTier.BRONZE,
       },
       update: {},
     });
@@ -285,9 +278,7 @@ export class LoyaltyTransactionService {
     const openingPoints = lockedAccount.availablePoints;
 
     let closingPoints = openingPoints;
-    const accountUpdate: Prisma.LoyaltyAccountUpdateInput = {
-      tier: resolveTierFromPoints(lockedAccount.currentPoints),
-    };
+    const accountUpdate: Prisma.LoyaltyAccountUpdateInput = {};
 
     const isCredit =
       input.type === LoyaltyTransactionType.EARN ||
@@ -305,9 +296,6 @@ export class LoyaltyTransactionService {
       closingPoints = openingPoints + points;
       accountUpdate.availablePoints = { increment: points };
       accountUpdate.currentPoints = { increment: points };
-      accountUpdate.tier = resolveTierFromPoints(
-        lockedAccount.currentPoints + points,
-      );
     } else if (isDebit) {
       if (openingPoints < points) {
         throw new BadRequestException('Insufficient loyalty points');
@@ -323,9 +311,6 @@ export class LoyaltyTransactionService {
       ) {
         accountUpdate.currentPoints = { decrement: points };
       }
-      accountUpdate.tier = resolveTierFromPoints(
-        Math.max(0, lockedAccount.currentPoints - points),
-      );
     } else {
       throw new BadRequestException(`Unsupported transaction type: ${input.type}`);
     }
@@ -775,12 +760,10 @@ export class LoyaltyTransactionService {
       return 0;
     }
 
-    const tier = resolveTierFromPoints(account.currentPoints);
     await this.prisma.loyaltyAccount.update({
       where: { id: accountId },
       data: {
         availablePoints: balance,
-        tier,
       },
     });
 
@@ -794,13 +777,10 @@ export class LoyaltyTransactionService {
       currentPoints: number;
       redeemedPoints: number;
       availablePoints: number;
-      tier: LoyaltyTier;
     },
     redeemablePoints: number,
     nextExpiry: Date | null,
   ) {
-    const tierInfo = getNextTierInfo(account.currentPoints);
-
     return {
       id: account.id,
       customerId: account.customerId,
@@ -810,11 +790,7 @@ export class LoyaltyTransactionService {
       lifetimeRedeemed: account.redeemedPoints,
       availablePoints: redeemablePoints,
       availableValue: availableValueInr(redeemablePoints),
-      tier: resolveTierFromPoints(account.currentPoints),
       redeemablePoints,
-      nextTier: tierInfo.nextTier,
-      pointsToNextTier: tierInfo.pointsToNextTier,
-      tierProgress: tierInfo.tierProgress,
       nextExpiry: nextExpiry?.toISOString() ?? null,
       minRedeemPoints: LOYALTY_MIN_REDEEM_ORDER_VALUE,
       minRedeemOrderValue: LOYALTY_MIN_REDEEM_ORDER_VALUE,

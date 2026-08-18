@@ -165,7 +165,7 @@ export class OrdersService {
       loyaltyPointsToRedeem: dto.loyaltyPointsToRedeem,
     });
 
-    const nearestHub = await this.checkoutService.findNearestHubWithStock(
+    const routing = await this.checkoutService.routeHubForAddress(
       checkout.address,
       checkout.items.map((item) => ({
         productId: item.productId,
@@ -176,11 +176,16 @@ export class OrdersService {
     const order = await this.prisma.$transaction(
       async (tx) => {
         const orderNumber = await this.nextOrderNumber(tx);
-        const hubCanFulfill = nearestHub?.canFulfill === true;
-        const assignedHubId = hubCanFulfill ? nearestHub!.id : null;
+        const assignableHub = routing.assignableHub;
+        const hubCanFulfill = assignableHub != null;
+        const assignedHubId = hubCanFulfill ? assignableHub.id : null;
         const finalStatus = hubCanFulfill
           ? OrderStatus.HUB_ASSIGNED
           : OrderStatus.AWAITING_HUB_ALLOCATION;
+        const hubAssignmentReason = hubCanFulfill
+          ? 'ASSIGNED'
+          : routing.reason;
+        const hubRoutingSnapshot = routing.snapshot as Prisma.InputJsonValue;
 
         if (hubCanFulfill && assignedHubId) {
           for (const item of checkout.items) {
@@ -215,6 +220,8 @@ export class OrdersService {
             customerId,
             addressId: checkout.address.id,
             hubId: assignedHubId,
+            hubAssignmentReason,
+            hubRoutingSnapshot,
             orderStatus: finalStatus,
             paymentMethod,
             paymentStatus: PaymentStatus.PENDING,
@@ -396,10 +403,10 @@ export class OrdersService {
       priority: 10,
     });
 
-    if (nearestHub?.canFulfill) {
+    if (routing.assignableHub) {
       await this.prisma.hubNotification.create({
         data: {
-          hubId: nearestHub.id,
+          hubId: routing.assignableHub.id,
           type: 'ORDER',
           title: `New Order ${order.orderNumber}`,
           body: `COD order ₹${checkout.grandTotal} assigned. Accept and assign a driver.`,
@@ -420,7 +427,7 @@ export class OrdersService {
     });
 
     this.logger.log(
-      `Order ${order.orderNumber} placed for customer ${customerId} status=${order.orderStatus}`,
+      `HUB_ROUTING | Order: ${order.orderNumber} | Status: ${order.orderStatus} | Hub: ${routing.assignableHub?.name ?? 'none'} | Reason: ${routing.reason}`,
     );
 
     return {

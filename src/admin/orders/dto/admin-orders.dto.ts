@@ -1,18 +1,31 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsOptional, IsInt, Min } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
+import { IsString, IsOptional, IsInt, Min, IsBoolean } from 'class-validator';
+
+function toBoolean(value: unknown): boolean | undefined {
+  if (value === true || value === 'true' || value === '1') return true;
+  if (value === false || value === 'false' || value === '0') return false;
+  return undefined;
+}
 
 export class AdminOrderQueryDto {
   @ApiPropertyOptional() @IsOptional() @IsString() search?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() status?: string;
   @ApiPropertyOptional({
-    description: 'Status bucket: pending | accepted | dispatch | completed | delivered | cancelled',
+    description: 'Status bucket: pending | accepted | dispatch | completed | delivered | cancelled | unassigned',
   })
   @IsOptional()
   @IsString()
   bucket?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() customerId?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() hubId?: string;
+  @ApiPropertyOptional({
+    description: 'When true, only orders with no hub assigned (awaiting allocation).',
+  })
+  @IsOptional()
+  @Transform(({ value }) => toBoolean(value))
+  @IsBoolean()
+  unassigned?: boolean;
   @ApiPropertyOptional() @IsOptional() @IsString() fromDate?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() toDate?: string;
   @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsInt() @Min(1) page?: number = 1;

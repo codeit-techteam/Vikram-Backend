@@ -137,9 +137,6 @@ export class LoyaltyWalletSummaryDto {
 
   @ApiProperty({ example: 0 })
   redeemedPoints!: number;
-
-  @ApiPropertyOptional({ example: 'PLATINUM' })
-  tier?: string | null;
 }
 
 export class ProfileResponseDto {

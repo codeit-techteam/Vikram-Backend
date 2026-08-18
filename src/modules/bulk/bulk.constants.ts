@@ -214,10 +214,10 @@ export function deliveryRequirementOptions() {
 }
 
 export function preferredContactOptions() {
-  return (Object.keys(BULK_PREFERRED_CONTACT_LABELS) as BulkPreferredContact[]).map(
-    (value) => ({
-      value,
-      label: BULK_PREFERRED_CONTACT_LABELS[value],
-    }),
-  );
+  return (
+    [BulkPreferredContact.CALL, BulkPreferredContact.WHATSAPP] as const
+  ).map((value) => ({
+    value,
+    label: BULK_PREFERRED_CONTACT_LABELS[value],
+  }));
 }

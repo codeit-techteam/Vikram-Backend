@@ -7,6 +7,7 @@ import {
   IsInt,
   IsNumber,
   IsOptional,
+  IsBoolean,
   IsString,
   IsUUID,
   Matches,
@@ -16,7 +17,7 @@ import {
   MinLength,
   ValidateNested,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   BulkDeliveryRequirement,
   BulkEnquiryStatus,
@@ -719,4 +720,12 @@ export class CeOrdersQueryDto extends CePaginationQueryDto {
   @IsOptional()
   @IsString()
   orderSource?: string;
+
+  @ApiPropertyOptional({
+    description: 'When true, only orders with no hub assigned.',
+  })
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true' || value === '1')
+  @IsBoolean()
+  unassigned?: boolean;
 }

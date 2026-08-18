@@ -1,185 +1,71 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { EntityStatus } from '../../../generated/prisma/client';
-import {
-  buildDeliveryMessage,
-  buildDeliverySubtitle,
-} from '../../common/delivery/customer-delivery.util';
-import { PrismaService } from '../../common/database/prisma.service';
-import {
-  decimalToNumber,
-  haversineKm,
-} from '../../common/shopping/pricing.util';
+import { CoverageService } from '../coverage/coverage.service';
+import { HUB_ASSIGNMENT_REASON_LABELS } from '../coverage/hub-routing.logic';
 import type { ServiceabilityCheckResponseDto } from './dto/serviceability-check.dto';
 
-/** ETA formula constants — aligned with DeliveryService */
-const PICKING_MINUTES = 5;
-const PACKING_MINUTES = 5;
-const LOADING_MINUTES = 5;
-const AVG_VEHICLE_SPEED_KMH = 25;
-const TRAFFIC_MULTIPLIER = 1.25;
-const TRAFFIC_BUFFER_MINUTES = 3;
-
-type HubCandidate = {
-  id: string;
-  code: string;
-  name: string;
-  latitude: number;
-  longitude: number;
-  radiusKm: number;
-  distanceKm: number;
-  isActive: boolean;
-  status: EntityStatus;
-};
+const CUSTOMER_UNAVAILABLE =
+  "We don't currently have a Hub serving this location.";
+const CUSTOMER_LOCATION_REQUIRED =
+  'We need your delivery location to check availability.';
 
 @Injectable()
 export class ServiceabilityService {
   private readonly logger = new Logger(ServiceabilityService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly coverageService: CoverageService) {}
 
   async check(
     latitude: number,
     longitude: number,
   ): Promise<ServiceabilityCheckResponseDto> {
-    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
-      return {
-        serviceable: false,
-        deliveryETA: 0,
-        deliveryMessage: buildDeliveryMessage(0, { serviceable: false }),
-        reason: 'Valid latitude and longitude are required',
-      };
-    }
-
-    const hubs = await this.prisma.hub.findMany({
-      where: { deletedAt: null },
-      select: {
-        id: true,
-        code: true,
-        name: true,
-        latitude: true,
-        longitude: true,
-        serviceRadiusKm: true,
-        isActive: true,
-        status: true,
-      },
-    });
-
-    if (hubs.length === 0) {
-      this.logDebug(latitude, longitude, null, 'No hubs configured');
-      return {
-        serviceable: false,
-        deliveryETA: 0,
-        deliveryMessage: buildDeliveryMessage(0, { serviceable: false }),
-        reason: 'Delivery is not available in your area yet',
-      };
-    }
-
-    const candidates: HubCandidate[] = hubs
-      .map((hub) => {
-        const hubLat = decimalToNumber(hub.latitude);
-        const hubLng = decimalToNumber(hub.longitude);
-        const radiusKm = decimalToNumber(hub.serviceRadiusKm) || 15;
-        const distanceKm = haversineKm(latitude, longitude, hubLat, hubLng);
-
-        return {
-          id: hub.id,
-          code: hub.code,
-          name: hub.name,
-          latitude: hubLat,
-          longitude: hubLng,
-          radiusKm,
-          distanceKm: Math.round(distanceKm * 100) / 100,
-          isActive: hub.isActive,
-          status: hub.status,
-        };
-      })
-      .sort((a, b) => a.distanceKm - b.distanceKm);
-
-    const nearest = candidates[0] ?? null;
-
-    const covering = candidates.filter(
-      (hub) =>
-        hub.isActive &&
-        hub.status === EntityStatus.ACTIVE &&
-        hub.distanceKm <= hub.radiusKm,
-    );
-
-    const matched = covering[0] ?? null;
-
-    if (!matched) {
-      const reason = nearest
-        ? nearest.distanceKm > nearest.radiusKm
-          ? 'Delivery is not available at this location yet'
-          : !nearest.isActive || nearest.status !== EntityStatus.ACTIVE
-            ? 'Delivery is temporarily unavailable in your area'
-            : 'Delivery is not available at this location yet'
-        : 'Delivery is not available in your area yet';
-
-      this.logDebug(latitude, longitude, nearest, reason);
-
-      return {
-        serviceable: false,
-        deliveryETA: 0,
-        deliveryMessage: buildDeliveryMessage(0, { serviceable: false }),
-        reason,
-      };
-    }
-
-    const travelMinutes = this.computeTravelOnlyMinutes(matched);
-    this.logDebug(
+    const decision = await this.coverageService.routeOrder({
       latitude,
       longitude,
-      matched,
-      `SERVICEABLE travel=${travelMinutes}m`,
+    });
+
+    const eligible = decision.nearestEligibleHub;
+    if (eligible) {
+      return {
+        serviceable: true,
+        deliveryETA: 0,
+        deliveryMessage: 'Delivery available to your location',
+        reason: `Delivering from ${eligible.name}`,
+        hubName: eligible.name,
+      };
+    }
+
+    const customerReason =
+      decision.reason === 'LOCATION_MISSING' ||
+      decision.reason === 'LOCATION_INVALID'
+        ? CUSTOMER_LOCATION_REQUIRED
+        : CUSTOMER_UNAVAILABLE;
+
+    this.logger.debug(
+      [
+        'SERVICEABILITY',
+        `Customer: ${decision.customerLatitude ?? 'n/a'}, ${decision.customerLongitude ?? 'n/a'}`,
+        `Nearest: ${decision.nearestHub?.name ?? 'none'}`,
+        `Distance: ${decision.snapshot.nearestDistanceKm ?? 'n/a'} km`,
+        `Radius: ${decision.snapshot.nearestHubRadiusKm ?? 'n/a'} km`,
+        `Reason: ${decision.reason}`,
+      ].join(' | '),
     );
 
     return {
-      serviceable: true,
+      serviceable: false,
       deliveryETA: 0,
-      deliveryMessage: 'Delivery available to your location',
-      reason: buildDeliverySubtitle(true),
+      deliveryMessage: customerReason,
+      reason: customerReason,
+      hubName: undefined,
     };
   }
 
-  /** Coverage travel estimate — never shown as a product ETA. */
-  private computeTravelOnlyMinutes(hub: HubCandidate): number {
-    const travelMinutes = Math.max(
-      1,
-      Math.ceil(
-        (hub.distanceKm / AVG_VEHICLE_SPEED_KMH) * 60 * TRAFFIC_MULTIPLIER,
-      ),
-    );
+  static adminReasonLabel(reason: string | null | undefined): string | null {
+    if (!reason) return null;
     return (
-      PICKING_MINUTES +
-      PACKING_MINUTES +
-      LOADING_MINUTES +
-      travelMinutes +
-      TRAFFIC_BUFFER_MINUTES
+      HUB_ASSIGNMENT_REASON_LABELS[
+        reason as keyof typeof HUB_ASSIGNMENT_REASON_LABELS
+      ] ?? reason
     );
-  }
-
-  private logDebug(
-    customerLat: number,
-    customerLng: number,
-    hub: HubCandidate | null,
-    result: string,
-  ): void {
-    if (hub) {
-      this.logger.debug(
-        [
-          'Serviceability check',
-          `Customer: ${customerLat}, ${customerLng}`,
-          `Hub: ${hub.name} (${hub.latitude}, ${hub.longitude})`,
-          `Distance: ${hub.distanceKm} km`,
-          `Coverage Radius: ${hub.radiusKm} km`,
-          `Operational: ${hub.isActive && hub.status === EntityStatus.ACTIVE}`,
-          `Result: ${result}`,
-        ].join(' | '),
-      );
-    } else {
-      this.logger.debug(
-        `Serviceability check | Customer: ${customerLat}, ${customerLng} | Result: ${result}`,
-      );
-    }
   }
 }

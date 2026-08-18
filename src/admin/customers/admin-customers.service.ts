@@ -120,7 +120,7 @@ export class AdminCustomersService {
         include: {
           profile: true,
           loyaltyAccount: {
-            select: { availablePoints: true, tier: true, currentPoints: true },
+            select: { availablePoints: true, currentPoints: true },
           },
           memberships: {
             where: { status: 'ACTIVE' },
@@ -410,7 +410,6 @@ export class AdminCustomersService {
     } | null;
     loyaltyAccount: {
       availablePoints: number;
-      tier: string;
       currentPoints: number;
     } | null;
     memberships: Array<{ plan: { name: string } }>;
@@ -424,14 +423,13 @@ export class AdminCustomersService {
       email: c.email,
       company: c.profile?.companyName ?? null,
       gst: c.profile?.gstNumber ?? null,
-      membership: c.memberships[0]?.plan.name ?? c.loyaltyAccount?.tier ?? null,
+      membership: c.memberships[0]?.plan.name ?? null,
       status: c.status,
       createdAt: c.createdAt,
       lastLogin: c.deviceSessions[0]?.lastLogin ?? null,
       orders: c._count.orders,
       wallet: {
         balance: c.loyaltyAccount?.availablePoints ?? 0,
-        tier: c.loyaltyAccount?.tier ?? null,
       },
       addresses: c._count.addresses,
       assignedHubId: c.assignedHubId ?? null,

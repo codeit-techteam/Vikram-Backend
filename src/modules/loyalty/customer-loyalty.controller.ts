@@ -34,7 +34,7 @@ export class CustomerLoyaltyController {
 
   @Get()
   @ApiOperation({
-    summary: 'Get loyalty balance, tier, expiry, and next tier progress',
+    summary: 'Get loyalty balance, expiry, and redemption rules',
   })
   @ApiResponse({ status: 200, type: LoyaltySummaryDto })
   @ApiResponse({ status: 401, type: ApiErrorResponseDto })

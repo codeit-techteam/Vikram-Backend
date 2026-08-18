@@ -68,12 +68,17 @@ export class CheckoutService {
     }
 
     const address = await this.resolveAddress(customerId, dto.addressId);
-    const nearestHub = await this.findNearestHubWithStock(
-      address,
+    const routing = await this.coverageService.routeOrder(
+      {
+        latitude: address.latitude,
+        longitude: address.longitude,
+        pincode: address.pincode,
+      },
       cart.items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
     );
-
-    const hubAvailable = nearestHub?.canFulfill === true;
+    const nearestHub = routing.assignableHub ?? routing.nearestEligibleHub;
+    const inCoverage = Boolean(routing.nearestEligibleHub);
+    const hubAvailable = Boolean(routing.assignableHub);
     const deliveryPreview =
       address.latitude != null && address.longitude != null
         ? await this.deliveryService.calculateEta({
@@ -195,7 +200,7 @@ export class CheckoutService {
       deliveryCharge,
       grandTotal: adjustedGrandTotal,
       itemCount: cart.itemCount,
-      serviceable: deliveryPreview?.serviceable ?? hubAvailable,
+      serviceable: deliveryPreview?.serviceable ?? inCoverage,
       deliveryETA: deliveryPreview?.deliveryETA ?? 0,
       deliveryEtaMinMinutes: deliveryPreview?.etaMinMinutes,
       deliveryEtaMaxMinutes: deliveryPreview?.etaMaxMinutes,
@@ -207,9 +212,12 @@ export class CheckoutService {
       deliveryMessage:
         deliveryPreview?.deliveryMessage ?? 'Delivery details unavailable',
       deliveringBy: deliveryPreview?.deliveringBy ?? null,
-      readinessMessage: hubAvailable
-        ? 'Ready for order placement'
-        : 'Some items may need extra time — you can still place your order',
+      fulfillmentHubName: inCoverage ? nearestHub?.name ?? null : null,
+      readinessMessage: !inCoverage
+        ? "Delivery is currently unavailable at this location."
+        : hubAvailable
+          ? 'Ready for order placement'
+          : 'Some items may need extra time — you can still place your order',
       paymentMethod: 'CASH',
       notes: dto.notes ?? null,
       membershipDiscount,
@@ -297,7 +305,15 @@ export class CheckoutService {
     address: CheckoutAddressDto,
     items: Array<{ productId: string; quantity: number }>,
   ) {
-    return this.coverageService.findNearestHub(
+    const decision = await this.routeHubForAddress(address, items);
+    return decision.assignableHub ?? decision.nearestEligibleHub;
+  }
+
+  async routeHubForAddress(
+    address: CheckoutAddressDto,
+    items: Array<{ productId: string; quantity: number }> = [],
+  ) {
+    return this.coverageService.routeOrder(
       {
         latitude: address.latitude,
         longitude: address.longitude,

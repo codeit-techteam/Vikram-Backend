@@ -31,7 +31,7 @@ export class AdminLoyaltyController {
 
   @Get('stats')
   @AdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
-  @ApiOperation({ summary: 'Loyalty dashboard stats and tier distribution' })
+  @ApiOperation({ summary: 'Loyalty dashboard stats' })
   async getStats() {
     const data = await this.loyaltyService.getStats();
     return { success: true, message: 'Loyalty stats fetched', data };

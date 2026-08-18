@@ -80,6 +80,17 @@ export class HubRequisitionsController {
     return { success: true, message: 'Requisition created', data };
   }
 
+  @Get('draft')
+  @HubPermission('inventory')
+  @ApiOperation({ summary: 'Get latest draft requisition for the current hub user' })
+  async getDraft(@CurrentHubUser() user: AuthenticatedHubUser) {
+    const data = await this.requisitionsService.findLatestDraft(
+      user.hubId,
+      user.id,
+    );
+    return { success: true, message: 'Draft fetched', data };
+  }
+
   @Get()
   @HubPermission('inventory')
   @ApiOperation({ summary: 'List hub requisitions' })

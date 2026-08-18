@@ -11,7 +11,6 @@ import {
   AuditAction,
   BulkEnquiryStatus,
   ExpertCallbackStatus,
-  LoyaltyTier,
   NotificationType,
   OrderStatus,
   PaymentLinkStatus,
@@ -39,6 +38,7 @@ import { AdminLoyaltyService } from '../loyalty/admin-loyalty.service';
 import { AdminMembershipService } from '../membership/admin-membership.service';
 import { AdminOrdersService } from '../orders/admin-orders.service';
 import { LoyaltyTransactionService } from '../../modules/loyalty/loyalty-transaction.service';
+import { mapAdminRoutingView } from '../../modules/coverage/hub-routing.logic';
 
 function isUuid(value: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
@@ -661,7 +661,6 @@ export class CustomerExecutiveService {
           currentPoints: 0,
           redeemedPoints: 0,
           availablePoints: 0,
-          tier: LoyaltyTier.BRONZE,
         },
       });
 
@@ -884,7 +883,7 @@ export class CustomerExecutiveService {
           profile: true,
           role: { select: { slug: true, name: true } },
           loyaltyAccount: {
-            select: { availablePoints: true, tier: true },
+            select: { availablePoints: true },
           },
           assignedExecutive: {
             select: { id: true, fullName: true },
@@ -1014,6 +1013,10 @@ export class CustomerExecutiveService {
       where.customerId = query.customerId;
     }
     if (query.status) where.orderStatus = query.status as OrderStatus;
+    if (query.unassigned) {
+      where.hubId = null;
+      where.orderStatus = OrderStatus.AWAITING_HUB_ALLOCATION;
+    }
     if (query.orderSource) where.orderSource = query.orderSource;
     if (query.q?.trim()) {
       const term = query.q.trim();
@@ -1032,6 +1035,7 @@ export class CustomerExecutiveService {
         orderBy: { createdAt: 'desc' },
         include: {
           customer: { select: { id: true, phone: true, fullName: true } },
+          hub: { select: { id: true, code: true, name: true } },
           items: { select: { id: true, name: true, quantity: true } },
         },
       }),
@@ -1039,7 +1043,10 @@ export class CustomerExecutiveService {
     ]);
 
     return {
-      data,
+      data: data.map((order) => ({
+        ...order,
+        routing: mapAdminRoutingView(order),
+      })),
       meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
     };
   }

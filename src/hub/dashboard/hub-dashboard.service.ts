@@ -29,6 +29,11 @@ export class HubDashboardService {
       todayRevenue,
       deliveredToday,
       dispatchedToday,
+      pendingRequisitions,
+      incomingTransfers,
+      activeRequisitionRows,
+      incomingTransferRows,
+      warehouse,
     ] = await Promise.all([
       this.prisma.order.count({
         where: { ...hubScope, createdAt: { gte: start, lt: end } },
@@ -94,6 +99,56 @@ export class HubDashboardService {
           dispatchedAt: { gte: start, lt: end },
         },
       }),
+      this.prisma.requisition.count({
+        where: {
+          hubId,
+          status: { in: ['SUBMITTED', 'PENDING_APPROVAL'] },
+        },
+      }),
+      this.prisma.requisition.count({
+        where: {
+          hubId,
+          status: { in: ['DISPATCHED', 'IN_TRANSIT', 'RECEIVED'] },
+        },
+      }),
+      this.prisma.requisition.findMany({
+        where: {
+          hubId,
+          status: {
+            in: [
+              'SUBMITTED',
+              'PENDING_APPROVAL',
+              'APPROVED',
+              'ALLOCATED',
+              'DISPATCHED',
+              'IN_TRANSIT',
+              'RECEIVED',
+            ],
+          },
+        },
+        orderBy: { updatedAt: 'desc' },
+        take: 8,
+        include: { items: { take: 1 } },
+      }),
+      this.prisma.requisition.findMany({
+        where: {
+          hubId,
+          status: { in: ['ALLOCATED', 'DISPATCHED', 'IN_TRANSIT', 'RECEIVED'] },
+        },
+        orderBy: [{ estimatedArrival: 'asc' }, { dispatchedAt: 'desc' }],
+        take: 8,
+        include: {
+          warehouseHub: { select: { name: true } },
+          items: true,
+        },
+      }),
+      this.prisma.hub.findFirst({
+        where: {
+          deletedAt: null,
+          OR: [{ hubType: 'CENTRAL_WAREHOUSE' }, { code: 'WH-GURUGRAM' }],
+        },
+        select: { id: true, name: true, code: true },
+      }),
     ]);
 
     const inventoryAlerts = inventoryRows
@@ -107,6 +162,81 @@ export class HubDashboardService {
       onTimeDelivery: deliveredToday > 0 ? 92 : 0,
       orderFulfillment: ordersDelivered,
     };
+
+    const STATUS_PROGRESS: Record<string, number> = {
+      DRAFT: 0,
+      SUBMITTED: 1,
+      PENDING_APPROVAL: 1,
+      APPROVED: 3,
+      ALLOCATED: 4,
+      DISPATCHED: 6,
+      IN_TRANSIT: 7,
+      RECEIVED: 8,
+      COMPLETED: 9,
+      REJECTED: 2,
+    };
+
+    const incomingDeliveries = incomingTransferRows
+      .filter((row) => {
+        if (row.status === 'COMPLETED' || row.status === 'ALLOCATED') return false;
+        if (row.status !== 'RECEIVED') return true;
+        return row.items.some((item) => {
+          const dispatched = Number(
+            item.allocatedQty ?? item.approvedQty ?? item.requestedQty,
+          );
+          return dispatched > Number(item.receivedQty ?? 0);
+        });
+      })
+      .map((row) => {
+        const first = row.items[0];
+        const totalQty = row.items.reduce(
+          (sum, item) =>
+            sum + Number(item.allocatedQty ?? item.approvedQty ?? item.requestedQty),
+          0,
+        );
+        const eta = row.estimatedArrival ?? row.expectedDispatchDate ?? row.dispatchedAt;
+        return {
+          id: row.id,
+          transferId: row.requestNo,
+          expectedArrival: eta ? eta.toISOString() : '',
+          material:
+            row.items.length === 1 && first
+              ? first.productName
+              : `${row.totalItems} materials`,
+          quantity: first
+            ? `${totalQty} ${first.unit}`
+            : `${totalQty} units`,
+          source: row.warehouseHub?.name ?? warehouse?.name ?? 'Central Warehouse',
+          status:
+            row.status === 'ALLOCATED'
+              ? 'pending'
+              : row.status === 'RECEIVED' || row.status === 'COMPLETED'
+                ? 'delivered'
+                : 'dispatch',
+          scheduledDate: (
+            row.dispatchedAt ??
+            row.allocatedAt ??
+            row.createdAt
+          ).toISOString(),
+        };
+      });
+
+    const activeRequisitions = activeRequisitionRows.map((row) => {
+      const first = row.items[0];
+      const progress = STATUS_PROGRESS[row.status] ?? 1;
+      return {
+        id: row.id,
+        code: row.requestNo,
+        title:
+          first?.productName ??
+          `${row.totalItems} material${row.totalItems === 1 ? '' : 's'}`,
+        badge: row.priority === 'URGENT' ? 'Urgent' : row.status.replace(/_/g, ' '),
+        badgeVariant: row.priority === 'URGENT' ? 'expedited' : 'default',
+        progress,
+        totalSteps: 9,
+        statusText: row.status.replace(/_/g, ' '),
+      };
+    });
 
     return {
       todaysOrders,
@@ -123,6 +253,11 @@ export class HubDashboardService {
       driversAvailable,
       todaysRevenue: todayRevenue._sum.grandTotal ?? 0,
       hubPerformance,
+      warehouseName: warehouse?.name ?? 'Central Warehouse',
+      pendingRequisitions,
+      incomingTransfers,
+      incomingDeliveries,
+      activeRequisitions,
     };
   }
 }

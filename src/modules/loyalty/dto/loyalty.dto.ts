@@ -1,10 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsInt, IsOptional, IsUUID, Max, Min } from 'class-validator';
 import { Type } from 'class-transformer';
-import {
-  LoyaltyTier,
-  LoyaltyTransactionType,
-} from '../../../../generated/prisma/client';
+import { LoyaltyTransactionType } from '../../../../generated/prisma/client';
 
 export class LoyaltySummaryDto {
   @ApiProperty()
@@ -31,20 +28,8 @@ export class LoyaltySummaryDto {
   @ApiProperty({ example: 22.57, description: 'availablePoints × pointValueInr' })
   availableValue!: number;
 
-  @ApiProperty({ enum: LoyaltyTier })
-  tier!: LoyaltyTier;
-
   @ApiProperty({ description: 'Non-expired points redeemable at checkout' })
   redeemablePoints!: number;
-
-  @ApiPropertyOptional({ enum: LoyaltyTier, nullable: true })
-  nextTier?: LoyaltyTier | null;
-
-  @ApiProperty({ example: 250 })
-  pointsToNextTier!: number;
-
-  @ApiProperty({ example: 65, description: 'Progress toward next tier (0-100)' })
-  tierProgress!: number;
 
   @ApiPropertyOptional({
     nullable: true,

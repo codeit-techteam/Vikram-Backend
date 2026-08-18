@@ -36,6 +36,12 @@ export class ServiceabilityCheckResponseDto {
   @ApiProperty({ example: 'Estimated delivery 45–70 mins' })
   deliveryMessage!: string;
 
-  @ApiPropertyOptional({ description: 'Why serviceability failed' })
+  @ApiPropertyOptional({ description: 'Why serviceability failed (customer-facing)' })
   reason?: string;
+
+  @ApiPropertyOptional({
+    example: 'Kalyani Hub',
+    description: 'Fulfilling hub name when the location is serviceable',
+  })
+  hubName?: string;
 }
