@@ -5,6 +5,7 @@ export const DeliveryVehicleType = {
   THREE_WHEELER_LOADER: 'THREE_WHEELER_LOADER',
   PICK_UP_VAN: 'PICK_UP_VAN',
   FULL_TRUCK: 'FULL_TRUCK',
+  HEAVY_LOADER: 'HEAVY_LOADER',
   RMC_TRANSIT_MIXER: 'RMC_TRANSIT_MIXER',
 } as const;
 
@@ -19,6 +20,7 @@ export const DELIVERY_VEHICLE_DISPLAY_NAMES: Record<DeliveryVehicleType, string>
     THREE_WHEELER_LOADER: '3 Wheeler Loader',
     PICK_UP_VAN: 'Pick Up Van',
     FULL_TRUCK: 'Full Truck',
+    HEAVY_LOADER: '600 sqft Loader',
     RMC_TRANSIT_MIXER: 'RMC Transit Mixer',
   };
 

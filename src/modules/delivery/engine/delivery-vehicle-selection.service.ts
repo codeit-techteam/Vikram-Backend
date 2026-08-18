@@ -123,6 +123,7 @@ export class DeliveryVehicleSelectionService {
     allowedProductCategories: unknown;
     supportsRmc?: boolean;
     allowedLogisticsTypes?: unknown;
+    imageUrl?: string | null;
   }): VehicleCapacityView {
     const util = decimalToNumber(row.capacityUtilizationLimit);
     const maxWeight =
@@ -158,6 +159,7 @@ export class DeliveryVehicleSelectionService {
       allowedProductCategories: categories,
       supportsRmc: row.supportsRmc === true,
       allowedLogisticsTypes: logisticsTypes,
+      imageUrl: row.imageUrl ?? null,
     };
   }
 
@@ -195,6 +197,7 @@ export class DeliveryVehicleSelectionService {
       supportsRmc?: boolean;
       supportsBulkMaterial?: boolean;
       allowedLogisticsTypes?: string[] | null;
+      imageUrl?: string | null;
     },
     actor?: { id?: string },
   ) {
@@ -207,6 +210,7 @@ export class DeliveryVehicleSelectionService {
           vehicleType,
           displayName:
             input.displayName ?? DELIVERY_VEHICLE_DISPLAY_NAMES[vehicleType],
+          imageUrl: input.imageUrl ?? null,
           maxWeightKg: input.maxWeightKg ?? null,
           maxVolumeCft: input.maxVolumeCft ?? null,
           maxQuantity: input.maxQuantity ?? null,
@@ -242,6 +246,7 @@ export class DeliveryVehicleSelectionService {
       where: { vehicleType },
       data: {
         ...(input.displayName != null ? { displayName: input.displayName } : {}),
+        ...(input.imageUrl !== undefined ? { imageUrl: input.imageUrl } : {}),
         ...(input.maxWeightKg !== undefined
           ? { maxWeightKg: input.maxWeightKg }
           : {}),

@@ -1,7 +1,9 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsUUID, IsString, MaxLength, Min, IsNumber } from 'class-validator';
+import { IsInt, IsOptional, IsUUID, IsString, MaxLength, Min, IsEnum } from 'class-validator';
 import { CartItemResponseDto } from '../../cart/dto/cart.dto';
+import { DeliveryOptionsResponseDto } from '../../delivery/dto/delivery-options.dto';
+import { DELIVERY_PREFERENCE_TYPES } from '../../delivery/delivery-preference.constants';
 
 export class CheckoutQueryDto {
   @ApiPropertyOptional({
@@ -21,6 +23,16 @@ export class CheckoutQueryDto {
   @IsInt()
   @Min(0)
   loyaltyPointsToRedeem?: number;
+
+  @ApiPropertyOptional({ enum: DELIVERY_PREFERENCE_TYPES })
+  @IsOptional()
+  @IsEnum(DELIVERY_PREFERENCE_TYPES)
+  deliveryPreferenceType?: (typeof DELIVERY_PREFERENCE_TYPES)[number];
+
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID()
+  scheduledSlotId?: string;
 }
 
 export class PrepareCheckoutDto {
@@ -50,6 +62,22 @@ export class PrepareCheckoutDto {
   @IsInt()
   @Min(0)
   loyaltyPointsToRedeem?: number;
+
+  @ApiPropertyOptional({ enum: DELIVERY_PREFERENCE_TYPES })
+  @IsOptional()
+  @IsEnum(DELIVERY_PREFERENCE_TYPES)
+  deliveryPreferenceType?: (typeof DELIVERY_PREFERENCE_TYPES)[number];
+
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID()
+  scheduledSlotId?: string;
+
+  @ApiPropertyOptional({ maxLength: 250 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(250)
+  deliveryCustomerRemark?: string;
 }
 
 export class CheckoutAddressDto {
@@ -246,6 +274,11 @@ export class CheckoutResponseDto {
   @ApiPropertyOptional({ example: 'Bike' })
   deliveryVehicleDisplayName?: string;
 
+  @ApiPropertyOptional({
+    example: 'https://cdn.example.com/delivery-vehicles/bike.png',
+  })
+  deliveryVehicleImageUrl?: string | null;
+
   @ApiPropertyOptional({ example: 2.4 })
   deliveryDistanceKm?: number;
 
@@ -308,4 +341,7 @@ export class CheckoutResponseDto {
 
   @ApiPropertyOptional({ type: Object })
   deliveryBreakdown?: Record<string, unknown> | null;
+
+  @ApiPropertyOptional({ type: DeliveryOptionsResponseDto })
+  deliveryOptions?: DeliveryOptionsResponseDto | null;
 }

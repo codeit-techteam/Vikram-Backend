@@ -71,6 +71,7 @@ export interface VehicleCapacityView {
   allowedProductCategories: string[] | null;
   supportsRmc: boolean;
   allowedLogisticsTypes: string[] | null;
+  imageUrl: string | null;
 }
 
 export interface VehicleSelectionResult {
@@ -79,6 +80,7 @@ export interface VehicleSelectionResult {
   mode: 'CAPACITY' | 'QTY_TIER_FALLBACK' | 'MULTI_VEHICLE' | 'BULK_QUOTE' | 'UNAVAILABLE';
   vehicleType: DeliveryVehicleType | null;
   vehicleDisplayName: string | null;
+  vehicleImageUrl: string | null;
   vehicleConfigId: string | null;
   vehicleCount: number;
   capacityUsed: number | null;

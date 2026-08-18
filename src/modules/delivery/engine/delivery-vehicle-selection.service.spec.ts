@@ -58,6 +58,7 @@ function makeVehicle(
     allowedProductCategories: null,
     supportsRmc: opts.supportsRmc === true,
     allowedLogisticsTypes: opts.allowedLogisticsTypes ?? null,
+    imageUrl: null,
   };
 }
 

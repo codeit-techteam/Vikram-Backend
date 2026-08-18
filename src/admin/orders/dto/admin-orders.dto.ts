@@ -50,3 +50,10 @@ export class AssignDriverDto {
 export class CancelOrderDto {
   @IsString() reason: string;
 }
+
+export class UpdateAdminInternalNoteDto {
+  @ApiPropertyOptional({ maxLength: 1000 })
+  @IsOptional()
+  @IsString()
+  note?: string | null;
+}

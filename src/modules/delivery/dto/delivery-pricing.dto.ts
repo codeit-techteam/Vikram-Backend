@@ -80,6 +80,15 @@ export class UpdateDeliveryVehicleConfigDto {
 
   @ApiPropertyOptional({
     nullable: true,
+    description: 'Public R2 URL for the delivery vehicle photo',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  imageUrl?: string | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
     description: 'Admin-configured max weight (kg). Do not invent defaults.',
   })
   @IsOptional()

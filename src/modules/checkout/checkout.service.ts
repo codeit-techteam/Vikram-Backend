@@ -15,6 +15,7 @@ import { decimalToNumber } from '../../common/shopping/pricing.util';
 import { CoverageService } from '../coverage/coverage.service';
 import { DeliveryService } from '../delivery/delivery.service';
 import { DeliveryPricingService } from '../delivery/delivery-pricing.service';
+import { DeliveryOptionsService } from '../delivery/delivery-options.service';
 import {
   CheckoutAddressDto,
   CheckoutResponseDto,
@@ -35,6 +36,7 @@ export class CheckoutService {
     private readonly coverageService: CoverageService,
     private readonly deliveryService: DeliveryService,
     private readonly deliveryPricingService: DeliveryPricingService,
+    private readonly deliveryOptionsService: DeliveryOptionsService,
   ) {}
 
   async getCheckout(
@@ -192,6 +194,30 @@ export class CheckoutService {
     const eligibleEarnAmount = Math.max(0, cart.subtotal - membershipDiscount);
     const estimatedEarnPoints = calculateEarnPoints(eligibleEarnAmount);
 
+    const deliveryOptions = await this.deliveryOptionsService.buildOptions({
+      serviceable: deliveryPreview?.serviceable ?? inCoverage,
+      unavailableReason: inCoverage
+        ? null
+        : "We currently don't deliver to this location.",
+      hubId: nearestHub?.id ?? null,
+      hubName: nearestHub?.name ?? null,
+      workingHours: nearestHub?.workingHours ?? null,
+      vehicleType: vehicleType ?? deliveryPreview?.deliveryVehicleType ?? null,
+      vehicleDisplayName:
+        priced.vehicleDisplayName ??
+        deliveryPreview?.deliveryVehicleDisplayName ??
+        null,
+      vehicleImageUrl:
+        priced.vehicleImageUrl ??
+        deliveryPreview?.deliveryVehicleImageUrl ??
+        null,
+      logisticsType: deliveryPreview?.deliveryLogisticsType ?? null,
+      splitDelivery: Boolean(priced.multiVehicle || (priced.vehicleCount ?? 1) > 1),
+      etaMinMinutes: deliveryPreview?.etaMinMinutes ?? deliveryPreview?.deliveryETA ?? null,
+      etaMaxMinutes: deliveryPreview?.etaMaxMinutes ?? null,
+      etaLabel: deliveryPreview?.deliveryMessage ?? null,
+    });
+
     return {
       address,
       items: cart.items,
@@ -241,6 +267,7 @@ export class CheckoutService {
       freeBikeDeliveriesRemaining,
       deliveryVehicleType: vehicleType ?? undefined,
       deliveryVehicleDisplayName: priced.vehicleDisplayName,
+      deliveryVehicleImageUrl: priced.vehicleImageUrl ?? undefined,
       deliveryDistanceKm: distanceKm,
       deliveryListPrice: priced.listPrice,
       deliveryPricingRuleId: priced.pricingRuleId,
@@ -260,6 +287,7 @@ export class CheckoutService {
       deliveryMultiVehicle: priced.multiVehicle,
       deliverySelectionReason: priced.selectionReason ?? null,
       deliveryBreakdown: priced.breakdown ?? null,
+      deliveryOptions,
     };
   }
 

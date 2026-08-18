@@ -38,6 +38,7 @@ function makeSelection(
     mode: 'CAPACITY',
     vehicleType: DeliveryVehicleType.E_LOADER,
     vehicleDisplayName: 'E-Loader',
+    vehicleImageUrl: null,
     vehicleConfigId: 'cfg',
     vehicleCount: 1,
     capacityUsed: 50,

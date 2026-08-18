@@ -19,6 +19,7 @@ export const MEDIA_FOLDERS = {
   HUB_RECEIPTS_PHOTOS: 'hub-receipts/photos',
   HUB_RECEIPTS_DOCUMENTS: 'hub-receipts/documents',
   VEHICLE_DOCUMENTS: 'vehicles/documents',
+  DELIVERY_VEHICLES: 'delivery-vehicles',
   DRIVER_DOCUMENTS: 'drivers/documents',
 } as const;
 
@@ -55,6 +56,8 @@ export const MEDIA_FOLDER_ALIASES: Record<string, MediaFolder> = {
   receiving: MEDIA_FOLDERS.HUB_RECEIPTS_PHOTOS,
   'vehicles/documents': MEDIA_FOLDERS.VEHICLE_DOCUMENTS,
   vehicles: MEDIA_FOLDERS.VEHICLE_DOCUMENTS,
+  'delivery-vehicles': MEDIA_FOLDERS.DELIVERY_VEHICLES,
+  'vehicles/delivery': MEDIA_FOLDERS.DELIVERY_VEHICLES,
   'drivers/documents': MEDIA_FOLDERS.DRIVER_DOCUMENTS,
   drivers: MEDIA_FOLDERS.DRIVER_DOCUMENTS,
 };

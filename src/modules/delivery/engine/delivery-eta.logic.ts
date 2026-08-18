@@ -285,7 +285,9 @@ export function buildVehicleModeTitle(
   }
   if (!vehicleType || !displayName) return 'Standard Delivery';
   if (vehicleType === 'BIKE') return 'Bike Delivery';
-  if (vehicleType === 'FULL_TRUCK') return 'Heavy Vehicle Delivery';
+  if (vehicleType === 'FULL_TRUCK' || vehicleType === 'HEAVY_LOADER') {
+    return 'Heavy Vehicle Delivery';
+  }
   return `${displayName} Delivery`;
 }
 

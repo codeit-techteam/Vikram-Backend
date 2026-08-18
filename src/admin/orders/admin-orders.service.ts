@@ -9,6 +9,9 @@ import {
 import { OrderEventsService } from '../../modules/orders/order-events.service';
 import { LoyaltyTransactionService } from '../../modules/loyalty/loyalty-transaction.service';
 import { DeliveryBenefitService } from '../../modules/delivery/delivery-benefit.service';
+import { DeliverySlotService } from '../../modules/delivery/delivery-slot.service';
+import { mapDeliveryPreferenceView } from '../../modules/delivery/delivery-preference.view';
+import { MAX_ADMIN_INTERNAL_NOTE_LENGTH } from '../../modules/delivery/delivery-preference.constants';
 import type { AdminOrderQueryDto, UpdateOrderStatusDto, CancelOrderDto } from './dto/admin-orders.dto';
 import { mapAdminRoutingView } from '../../modules/coverage/hub-routing.logic';
 import { OrderStatus } from '../../../generated/prisma/client';
@@ -20,6 +23,7 @@ export class AdminOrdersService {
     private readonly orderEvents: OrderEventsService,
     private readonly loyaltyTransactionService: LoyaltyTransactionService,
     private readonly deliveryBenefitService: DeliveryBenefitService,
+    private readonly deliverySlotService: DeliverySlotService,
   ) {}
 
   async findAll(query: AdminOrderQueryDto) {
@@ -208,6 +212,9 @@ export class AdminOrdersService {
         orderAgeHours: Math.round(ageMs / (1000 * 60 * 60) * 10) / 10,
       },
       routing: mapAdminRoutingView(order),
+      deliveryPreference: mapDeliveryPreferenceView(order),
+      customerRemark: order.deliveryCustomerRemark ?? order.notes ?? null,
+      adminInternalNote: order.adminInternalNote ?? null,
       timeline: order.timeline.map((entry) => ({
         ...entry,
         statusLabel: getOrderStatusLabel(entry.status),
@@ -372,6 +379,7 @@ export class AdminOrdersService {
 
     await this.loyaltyTransactionService.refundRedemptionForCancelledOrder(id);
     await this.deliveryBenefitService.restoreFreeBikeDelivery({ orderId: id });
+    await this.deliverySlotService.releaseOrderReservation(id);
 
     this.orderEvents.emitOrderUpdated({
       orderId: updated.id,
@@ -384,6 +392,21 @@ export class AdminOrdersService {
     });
 
     return updated;
+  }
+
+  async updateInternalNote(id: string, note: string | null) {
+    await this.findOne(id);
+    const cleaned = note?.trim() || null;
+    if (cleaned && cleaned.length > MAX_ADMIN_INTERNAL_NOTE_LENGTH) {
+      throw new BadRequestException(
+        `Internal note must be ${MAX_ADMIN_INTERNAL_NOTE_LENGTH} characters or fewer.`,
+      );
+    }
+    return this.prisma.order.update({
+      where: { id },
+      data: { adminInternalNote: cleaned },
+      select: { id: true, adminInternalNote: true },
+    });
   }
 
   async getTimeline(id: string) {

@@ -473,7 +473,22 @@ enum DeliveryVehicleType {
   THREE_WHEELER_LOADER
   PICK_UP_VAN
   FULL_TRUCK
+  HEAVY_LOADER
   RMC_TRANSIT_MIXER
+}
+
+enum DeliveryPreferenceType {
+  ASAP
+  TODAY
+  TOMORROW
+  SCHEDULED
+}
+
+enum DeliverySlotReservationStatus {
+  PENDING
+  CONFIRMED
+  RELEASED
+  EXPIRED
 }
 
 enum DeliveryPricingStatus {
@@ -1162,6 +1177,7 @@ model Customer {
   registeredBy       AdminUser?          @relation("CustomerRegisteredBy", fields: [registeredByUserId], references: [id], onDelete: SetNull)
   executiveAssignmentHistory CustomerExecutiveAssignmentHistory[]
   deliveryBenefit    CustomerDeliveryBenefit?
+  deliverySlotReservations DeliverySlotReservation[]
 
   @@index([phone])
   @@index([roleId])
@@ -1429,6 +1445,7 @@ model Hub {
   warehouseRequisitions Requisition[]   @relation("RequisitionWarehouseHub")
   ledgerEntries     InventoryLedgerEntry[]
   assignedCustomers Customer[]          @relation("CustomerAssignedHub")
+  deliverySlots     DeliverySlot[]
 
   @@index([isActive, status])
   @@index([pincode])
@@ -1576,6 +1593,19 @@ model Order {
   hubRejectedAt       DateTime?     @map("hub_rejected_at")
   deliveryAddress Json?         @map("delivery_address") @db.JsonB
   notes           String?       @db.Text
+  /// Customer-selected delivery window (ASAP / today / tomorrow / scheduled).
+  deliveryPreferenceType DeliveryPreferenceType @default(ASAP) @map("delivery_preference_type")
+  scheduledDate          DateTime? @map("scheduled_date") @db.Date
+  scheduledSlotId        String?   @map("scheduled_slot_id") @db.Uuid
+  scheduledStartAt       DateTime? @map("scheduled_start_at")
+  scheduledEndAt         DateTime? @map("scheduled_end_at")
+  deliveryCustomerRemark String?   @map("delivery_customer_remark") @db.VarChar(250)
+  deliveryPreferenceSelectedAt DateTime? @map("delivery_preference_selected_at")
+  deliveryTimezone       String?   @map("delivery_timezone") @db.VarChar(60)
+  /// Immutable snapshot of what the customer selected at checkout.
+  deliveryPreferenceSnapshot Json? @map("delivery_preference_snapshot") @db.JsonB
+  /// Internal ops note — never overwrite customer remarks with this.
+  adminInternalNote      String?   @map("admin_internal_note") @db.Text
   cancelReason    String?       @map("cancel_reason") @db.VarChar(500)
   cancelledAt     DateTime?     @map("cancelled_at")
   deliveredAt     DateTime?     @map("delivered_at")
@@ -1606,6 +1636,8 @@ model Order {
   refunds         Refund[]
   paymentLinks    PaymentLink[]
   bulkEnquiries   BulkEnquiry[] @relation("BulkEnquiryConvertedOrder")
+  scheduledSlot   DeliverySlot? @relation(fields: [scheduledSlotId], references: [id], onDelete: SetNull)
+  slotReservations DeliverySlotReservation[]
 
   @@index([customerId, orderStatus, createdAt(sort: Desc)])
   @@index([customerId, createdAt(sort: Desc)])
@@ -1618,6 +1650,9 @@ model Order {
   @@index([orderNumber])
   @@index([orderSource])
   @@index([deletedAt])
+  @@index([deliveryPreferenceType])
+  @@index([scheduledSlotId])
+  @@index([scheduledDate])
   @@map("orders")
 }
 
@@ -1650,6 +1685,52 @@ model OrderItem {
   @@index([orderId])
   @@index([productId])
   @@map("order_items")
+}
+
+/// Customer-facing delivery window for a hub on a given date.
+/// Generated from hub operating hours + vehicle/logistics capacity.
+model DeliverySlot {
+  id            String   @id @default(uuid()) @db.Uuid
+  hubId         String   @map("hub_id") @db.Uuid
+  slotDate      DateTime @map("slot_date") @db.Date
+  startMinutes  Int      @map("start_minutes")
+  endMinutes    Int      @map("end_minutes")
+  cutoffMinutes Int      @map("cutoff_minutes")
+  capacity      Int      @default(8)
+  reservedCapacity Int   @default(0) @map("reserved_capacity")
+  vehicleTypes  DeliveryVehicleType[] @default([]) @map("vehicle_types")
+  logisticsType String?  @map("logistics_type") @db.VarChar(40)
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  hub          Hub                       @relation(fields: [hubId], references: [id], onDelete: Cascade)
+  orders       Order[]
+  reservations DeliverySlotReservation[]
+
+  @@unique([hubId, slotDate, startMinutes, endMinutes])
+  @@index([hubId, slotDate, active])
+  @@map("delivery_slots")
+}
+
+model DeliverySlotReservation {
+  id         String                         @id @default(uuid()) @db.Uuid
+  slotId     String                         @map("slot_id") @db.Uuid
+  customerId String                         @map("customer_id") @db.Uuid
+  orderId    String?                        @unique @map("order_id") @db.Uuid
+  status     DeliverySlotReservationStatus  @default(PENDING)
+  expiresAt  DateTime?                      @map("expires_at")
+  createdAt  DateTime                       @default(now()) @map("created_at")
+  updatedAt  DateTime                       @updatedAt @map("updated_at")
+
+  slot     DeliverySlot @relation(fields: [slotId], references: [id], onDelete: Cascade)
+  customer Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  order    Order?       @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@index([slotId, status])
+  @@index([customerId, status])
+  @@index([expiresAt])
+  @@map("delivery_slot_reservations")
 }
 
 model PaymentLink {
@@ -3124,6 +3205,8 @@ model DeliveryVehicleConfig {
   id                        String              @id @default(uuid()) @db.Uuid
   vehicleType               DeliveryVehicleType @unique @map("vehicle_type")
   displayName               String              @map("display_name") @db.VarChar(80)
+  /// Public R2 URL for customer-app + admin delivery vehicle photo
+  imageUrl                  String?             @map("image_url") @db.VarChar(500)
   /// null until Admin configures — do not invent operational capacities
   maxWeightKg               Decimal?            @map("max_weight_kg") @db.Decimal(12, 3)
   maxVolumeCft              Decimal?            @map("max_volume_cft") @db.Decimal(12, 3)

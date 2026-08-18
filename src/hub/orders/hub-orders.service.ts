@@ -8,6 +8,8 @@ import type { OrderStatus, Prisma } from '../../../generated/prisma/client';
 import { PrismaService } from '../../common/database/prisma.service';
 import { LoyaltyTransactionService } from '../../modules/loyalty/loyalty-transaction.service';
 import { DeliveryBenefitService } from '../../modules/delivery/delivery-benefit.service';
+import { DeliverySlotService } from '../../modules/delivery/delivery-slot.service';
+import { mapDeliveryPreferenceView } from '../../modules/delivery/delivery-preference.view';
 import {
   getOrderStatusLabel,
   ORDER_STATUS_TRANSITIONS,
@@ -41,6 +43,7 @@ export class HubOrdersService {
     private readonly orderRepo: HubOrderRepository,
     private readonly loyaltyTransactionService: LoyaltyTransactionService,
     private readonly deliveryBenefitService: DeliveryBenefitService,
+    private readonly deliverySlotService: DeliverySlotService,
     private readonly orderEvents: OrderEventsService,
     private readonly configService: ConfigService,
     private readonly driversService: DriversService,
@@ -138,6 +141,9 @@ export class HubOrdersService {
       priorityOrder: order.priorityOrder,
       emergency: order.isEmergency,
       bulkOrder: order.bulkOrder,
+      deliveryPreference: mapDeliveryPreferenceView(order),
+      customerRemark: order.deliveryCustomerRemark ?? order.notes ?? null,
+      adminInternalNote: order.adminInternalNote ?? null,
       driver: order.assignedDriver,
       vehicle: order.assignedVehicle,
       loader: order.assignedLoader,
@@ -844,6 +850,7 @@ export class HubOrdersService {
 
     await this.loyaltyTransactionService.refundRedemptionForCancelledOrder(orderId);
     await this.deliveryBenefitService.restoreFreeBikeDelivery({ orderId });
+    await this.deliverySlotService.releaseOrderReservation(orderId);
 
     return cancelled;
   }

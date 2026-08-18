@@ -6,6 +6,7 @@ import {
   PaymentMethod,
   PaymentStatus,
 } from '../../../../generated/prisma/client';
+import { DELIVERY_PREFERENCE_TYPES } from '../../delivery/delivery-preference.constants';
 
 export class PlaceOrderDto {
   @ApiPropertyOptional({
@@ -19,12 +20,31 @@ export class PlaceOrderDto {
 
   @ApiPropertyOptional({
     example: 'Please call before delivery',
-    maxLength: 500,
+    maxLength: 250,
   })
   @IsOptional()
   @IsString()
-  @MaxLength(500)
+  @MaxLength(250)
   notes?: string;
+
+  @ApiPropertyOptional({
+    enum: DELIVERY_PREFERENCE_TYPES,
+    example: 'ASAP',
+  })
+  @IsOptional()
+  @IsEnum(DELIVERY_PREFERENCE_TYPES)
+  deliveryPreferenceType?: (typeof DELIVERY_PREFERENCE_TYPES)[number];
+
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID()
+  scheduledSlotId?: string;
+
+  @ApiPropertyOptional({ maxLength: 250 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(250)
+  deliveryCustomerRemark?: string;
 
   @ApiPropertyOptional({
     enum: PaymentMethod,
@@ -181,6 +201,27 @@ export class OrderResponseDto {
 
   @ApiPropertyOptional()
   notes?: string | null;
+
+  @ApiPropertyOptional({ example: 'ASAP' })
+  deliveryPreferenceType?: string;
+
+  @ApiPropertyOptional()
+  scheduledDate?: string | null;
+
+  @ApiPropertyOptional()
+  scheduledSlotId?: string | null;
+
+  @ApiPropertyOptional()
+  scheduledStartAt?: string | null;
+
+  @ApiPropertyOptional()
+  scheduledEndAt?: string | null;
+
+  @ApiPropertyOptional()
+  deliveryCustomerRemark?: string | null;
+
+  @ApiPropertyOptional({ type: Object })
+  deliveryPreference?: Record<string, unknown> | null;
 
   @ApiProperty({ type: OrderAddressSnapshotDto })
   address!: OrderAddressSnapshotDto;

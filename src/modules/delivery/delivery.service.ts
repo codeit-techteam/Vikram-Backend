@@ -115,6 +115,7 @@ export class DeliveryService {
     let pricingMessage: string | undefined;
     let vehicleType: string | undefined;
     let vehicleDisplayName: string | undefined;
+    let vehicleImageUrl: string | undefined;
     let vehicleCount = 1;
     let totalWeightKg: number | null = null;
     let totalVolumeCft: number | null = null;
@@ -156,6 +157,7 @@ export class DeliveryService {
         selectionReason = selection.reason ?? undefined;
         vehicleType = selection.vehicleType ?? undefined;
         vehicleDisplayName = selection.vehicleDisplayName ?? undefined;
+        vehicleImageUrl = selection.vehicleImageUrl ?? undefined;
         vehicleCount = Math.max(1, selection.vehicleCount || 1);
         capacityUsed = selection.capacityUsed;
         capacityLimit = selection.capacityLimit;
@@ -271,6 +273,7 @@ export class DeliveryService {
       freeDelivery,
       deliveryVehicleType: vehicleType,
       deliveryVehicleDisplayName: vehicleDisplayName,
+      deliveryVehicleImageUrl: vehicleImageUrl,
       deliveryVehicleCount: vehicleCount,
       deliveryDistanceKm: distanceKm,
       deliveryTotalWeightKg: totalWeightKg,

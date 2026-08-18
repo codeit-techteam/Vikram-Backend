@@ -27,6 +27,23 @@ import { CheckoutService } from '../checkout/checkout.service';
 import { NotificationService } from '../notification/notification.service';
 import { LoyaltyTransactionService } from '../loyalty/loyalty-transaction.service';
 import { DeliveryBenefitService } from '../delivery/delivery-benefit.service';
+import { DeliveryOptionsService } from '../delivery/delivery-options.service';
+import { DeliverySlotService } from '../delivery/delivery-slot.service';
+import {
+  DEFAULT_DELIVERY_TIMEZONE,
+  DELIVERY_PREFERENCE_LABELS,
+} from '../delivery/delivery-preference.constants';
+import type { DeliveryPreferenceType } from '../delivery/delivery-preference.constants';
+import {
+  mapDeliveryPreferenceView,
+} from '../delivery/delivery-preference.view';
+import {
+  preferenceRequiresSlot,
+  sanitizeDeliveryRemark,
+  slotMatchesPreference,
+  utcToIst,
+} from '../delivery/delivery-slot.logic';
+import type { DeliveryPreferenceSnapshot } from '../delivery/delivery-preference.view';
 import { CancelOrderDto } from './dto/cancel-order.dto';
 import { PlaceOrderDto, OrderResponseDto } from './dto/order.dto';
 import { OrderListQueryDto } from './dto/order-query.dto';
@@ -141,6 +158,8 @@ export class OrdersService {
     private readonly checkoutService: CheckoutService,
     private readonly loyaltyTransactionService: LoyaltyTransactionService,
     private readonly deliveryBenefitService: DeliveryBenefitService,
+    private readonly deliveryOptionsService: DeliveryOptionsService,
+    private readonly deliverySlotService: DeliverySlotService,
     private readonly orderEvents: OrderEventsService,
   ) {}
 
@@ -163,7 +182,102 @@ export class OrdersService {
       addressId: dto.addressId,
       notes: dto.notes,
       loyaltyPointsToRedeem: dto.loyaltyPointsToRedeem,
+      deliveryPreferenceType: dto.deliveryPreferenceType,
+      scheduledSlotId: dto.scheduledSlotId,
+      deliveryCustomerRemark: dto.deliveryCustomerRemark,
     });
+
+    if (checkout.serviceable === false) {
+      throw new BadRequestException(
+        checkout.readinessMessage ||
+          "We currently don't deliver to this location.",
+      );
+    }
+
+    const preferenceType = (dto.deliveryPreferenceType ??
+      checkout.deliveryOptions?.defaultPreference ??
+      'ASAP') as DeliveryPreferenceType;
+    const options = checkout.deliveryOptions;
+    const customerRemark = sanitizeDeliveryRemark(
+      dto.deliveryCustomerRemark ?? dto.notes,
+    );
+
+    if (preferenceRequiresSlot(preferenceType)) {
+      if (!dto.scheduledSlotId) {
+        throw new BadRequestException('Please choose a delivery time.');
+      }
+      if (!options?.serviceable) {
+        throw new BadRequestException(
+          "We currently don't deliver to this location.",
+        );
+      }
+      const selectedSlot = this.deliveryOptionsService.findSlot(
+        options,
+        dto.scheduledSlotId,
+      );
+      if (!selectedSlot?.available) {
+        throw new BadRequestException(
+          'Your selected delivery slot is no longer available.',
+        );
+      }
+      const todayKey = utcToIst().dateKey;
+      if (
+        !slotMatchesPreference({
+          type: preferenceType,
+          slotDateKey: selectedSlot.date,
+          todayKey,
+        })
+      ) {
+        throw new BadRequestException(
+          'Selected slot does not match the delivery preference.',
+        );
+      }
+    } else if (preferenceType === 'ASAP' && options && !options.asap.available) {
+      throw new BadRequestException(
+        options.asap.reason ||
+          'Fastest delivery is not available right now. Please choose another time.',
+      );
+    }
+
+    const selectedSlot =
+      preferenceRequiresSlot(preferenceType) && dto.scheduledSlotId && options
+        ? this.deliveryOptionsService.findSlot(options, dto.scheduledSlotId)
+        : null;
+
+    const selectedAt = new Date();
+    const expectedDeliveryAt = selectedSlot
+      ? new Date(selectedSlot.endAt)
+      : checkout.deliveryEtaMaxMinutes
+        ? new Date(selectedAt.getTime() + checkout.deliveryEtaMaxMinutes * 60_000)
+        : checkout.deliveryETA
+          ? new Date(selectedAt.getTime() + checkout.deliveryETA * 60_000)
+          : null;
+
+    const preferenceSnapshot: DeliveryPreferenceSnapshot = {
+      type: preferenceType,
+      label: DELIVERY_PREFERENCE_LABELS[preferenceType],
+      scheduledDate: selectedSlot?.date ?? null,
+      scheduledDateLabel: selectedSlot?.dateLabel ?? null,
+      scheduledSlotId: selectedSlot?.slotId ?? null,
+      scheduledSlotLabel: selectedSlot?.label ?? null,
+      scheduledStartAt: selectedSlot?.startAt ?? null,
+      scheduledEndAt: selectedSlot?.endAt ?? null,
+      customerRemark,
+      selectedAt: selectedAt.toISOString(),
+      timezone: DEFAULT_DELIVERY_TIMEZONE,
+      etaMinMinutes: checkout.deliveryEtaMinMinutes ?? null,
+      etaMaxMinutes: checkout.deliveryEtaMaxMinutes ?? null,
+      etaLabel:
+        preferenceType === 'ASAP'
+          ? checkout.deliveryMessage ?? options?.asap.etaLabel ?? null
+          : selectedSlot
+            ? `${selectedSlot.dateLabel}, ${selectedSlot.label}`
+            : null,
+      vehicleType: checkout.deliveryVehicleType ?? null,
+      vehicleDisplayName: checkout.deliveryVehicleDisplayName ?? null,
+      hubId: options?.hubId ?? null,
+      hubName: checkout.fulfillmentHubName ?? options?.hubName ?? null,
+    };
 
     const routing = await this.checkoutService.routeHubForAddress(
       checkout.address,
@@ -260,7 +374,20 @@ export class OrdersService {
             deliveryLoadingMinutes: checkout.deliveryLoadingMinutes ?? null,
             deliveryTravelMinutes: checkout.deliveryTravelMinutes ?? null,
             deliveryUnloadingMinutes: checkout.deliveryUnloadingMinutes ?? null,
-            notes: dto.notes ?? null,
+            notes: customerRemark ?? dto.notes ?? null,
+            deliveryPreferenceType: preferenceType,
+            scheduledDate: selectedSlot?.date
+              ? new Date(`${selectedSlot.date}T00:00:00.000Z`)
+              : null,
+            scheduledSlotId: selectedSlot?.slotId ?? null,
+            scheduledStartAt: selectedSlot ? new Date(selectedSlot.startAt) : null,
+            scheduledEndAt: selectedSlot ? new Date(selectedSlot.endAt) : null,
+            deliveryCustomerRemark: customerRemark,
+            deliveryPreferenceSelectedAt: selectedAt,
+            deliveryTimezone: DEFAULT_DELIVERY_TIMEZONE,
+            deliveryPreferenceSnapshot:
+              preferenceSnapshot as unknown as Prisma.InputJsonValue,
+            expectedDeliveryAt,
             deliveryAddress: {
               id: checkout.address.id,
               label: checkout.address.label,
@@ -308,7 +435,9 @@ export class OrdersService {
               create: [
                 {
                   status: OrderStatus.PENDING,
-                  remarks: 'Order Placed',
+                  remarks: preferenceSnapshot.etaLabel
+                    ? `Order Placed · ${preferenceSnapshot.label}: ${preferenceSnapshot.etaLabel}`
+                    : 'Order Placed',
                   message: 'Order Placed',
                   updatedBy: 'SYSTEM',
                   updatedByRole: 'SYSTEM',
@@ -345,6 +474,15 @@ export class OrdersService {
             address: true,
           },
         });
+
+        if (selectedSlot) {
+          await this.deliverySlotService.confirmReservation({
+            customerId,
+            slotId: selectedSlot.slotId,
+            orderId: created.id,
+            db: tx,
+          });
+        }
 
         const cart = await tx.cart.findUnique({ where: { customerId } });
         if (cart) {
@@ -441,6 +579,15 @@ export class OrdersService {
       deliveryCharge: decimalToNumber(order.deliveryCharge),
       grandTotal: decimalToNumber(order.grandTotal),
       notes: order.notes,
+      deliveryPreferenceType: order.deliveryPreferenceType,
+      scheduledDate: order.scheduledDate
+        ? order.scheduledDate.toISOString().slice(0, 10)
+        : null,
+      scheduledSlotId: order.scheduledSlotId,
+      scheduledStartAt: order.scheduledStartAt?.toISOString() ?? null,
+      scheduledEndAt: order.scheduledEndAt?.toISOString() ?? null,
+      deliveryCustomerRemark: order.deliveryCustomerRemark,
+      deliveryPreference: mapDeliveryPreferenceView(order),
       address: {
         id: order.address.id,
         line1: order.address.line1,
@@ -636,6 +783,8 @@ export class OrdersService {
           cancelledAt: now,
         },
       });
+
+      await this.deliverySlotService.releaseOrderReservation(orderId, tx);
 
       await tx.orderTimeline.create({
         data: {
@@ -855,6 +1004,15 @@ export class OrdersService {
       discountAmount: decimalToNumber(order.discountAmount),
       grandTotal: decimalToNumber(order.grandTotal),
       notes: order.notes,
+      deliveryPreferenceType: order.deliveryPreferenceType,
+      scheduledDate: order.scheduledDate
+        ? order.scheduledDate.toISOString().slice(0, 10)
+        : null,
+      scheduledSlotId: order.scheduledSlotId,
+      scheduledStartAt: order.scheduledStartAt?.toISOString() ?? null,
+      scheduledEndAt: order.scheduledEndAt?.toISOString() ?? null,
+      deliveryCustomerRemark: order.deliveryCustomerRemark,
+      deliveryPreference: mapDeliveryPreferenceView(order),
       cancelReason: order.cancelReason,
       cancelledAt: order.cancelledAt?.toISOString() ?? null,
       deliveredAt: order.deliveredAt?.toISOString() ?? null,

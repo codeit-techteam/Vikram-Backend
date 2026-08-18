@@ -50,6 +50,7 @@ export interface MaterialTransportProfile {
 const HEAVY: VehicleType[] = [
   DeliveryVehicleType.PICK_UP_VAN,
   DeliveryVehicleType.FULL_TRUCK,
+  DeliveryVehicleType.HEAVY_LOADER,
 ];
 
 const CEMENT_VEHICLES: VehicleType[] = [
@@ -57,6 +58,7 @@ const CEMENT_VEHICLES: VehicleType[] = [
   DeliveryVehicleType.THREE_WHEELER_LOADER,
   DeliveryVehicleType.PICK_UP_VAN,
   DeliveryVehicleType.FULL_TRUCK,
+  DeliveryVehicleType.HEAVY_LOADER,
 ];
 
 const PACKAGED: VehicleType[] = [
@@ -65,6 +67,7 @@ const PACKAGED: VehicleType[] = [
   DeliveryVehicleType.THREE_WHEELER_LOADER,
   DeliveryVehicleType.PICK_UP_VAN,
   DeliveryVehicleType.FULL_TRUCK,
+  DeliveryVehicleType.HEAVY_LOADER,
 ];
 
 export const MATERIAL_TRANSPORT_PROFILES: Record<string, MaterialTransportProfile> =
@@ -137,6 +140,7 @@ export const MATERIAL_TRANSPORT_PROFILES: Record<string, MaterialTransportProfil
         DeliveryVehicleType.THREE_WHEELER_LOADER,
         DeliveryVehicleType.PICK_UP_VAN,
         DeliveryVehicleType.FULL_TRUCK,
+        DeliveryVehicleType.HEAVY_LOADER,
       ],
       preferredVehicleType: DeliveryVehicleType.PICK_UP_VAN,
       minimumVehicleType: DeliveryVehicleType.THREE_WHEELER_LOADER,

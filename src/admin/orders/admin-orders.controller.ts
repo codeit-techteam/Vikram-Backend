@@ -23,6 +23,7 @@ import {
   AssignHubDto,
   AssignDriverDto,
   CancelOrderDto,
+  UpdateAdminInternalNoteDto,
 } from './dto/admin-orders.dto';
 import { CurrentAdmin } from '../decorators/current-admin.decorator';
 import type { AuthenticatedAdmin } from '../auth/admin-jwt.strategy';
@@ -172,5 +173,25 @@ export class AdminOrdersController {
       newValue: dto,
     });
     return { success: true, message: 'Order cancelled', data };
+  }
+
+  @Patch(':id/internal-note')
+  @AdminRoles(...ROLE_GROUPS.WAREHOUSE)
+  @ApiOperation({ summary: 'Update admin internal note (never overwrites customer remarks)' })
+  async updateInternalNote(
+    @Param('id') id: string,
+    @Body() dto: UpdateAdminInternalNoteDto,
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+  ) {
+    const data = await this.ordersService.updateInternalNote(id, dto.note ?? null);
+    await this.auditService.log({
+      adminUserId: admin.id,
+      adminEmail: admin.email,
+      action: 'UPDATE',
+      resource: 'Order',
+      resourceId: id,
+      newValue: { adminInternalNote: dto.note ?? null },
+    });
+    return { success: true, message: 'Internal note saved', data };
   }
 }

@@ -71,6 +71,7 @@ export class DeliveryPricingController {
           displayName:
             cfg?.displayName ??
             DELIVERY_VEHICLE_DISPLAY_NAMES[type as DeliveryVehicleType],
+          imageUrl: cfg?.imageUrl ?? null,
           maxWeightKg: cfg?.maxWeightKg ?? null,
           maxVolumeCft: cfg?.maxVolumeCft ?? null,
           maxQuantity: cfg?.maxQuantity ?? null,

@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsInt,
   IsNotEmpty,
@@ -44,7 +44,12 @@ export class AddCartItemDto {
 
   @ApiPropertyOptional({ description: 'Snapshot ETA minutes from delivery API' })
   @IsOptional()
-  @Type(() => Number)
+  @Transform(({ value }) => {
+    if (value === '' || value == null) return undefined;
+    const minutes = Number(value);
+    if (!Number.isFinite(minutes) || minutes < 1) return undefined;
+    return Math.round(minutes);
+  })
   @IsInt()
   @Min(1)
   etaMinutes?: number;

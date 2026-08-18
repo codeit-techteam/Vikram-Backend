@@ -195,6 +195,9 @@ export class DeliveryEtaResponseDto {
   @ApiPropertyOptional({ example: 'RMC Transit Mixer' })
   deliveryVehicleDisplayName?: string;
 
+  @ApiPropertyOptional({ example: 'https://cdn.example.com/delivery-vehicles/bike.png' })
+  deliveryVehicleImageUrl?: string | null;
+
   @ApiPropertyOptional({ example: 1 })
   deliveryVehicleCount?: number;
 

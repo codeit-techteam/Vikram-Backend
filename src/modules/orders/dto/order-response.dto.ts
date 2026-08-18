@@ -260,6 +260,27 @@ export class OrderDetailResponseDto {
   notes?: string | null;
 
   @ApiPropertyOptional()
+  deliveryPreferenceType?: string;
+
+  @ApiPropertyOptional()
+  scheduledDate?: string | null;
+
+  @ApiPropertyOptional()
+  scheduledSlotId?: string | null;
+
+  @ApiPropertyOptional()
+  scheduledStartAt?: string | null;
+
+  @ApiPropertyOptional()
+  scheduledEndAt?: string | null;
+
+  @ApiPropertyOptional()
+  deliveryCustomerRemark?: string | null;
+
+  @ApiPropertyOptional({ type: Object })
+  deliveryPreference?: Record<string, unknown> | null;
+
+  @ApiPropertyOptional()
   cancelReason?: string | null;
 
   @ApiPropertyOptional()

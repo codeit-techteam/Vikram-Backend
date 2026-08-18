@@ -26,6 +26,7 @@ export interface CalculatedDeliveryCharge {
   message?: string;
   vehicleType: DeliveryVehicleType | null;
   vehicleDisplayName: string;
+  vehicleImageUrl?: string | null;
   distanceKm: number;
   /** List price from active pricing rule (before free-bike benefit). */
   listPrice: number;
@@ -327,6 +328,9 @@ export class DeliveryPricingService {
       message: resolved.message,
       vehicleType,
       vehicleDisplayName: DELIVERY_VEHICLE_DISPLAY_NAMES[vehicleType],
+      vehicleImageUrl:
+        (await this.vehicleSelection.getVehicleConfig(vehicleType))?.imageUrl ??
+        null,
       distanceKm,
       listPrice: totalList,
       deliveryCharge: resolved.available ? totalList : 0,
@@ -481,6 +485,7 @@ export class DeliveryPricingService {
         vehicleType: selection.vehicleType,
         vehicleDisplayName:
           selection.vehicleDisplayName ?? 'Delivery vehicle unassigned',
+        vehicleImageUrl: selection.vehicleImageUrl ?? null,
         selectionReason: selection.reason,
       };
     }
@@ -513,6 +518,7 @@ export class DeliveryPricingService {
       vehicleType: extras?.vehicleType ?? null,
       vehicleDisplayName:
         extras?.vehicleDisplayName ?? 'Delivery vehicle unassigned',
+      vehicleImageUrl: extras?.vehicleImageUrl ?? null,
       distanceKm: toMoney(distanceKm || 0),
       listPrice: 0,
       deliveryCharge: 0,
