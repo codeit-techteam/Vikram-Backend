@@ -74,8 +74,11 @@ export default () => ({
     maxOrderRedeemPercent: parseFloat(
       process.env.LOYALTY_MAX_ORDER_REDEEM_PERCENT ?? '0.3',
     ),
+    earnCashbackPercent: parseFloat(
+      process.env.LOYALTY_EARN_CASHBACK_PERCENT ?? '1',
+    ),
     earnPointsPer100Inr: parseInt(
-      process.env.LOYALTY_EARN_POINTS_PER_100_INR ?? '1',
+      process.env.LOYALTY_EARN_POINTS_PER_100_INR ?? '100',
       10,
     ),
     pointsExpiryMonths: parseInt(

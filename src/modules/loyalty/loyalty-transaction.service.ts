@@ -13,6 +13,8 @@ import {
   calculateEarnPoints,
   calculateMaxRedeemablePoints,
   isRedemptionEligible,
+  LOYALTY_EARN_CASHBACK_PERCENT,
+  LOYALTY_EARN_POINTS_PER_100_INR,
   LOYALTY_FIRST_ORDER_BONUS_POINTS,
   LOYALTY_MAX_ORDER_REDEEM_PERCENT,
   LOYALTY_MIN_REDEEM_ORDER_VALUE,
@@ -798,7 +800,8 @@ export class LoyaltyTransactionService {
       maxOrderRedeemPercent: LOYALTY_MAX_ORDER_REDEEM_PERCENT * 100,
       welcomeBonus: LOYALTY_WELCOME_BONUS_POINTS,
       firstOrderBonus: LOYALTY_FIRST_ORDER_BONUS_POINTS,
-      earnPointsPer100Inr: 1,
+      earnCashbackPercent: LOYALTY_EARN_CASHBACK_PERCENT,
+      earnPointsPer100Inr: LOYALTY_EARN_POINTS_PER_100_INR,
     };
   }
 

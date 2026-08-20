@@ -97,7 +97,7 @@ export class CustomerLoyaltyController {
   @ApiOperation({
     summary: 'Credit loyalty points after order delivery (internal)',
     description:
-      'Requires x-internal-api-key. Awards 1 point per ₹100 eligible spend + first-order bonus when applicable.',
+      'Requires x-internal-api-key. Awards 1% cashback on eligible spend as BajriPro Points + first-order bonus when applicable.',
   })
   @ApiResponse({ status: 201, type: LoyaltyEarnResponseDto })
   async earn(

@@ -58,7 +58,16 @@ export class LoyaltySummaryDto {
   @ApiProperty({ example: 50 })
   firstOrderBonus!: number;
 
-  @ApiProperty({ example: 1 })
+  @ApiProperty({
+    example: 1,
+    description: 'Cashback percent of eligible spend credited as BajriPro Points',
+  })
+  earnCashbackPercent!: number;
+
+  @ApiProperty({
+    example: 100,
+    description: 'Points credited per ₹100 eligible spend (1% cashback at ₹0.01/pt)',
+  })
   earnPointsPer100Inr!: number;
 
   @ApiProperty({ example: 3, description: 'Total free bike deliveries allowed' })

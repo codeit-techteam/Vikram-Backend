@@ -247,8 +247,17 @@ export class CheckoutResponseDto {
   @ApiPropertyOptional({ nullable: true })
   loyaltyMessage?: string | null;
 
-  @ApiProperty({ example: 34, description: 'Points that will be earned after successful delivery' })
+  @ApiProperty({
+    example: 850,
+    description: '1% cashback points that will be earned after successful delivery',
+  })
   estimatedEarnPoints!: number;
+
+  @ApiProperty({
+    example: 8.5,
+    description: 'INR value of estimatedEarnPoints (1% of eligible spend)',
+  })
+  estimatedEarnValue!: number;
 
   @ApiProperty({ example: 0, description: 'Total discount (membership + loyalty)' })
   discount!: number;

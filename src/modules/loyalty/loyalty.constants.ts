@@ -10,7 +10,14 @@ export const LOYALTY_MIN_REDEEM_POINTS = 1;
 /** Preserve existing max redemption cap (30% of eligible order value) */
 export const LOYALTY_MAX_ORDER_REDEEM_PERCENT = 0.3;
 
-export const LOYALTY_EARN_POINTS_PER_100_INR = 1;
+/** 1% cashback on eligible spend, credited as BajriPro Points */
+export const LOYALTY_EARN_CASHBACK_PERCENT = 1;
+
+/** Points credited per ₹100 at 1% cashback (₹1 = 100 pts when 1 pt = ₹0.01) */
+export const LOYALTY_EARN_POINTS_PER_100_INR = Math.round(
+  (100 * (LOYALTY_EARN_CASHBACK_PERCENT / 100)) / LOYALTY_POINT_VALUE_INR,
+);
+
 export const LOYALTY_POINTS_EXPIRY_MONTHS = 12;
 
 export const LOYALTY_WELCOME_BONUS_POINTS = 50;
@@ -31,10 +38,20 @@ export const LOYALTY_REF = {
 export const FREE_BIKE_DELIVERIES_ALLOWED = 3;
 export const BIKE_DELIVERY_COMPANY_COST = 99;
 
-/** floor(eligibleAmount / 100) — 1 point per ₹100 spent */
+/**
+ * 1% cashback on eligible spend, converted to points at LOYALTY_POINT_VALUE_INR.
+ * ₹100 spent → ₹1 cashback → 100 points. Uses paise math to avoid float drift.
+ */
 export function calculateEarnPoints(eligibleAmountInr: number): number {
   if (eligibleAmountInr <= 0) return 0;
-  return Math.floor(eligibleAmountInr / 100) * LOYALTY_EARN_POINTS_PER_100_INR;
+  const eligiblePaise = Math.round(eligibleAmountInr * 100);
+  return Math.floor(
+    (eligiblePaise * LOYALTY_EARN_CASHBACK_PERCENT) / 100,
+  );
+}
+
+export function calculateEarnCashbackInr(eligibleAmountInr: number): number {
+  return pointsToDiscountAmount(calculateEarnPoints(eligibleAmountInr));
 }
 
 export function toMoney(value: number): number {

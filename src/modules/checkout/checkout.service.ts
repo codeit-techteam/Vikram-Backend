@@ -8,6 +8,7 @@ import { CartService } from '../cart/cart.service';
 import { LoyaltyService } from '../loyalty/loyalty.service';
 import { LoyaltyTransactionService } from '../loyalty/loyalty-transaction.service';
 import {
+  calculateEarnCashbackInr,
   calculateEarnPoints,
   calculateMaxRedeemablePoints,
 } from '../loyalty/loyalty.constants';
@@ -193,6 +194,7 @@ export class CheckoutService {
 
     const eligibleEarnAmount = Math.max(0, cart.subtotal - membershipDiscount);
     const estimatedEarnPoints = calculateEarnPoints(eligibleEarnAmount);
+    const estimatedEarnValue = calculateEarnCashbackInr(eligibleEarnAmount);
 
     const deliveryOptions = await this.deliveryOptionsService.buildOptions({
       serviceable: deliveryPreview?.serviceable ?? inCoverage,
@@ -259,6 +261,7 @@ export class CheckoutService {
         orderValueBeforeLoyalty >= loyaltySummary.minRedeemOrderValue,
       loyaltyMessage: loyaltyMessage ?? null,
       estimatedEarnPoints,
+      estimatedEarnValue,
       discount: membershipDiscount + loyaltyDiscount,
       loadingCharges,
       unloadingCharges,
