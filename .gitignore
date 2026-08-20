@@ -3,7 +3,8 @@ node_modules/
 
 # Build output
 dist/
-coverage/
+# Jest coverage reports (root only — do not ignore src/modules/coverage)
+/coverage/
 *.tsbuildinfo
 
 # Logs
