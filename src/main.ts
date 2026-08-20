@@ -90,7 +90,8 @@ async function bootstrap() {
 
   setupSwagger(app);
 
-  await app.listen(port);
+  // Bind all interfaces so DigitalOcean readiness probes can reach the process.
+  await app.listen(port, '0.0.0.0');
 
   if (swaggerEnabled) {
     logger.log(`Swagger docs: ${getSwaggerUrl(port, apiPrefix, swaggerPath)}`);

@@ -11,12 +11,15 @@ export type RedisConnectionOptions = Pick<
   | 'password'
   | 'db'
   | 'tls'
+  | 'family'
   | 'maxRetriesPerRequest'
-  | 'retryStrategy'
+  | 'enableReadyCheck'
   | 'connectTimeout'
+  | 'retryStrategy'
 >;
 
 export type ResolvedRedisConfig = {
+  url?: string;
   host: string;
   port: number;
   username?: string;
@@ -44,12 +47,13 @@ export function resolveRedisFromEnv(
     const parsed = new URL(redisUrl);
     if (parsed.protocol !== 'redis:' && parsed.protocol !== 'rediss:') {
       throw new Error(
-        'REDIS_URL must start with redis:// or rediss:// (DigitalOcean managed Redis uses rediss://).',
+        'REDIS_URL must start with redis:// or rediss:// (Upstash uses rediss://).',
       );
     }
 
     const dbFromPath = parsed.pathname.replace('/', '');
     return {
+      url: redisUrl,
       host: parsed.hostname,
       port: parsed.port ? parseInt(parsed.port, 10) : 6379,
       username: parsed.username
@@ -80,6 +84,10 @@ export function resolveRedisFromEnv(
   };
 }
 
+/**
+ * Discrete connection options for ioredis + BullMQ.
+ * `family: 0` avoids IPv6 DNS failures to Upstash from App Platform.
+ */
 export function createRedisConnectionOptions(
   configService: ConfigService,
 ): RedisConnectionOptions {
@@ -94,12 +102,14 @@ export function createRedisConnectionOptions(
     ...(password ? { password } : {}),
     db: configService.get<number>('redis.db', 0),
     maxRetriesPerRequest: null,
-    connectTimeout: 10_000,
+    enableReadyCheck: true,
+    connectTimeout: 15_000,
+    family: 0,
     retryStrategy(times) {
-      if (times > 8) {
+      if (times > 10) {
         return null;
       }
-      return Math.min(times * 150, 1000);
+      return Math.min(times * 200, 2000);
     },
     ...(tls ? { tls: {} } : {}),
   };

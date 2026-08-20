@@ -31,6 +31,7 @@ export default () => ({
   redis: (() => {
     const redis = resolveRedisFromEnv();
     return {
+      url: redis.url,
       host: redis.host,
       port: redis.port,
       username: redis.username,

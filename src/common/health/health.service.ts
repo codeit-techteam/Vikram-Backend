@@ -27,7 +27,12 @@ export class HealthService {
     };
   }
 
+  /**
+   * Platform readiness (DigitalOcean) needs HTTP 200 once the process is up.
+   * Dependency status stays in the JSON body for ops; a Redis blip should not
+   * remove the instance from the load balancer permanently.
+   */
   isHealthy(response: HealthResponseDto): boolean {
-    return response.database === 'Connected' && response.redis === 'Connected';
+    return response.backend === 'Running';
   }
 }
