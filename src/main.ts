@@ -31,9 +31,12 @@ async function bootstrap() {
   const swaggerEnabled = configService.get<boolean>('swagger.enabled', true);
   const swaggerPath = configService.get<string>('swagger.path', 'docs');
 
+  // APIs are consumed cross-origin by Hub/Admin/Expo web; Helmet's default
+  // CORP "same-origin" makes Chrome report a CORS error on the real XHR.
   app.use(
     helmet({
       contentSecurityPolicy: isProduction ? undefined : false,
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
     }),
   );
   app.use(compression());

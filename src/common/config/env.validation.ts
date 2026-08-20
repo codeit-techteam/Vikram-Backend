@@ -1,4 +1,4 @@
-import { plainToInstance } from 'class-transformer';
+import { plainToInstance, Type } from 'class-transformer';
 import {
   IsEnum,
   IsNumber,
@@ -19,6 +19,7 @@ class EnvironmentVariables {
   @IsOptional()
   NODE_ENV: Environment = Environment.Development;
 
+  @Type(() => Number)
   @IsNumber()
   @IsOptional()
   PORT: number = 3000;
@@ -38,14 +39,17 @@ class EnvironmentVariables {
   @IsString()
   DATABASE_URL: string;
 
+  @Type(() => Number)
   @IsNumber()
   @IsOptional()
   DATABASE_POOL_MAX?: number;
 
+  @Type(() => Number)
   @IsNumber()
   @IsOptional()
   DATABASE_POOL_IDLE_TIMEOUT_MS?: number;
 
+  @Type(() => Number)
   @IsNumber()
   @IsOptional()
   DATABASE_CONNECTION_TIMEOUT_MS?: number;
@@ -66,6 +70,7 @@ class EnvironmentVariables {
   @IsOptional()
   REDIS_TLS?: string;
 
+  @Type(() => Number)
   @IsNumber()
   @IsOptional()
   REDIS_PORT?: number;
@@ -74,6 +79,7 @@ class EnvironmentVariables {
   @IsOptional()
   REDIS_PASSWORD?: string;
 
+  @Type(() => Number)
   @IsNumber()
   @IsOptional()
   REDIS_DB?: number;
@@ -126,21 +132,43 @@ class EnvironmentVariables {
   @IsOptional()
   NOTIFICATION_CRON?: string;
 
+  @Type(() => Number)
   @IsNumber()
   @IsOptional()
   SCHEDULER_JOB_ATTEMPTS?: number;
 
+  @Type(() => Number)
   @IsNumber()
   @IsOptional()
   SCHEDULER_JOB_BACKOFF_MS?: number;
 
+  @Type(() => Number)
   @IsNumber()
   @IsOptional()
   SCHEDULER_PROCESSOR_CONCURRENCY?: number;
 }
 
+const NUMERIC_ENV_KEYS = [
+  'PORT',
+  'DATABASE_POOL_MAX',
+  'DATABASE_POOL_IDLE_TIMEOUT_MS',
+  'DATABASE_CONNECTION_TIMEOUT_MS',
+  'REDIS_PORT',
+  'REDIS_DB',
+  'SCHEDULER_JOB_ATTEMPTS',
+  'SCHEDULER_JOB_BACKOFF_MS',
+  'SCHEDULER_PROCESSOR_CONCURRENCY',
+] as const;
+
 export function validate(config: Record<string, unknown>) {
-  const validatedConfig = plainToInstance(EnvironmentVariables, config, {
+  const normalized: Record<string, unknown> = { ...config };
+  for (const key of NUMERIC_ENV_KEYS) {
+    if (normalized[key] === '') {
+      delete normalized[key];
+    }
+  }
+
+  const validatedConfig = plainToInstance(EnvironmentVariables, normalized, {
     enableImplicitConversion: true,
   });
 
