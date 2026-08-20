@@ -77,7 +77,10 @@ async function bootstrap() {
   app.useGlobalInterceptors(new ApiResponseInterceptor(app.get(Reflector)));
 
   app.setGlobalPrefix(apiPrefix, {
-    exclude: [{ path: 'health', method: RequestMethod.GET }],
+    exclude: [
+      { path: 'health', method: RequestMethod.GET },
+      { path: '/health', method: RequestMethod.GET },
+    ],
   });
 
   app.enableVersioning({

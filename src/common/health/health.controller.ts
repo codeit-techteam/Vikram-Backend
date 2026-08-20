@@ -1,12 +1,21 @@
-import { Controller, Get, HttpCode, HttpStatus, Res } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Res,
+  VERSION_NEUTRAL,
+} from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { SWAGGER_TAGS } from '../constants/swagger.constants';
+import { Public } from '../decorators/public.decorator';
 import { HealthResponseDto } from './dto/health-response.dto';
 import { HealthService } from './health.service';
 
+@Public()
 @ApiTags(SWAGGER_TAGS.HEALTH)
-@Controller('health')
+@Controller({ path: 'health', version: VERSION_NEUTRAL })
 export class HealthController {
   constructor(private readonly healthService: HealthService) {}
 
