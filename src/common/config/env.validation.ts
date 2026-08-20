@@ -54,6 +54,18 @@ class EnvironmentVariables {
   @IsOptional()
   REDIS_HOST?: string;
 
+  @IsString()
+  @IsOptional()
+  REDIS_URL?: string;
+
+  @IsString()
+  @IsOptional()
+  REDIS_USERNAME?: string;
+
+  @IsString()
+  @IsOptional()
+  REDIS_TLS?: string;
+
   @IsNumber()
   @IsOptional()
   REDIS_PORT?: number;
@@ -138,6 +150,28 @@ export function validate(config: Record<string, unknown>) {
 
   if (errors.length > 0) {
     throw new Error(errors.toString());
+  }
+
+  if (validatedConfig.NODE_ENV === Environment.Production) {
+    const redisUrl = validatedConfig.REDIS_URL?.trim();
+    const redisHost = validatedConfig.REDIS_HOST?.trim();
+    const placeholder = /YOUR_|CHANGE_ME|<\w+>/i;
+
+    if (redisUrl) {
+      if (placeholder.test(redisUrl) || redisUrl.includes('${')) {
+        throw new Error(
+          'REDIS_URL is invalid. Use a redis:// or rediss:// connection string from DigitalOcean Managed Redis.',
+        );
+      }
+    } else if (
+      !redisHost ||
+      placeholder.test(redisHost) ||
+      redisHost === 'localhost'
+    ) {
+      throw new Error(
+        'Production Redis is not configured. Set REDIS_URL (preferred, rediss://...) or a real REDIS_HOST. YOUR_REDIS_HOST is a placeholder from .env.example and will not resolve.',
+      );
+    }
   }
 
   return validatedConfig;

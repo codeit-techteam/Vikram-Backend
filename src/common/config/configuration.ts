@@ -1,3 +1,5 @@
+import { resolveRedisFromEnv } from './redis.config';
+
 export default () => ({
   app: {
     name: process.env.APP_NAME ?? 'Bajriwala ERP API',
@@ -26,12 +28,17 @@ export default () => ({
       10,
     ),
   },
-  redis: {
-    host: process.env.REDIS_HOST ?? 'localhost',
-    port: parseInt(process.env.REDIS_PORT ?? '6379', 10),
-    password: process.env.REDIS_PASSWORD || undefined,
-    db: parseInt(process.env.REDIS_DB ?? '0', 10),
-  },
+  redis: (() => {
+    const redis = resolveRedisFromEnv();
+    return {
+      host: redis.host,
+      port: redis.port,
+      username: redis.username,
+      password: redis.password,
+      db: redis.db,
+      tls: redis.tls,
+    };
+  })(),
   swagger: {
     enabled: process.env.SWAGGER_ENABLED !== 'false',
     path: process.env.SWAGGER_PATH ?? 'docs',
