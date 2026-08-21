@@ -1,6 +1,7 @@
 import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { JobsOptions, Queue } from 'bullmq';
+import { REDIS_BULLMQ_ENABLED } from '../../common/config/redis-bullmq.feature';
 import { DEFAULT_SCHEDULER_JOB_OPTIONS } from './scheduler.constants';
 
 export function buildSchedulerJobOptions(
@@ -33,6 +34,14 @@ export async function enqueueUniqueJob(
   options: JobsOptions,
   logger: Logger,
 ): Promise<void> {
+  // TEMPORARILY DISABLED - BullMQ
+  if (!REDIS_BULLMQ_ENABLED) {
+    logger.debug(
+      `Skip enqueue ${jobName} (${jobId}) — Redis/BullMQ temporarily disabled`,
+    );
+    return;
+  }
+
   // BullMQ rejects custom IDs that contain `:`.
   const safeJobId = jobId.replace(/:/g, '-');
   const existing = await queue.getJob(safeJobId);

@@ -1,5 +1,6 @@
 import { resolveDatabaseUrlFromEnv } from '../database/postgres-url';
 import { parseCorsOrigins } from './cors.util';
+import { REDIS_BULLMQ_ENABLED } from './redis-bullmq.feature';
 import { resolveRedisFromEnv } from './redis.config';
 
 export default () => ({
@@ -109,7 +110,7 @@ export default () => ({
   },
   scheduler: {
     /** Set SCHEDULER_ENABLED=false to stop BullMQ workers (Redis quota relief). */
-    enabled: process.env.SCHEDULER_ENABLED !== 'false',
+    enabled: REDIS_BULLMQ_ENABLED && process.env.SCHEDULER_ENABLED !== 'false',
     membershipCron: process.env.MEMBERSHIP_CRON ?? '0 30 0 * * *',
     loyaltyCron: process.env.LOYALTY_CRON ?? '0 0 1 * * *',
     reportCron: process.env.REPORT_CRON ?? '0 50 23 * * *',

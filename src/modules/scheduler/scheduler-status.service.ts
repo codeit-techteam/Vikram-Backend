@@ -151,3 +151,19 @@ export class SchedulerStatusService {
     }
   }
 }
+
+/** Returns a static snapshot when Redis/BullMQ is temporarily disabled. */
+@Injectable()
+export class SchedulerStatusDisabledService {
+  async getStatus(): Promise<{
+    generatedAt: string;
+    queues: QueueStatusDto[];
+    redisBullMq: 'Disabled';
+  }> {
+    return {
+      generatedAt: new Date().toISOString(),
+      queues: [],
+      redisBullMq: 'Disabled',
+    };
+  }
+}

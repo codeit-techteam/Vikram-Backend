@@ -36,16 +36,21 @@ export class OtpService {
 
   async sendOtp(mobile: string): Promise<{ expiresIn: number; otp: string }> {
     const phone = normalizePhone(mobile);
-    await this.enforceRateLimit(phone);
+
+    if (this.redisService.isEnabled()) {
+      await this.enforceRateLimit(phone);
+    }
 
     const otp = this.generateOtp(phone);
     const otpHash = await bcrypt.hash(otp, 10);
-    const client = this.redisService.getClient();
-
-    await client.setex(`${OTP_REDIS_PREFIX}${phone}`, OTP_TTL_SECONDS, otpHash);
-    await client.del(`${OTP_ATTEMPTS_PREFIX}${phone}`);
-
     const expiresAt = new Date(Date.now() + OTP_TTL_SECONDS * 1000);
+
+    if (this.redisService.isEnabled()) {
+      const client = this.redisService.getClient();
+      await client.setex(`${OTP_REDIS_PREFIX}${phone}`, OTP_TTL_SECONDS, otpHash);
+      await client.del(`${OTP_ATTEMPTS_PREFIX}${phone}`);
+    }
+
     await this.prisma.otpRecord.create({
       data: {
         phone,
@@ -64,6 +69,58 @@ export class OtpService {
 
   async verifyOtp(mobile: string, otp: string): Promise<void> {
     const phone = normalizePhone(mobile);
+
+    if (this.redisService.isEnabled()) {
+      await this.verifyOtpWithRedis(phone, otp);
+      return;
+    }
+
+    await this.verifyOtpWithDatabase(phone, otp);
+  }
+
+  async enforceLoginAttempts(mobile: string): Promise<void> {
+    if (!this.redisService.isEnabled()) {
+      return;
+    }
+
+    const phone = normalizePhone(mobile);
+    const client = this.redisService.getClient();
+    const key = `${LOGIN_ATTEMPTS_PREFIX}${phone}`;
+    const attempts = parseInt((await client.get(key)) ?? '0', 10);
+
+    if (attempts >= LOGIN_MAX_ATTEMPTS) {
+      throw new HttpException(
+        'Too many login attempts. Please try again later.',
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+  }
+
+  async recordFailedLoginAttempt(mobile: string): Promise<void> {
+    if (!this.redisService.isEnabled()) {
+      return;
+    }
+
+    const phone = normalizePhone(mobile);
+    const client = this.redisService.getClient();
+    const key = `${LOGIN_ATTEMPTS_PREFIX}${phone}`;
+    const attempts = await client.incr(key);
+
+    if (attempts === 1) {
+      await client.expire(key, LOGIN_ATTEMPTS_TTL_SECONDS);
+    }
+  }
+
+  async clearLoginAttempts(mobile: string): Promise<void> {
+    if (!this.redisService.isEnabled()) {
+      return;
+    }
+
+    const phone = normalizePhone(mobile);
+    await this.redisService.getClient().del(`${LOGIN_ATTEMPTS_PREFIX}${phone}`);
+  }
+
+  private async verifyOtpWithRedis(phone: string, otp: string): Promise<void> {
     const client = this.redisService.getClient();
     const attemptsKey = `${OTP_ATTEMPTS_PREFIX}${phone}`;
 
@@ -100,34 +157,41 @@ export class OtpService {
     });
   }
 
-  async enforceLoginAttempts(mobile: string): Promise<void> {
-    const phone = normalizePhone(mobile);
-    const client = this.redisService.getClient();
-    const key = `${LOGIN_ATTEMPTS_PREFIX}${phone}`;
-    const attempts = parseInt((await client.get(key)) ?? '0', 10);
+  private async verifyOtpWithDatabase(phone: string, otp: string): Promise<void> {
+    const record = await this.prisma.otpRecord.findFirst({
+      where: {
+        phone,
+        purpose: 'LOGIN',
+        isUsed: false,
+        expiresAt: { gte: new Date() },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
 
-    if (attempts >= LOGIN_MAX_ATTEMPTS) {
+    if (!record) {
+      throw new BadRequestException('OTP expired or not found. Please request a new OTP.');
+    }
+
+    if (record.attempts >= OTP_MAX_VERIFY_ATTEMPTS) {
       throw new HttpException(
-        'Too many login attempts. Please try again later.',
+        'Maximum OTP verification attempts exceeded. Please request a new OTP.',
         HttpStatus.TOO_MANY_REQUESTS,
       );
     }
-  }
 
-  async recordFailedLoginAttempt(mobile: string): Promise<void> {
-    const phone = normalizePhone(mobile);
-    const client = this.redisService.getClient();
-    const key = `${LOGIN_ATTEMPTS_PREFIX}${phone}`;
-    const attempts = await client.incr(key);
-
-    if (attempts === 1) {
-      await client.expire(key, LOGIN_ATTEMPTS_TTL_SECONDS);
+    const isValid = await bcrypt.compare(otp, record.otpHash);
+    if (!isValid) {
+      await this.prisma.otpRecord.update({
+        where: { id: record.id },
+        data: { attempts: { increment: 1 } },
+      });
+      throw new BadRequestException('Invalid OTP. Please try again.');
     }
-  }
 
-  async clearLoginAttempts(mobile: string): Promise<void> {
-    const phone = normalizePhone(mobile);
-    await this.redisService.getClient().del(`${LOGIN_ATTEMPTS_PREFIX}${phone}`);
+    await this.prisma.otpRecord.update({
+      where: { id: record.id },
+      data: { isUsed: true },
+    });
   }
 
   private async enforceRateLimit(phone: string): Promise<void> {

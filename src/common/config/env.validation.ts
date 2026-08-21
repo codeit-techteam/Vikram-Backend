@@ -1,4 +1,5 @@
 import { plainToInstance, Type } from 'class-transformer';
+import { REDIS_BULLMQ_ENABLED } from './redis-bullmq.feature';
 import {
   IsEnum,
   IsNumber,
@@ -268,20 +269,23 @@ export function validate(config: Record<string, unknown>) {
       throw new Error('DATABASE_URL is not a valid PostgreSQL connection string.');
     }
 
-    if (redisUrl) {
-      if (placeholder.test(redisUrl) || redisUrl.includes('${')) {
+    // TEMPORARILY DISABLED — production boot must not require Redis.
+    if (REDIS_BULLMQ_ENABLED) {
+      if (redisUrl) {
+        if (placeholder.test(redisUrl) || redisUrl.includes('${')) {
+          throw new Error(
+            'REDIS_URL is invalid. Use a redis:// or rediss:// connection string from DigitalOcean Managed Redis.',
+          );
+        }
+      } else if (
+        !redisHost ||
+        placeholder.test(redisHost) ||
+        redisHost === 'localhost'
+      ) {
         throw new Error(
-          'REDIS_URL is invalid. Use a redis:// or rediss:// connection string from DigitalOcean Managed Redis.',
+          'Production Redis is not configured. Set REDIS_URL (preferred, rediss://...) or a real REDIS_HOST. YOUR_REDIS_HOST is a placeholder from .env.example and will not resolve.',
         );
       }
-    } else if (
-      !redisHost ||
-      placeholder.test(redisHost) ||
-      redisHost === 'localhost'
-    ) {
-      throw new Error(
-        'Production Redis is not configured. Set REDIS_URL (preferred, rediss://...) or a real REDIS_HOST. YOUR_REDIS_HOST is a placeholder from .env.example and will not resolve.',
-      );
     }
   }
 

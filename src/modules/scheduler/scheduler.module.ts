@@ -1,13 +1,17 @@
 import { BullModule } from '@nestjs/bullmq';
 import { Logger, Module } from '@nestjs/common';
 import { ScheduleModule } from '@nestjs/schedule';
+import { REDIS_BULLMQ_ENABLED } from '../../common/config/redis-bullmq.feature';
 import { NotificationModule } from '../notification/notification.module';
 import {
   ALL_SCHEDULER_QUEUES,
   DEFAULT_SCHEDULER_JOB_OPTIONS,
 } from './scheduler.constants';
 import { SchedulerStatusController } from './scheduler-status.controller';
-import { SchedulerStatusService } from './scheduler-status.service';
+import {
+  SchedulerStatusDisabledService,
+  SchedulerStatusService,
+} from './scheduler-status.service';
 import { MembershipProcessor } from './processors/membership.processor';
 import { LoyaltyProcessor } from './processors/loyalty.processor';
 import { ReportProcessor } from './processors/report.processor';
@@ -22,10 +26,24 @@ import { DailyReportService } from './services/report.service';
 import { ScheduledNotificationDispatchService } from './services/notification.service';
 import { SchedulerLogService } from './services/scheduler-log.service';
 
-const schedulerEnabled = process.env.SCHEDULER_ENABLED !== 'false';
 const logger = new Logger('SchedulerModule');
 
-if (!schedulerEnabled) {
+/*
+TEMPORARILY DISABLED:
+BullMQ workers, queue registration, and cron schedulers when Redis/BullMQ is off.
+
+Reason:
+Core backend must operate without Redis/BullMQ.
+Re-enable after Redis infrastructure is restored.
+*/
+const schedulerEnabled =
+  REDIS_BULLMQ_ENABLED && process.env.SCHEDULER_ENABLED !== 'false';
+
+if (!REDIS_BULLMQ_ENABLED) {
+  logger.warn(
+    'Redis/BullMQ temporarily disabled — BullMQ queues and workers are not registered.',
+  );
+} else if (!schedulerEnabled) {
   logger.warn(
     'SCHEDULER_ENABLED=false — BullMQ workers and Nest cron schedulers are not registered (Redis quota relief).',
   );
@@ -44,16 +62,26 @@ const schedulerRuntimeProviders = schedulerEnabled
     ]
   : [];
 
+/*
+TEMPORARILY DISABLED:
+BullModule.registerQueue(...) when Redis/BullMQ is off.
+*/
+const bullMqImports = REDIS_BULLMQ_ENABLED
+  ? [
+      BullModule.registerQueue(
+        ...ALL_SCHEDULER_QUEUES.map((name) => ({
+          name,
+          defaultJobOptions: DEFAULT_SCHEDULER_JOB_OPTIONS,
+        })),
+      ),
+    ]
+  : [];
+
 @Module({
   imports: [
     ...(schedulerEnabled ? [ScheduleModule.forRoot()] : []),
     NotificationModule,
-    BullModule.registerQueue(
-      ...ALL_SCHEDULER_QUEUES.map((name) => ({
-        name,
-        defaultJobOptions: DEFAULT_SCHEDULER_JOB_OPTIONS,
-      })),
-    ),
+    ...bullMqImports,
   ],
   controllers: [SchedulerStatusController],
   providers: [
@@ -63,10 +91,15 @@ const schedulerRuntimeProviders = schedulerEnabled
     DailyReportService,
     ScheduledNotificationDispatchService,
     ...schedulerRuntimeProviders,
-    SchedulerStatusService,
+    REDIS_BULLMQ_ENABLED
+      ? SchedulerStatusService
+      : {
+          provide: SchedulerStatusService,
+          useClass: SchedulerStatusDisabledService,
+        },
   ],
   exports: [
-    BullModule,
+    ...(REDIS_BULLMQ_ENABLED ? [BullModule] : []),
     SchedulerLogService,
     MembershipExpiryService,
     LoyaltyExpiryService,

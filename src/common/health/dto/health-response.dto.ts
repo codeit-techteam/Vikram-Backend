@@ -7,7 +7,10 @@ export class HealthResponseDto {
   @ApiProperty({ example: 'Connected', enum: ['Connected', 'Disconnected'] })
   database: string;
 
-  @ApiProperty({ example: 'Connected', enum: ['Connected', 'Disconnected'] })
+  @ApiProperty({
+    example: 'Connected',
+    enum: ['Connected', 'Disconnected', 'Disabled'],
+  })
   redis: string;
 
   @ApiProperty({ example: 'development' })

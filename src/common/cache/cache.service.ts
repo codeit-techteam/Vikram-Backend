@@ -9,6 +9,9 @@ export class CacheService {
   constructor(private readonly redisService: RedisService) {}
 
   async get<T>(key: string): Promise<T | null> {
+    if (!this.redisService.isEnabled()) {
+      return null;
+    }
     try {
       const raw = await this.redisService.getClient().get(key);
       if (!raw) return null;
@@ -20,6 +23,9 @@ export class CacheService {
   }
 
   async set(key: string, value: unknown, ttlSeconds: number): Promise<void> {
+    if (!this.redisService.isEnabled()) {
+      return;
+    }
     try {
       await this.redisService
         .getClient()
@@ -30,6 +36,9 @@ export class CacheService {
   }
 
   async del(key: string): Promise<void> {
+    if (!this.redisService.isEnabled()) {
+      return;
+    }
     try {
       await this.redisService.getClient().del(key);
     } catch (error) {
@@ -38,6 +47,9 @@ export class CacheService {
   }
 
   async invalidatePattern(pattern: string): Promise<void> {
+    if (!this.redisService.isEnabled()) {
+      return;
+    }
     try {
       const client = this.redisService.getClient();
       let cursor = '0';

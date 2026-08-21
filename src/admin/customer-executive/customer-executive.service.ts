@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomBytes } from 'crypto';
+import * as bcrypt from 'bcrypt';
 import {
   AdminRole,
   AuditAction,
@@ -94,6 +95,7 @@ import type {
 
 const CE_REG_VERIFIED_PREFIX = 'ce:reg:verified:';
 const CE_REG_VERIFIED_TTL_SECONDS = 900;
+const CE_REG_VERIFIED_PURPOSE = 'CE_REG_VERIFIED';
 
 type RecentActivity = {
   id: string;
@@ -576,13 +578,28 @@ export class CustomerExecutiveService {
     await this.otpService.verifyOtp(phone, dto.otp);
 
     const verificationToken = randomBytes(24).toString('hex');
-    await this.redisService
-      .getClient()
-      .setex(
-        `${CE_REG_VERIFIED_PREFIX}${phone}`,
-        CE_REG_VERIFIED_TTL_SECONDS,
-        verificationToken,
-      );
+
+    if (this.redisService.isEnabled()) {
+      await this.redisService
+        .getClient()
+        .setex(
+          `${CE_REG_VERIFIED_PREFIX}${phone}`,
+          CE_REG_VERIFIED_TTL_SECONDS,
+          verificationToken,
+        );
+    } else {
+      const tokenHash = await bcrypt.hash(verificationToken, 10);
+      await this.prisma.otpRecord.create({
+        data: {
+          phone,
+          otpHash: tokenHash,
+          purpose: CE_REG_VERIFIED_PURPOSE,
+          expiresAt: new Date(
+            Date.now() + CE_REG_VERIFIED_TTL_SECONDS * 1000,
+          ),
+        },
+      });
+    }
 
     return { verified: true, verificationToken };
   }
@@ -592,11 +609,31 @@ export class CustomerExecutiveService {
       throw new BadRequestException('Invalid Indian mobile number');
     }
     const phone = normalizePhone(dto.phone);
-    const redisKey = `${CE_REG_VERIFIED_PREFIX}${phone}`;
-    const storedToken = await this.redisService.getClient().get(redisKey);
 
-    if (!storedToken || storedToken !== dto.verificationToken) {
-      throw new BadRequestException('Invalid or expired verification token');
+    if (this.redisService.isEnabled()) {
+      const redisKey = `${CE_REG_VERIFIED_PREFIX}${phone}`;
+      const storedToken = await this.redisService.getClient().get(redisKey);
+
+      if (!storedToken || storedToken !== dto.verificationToken) {
+        throw new BadRequestException('Invalid or expired verification token');
+      }
+    } else {
+      const record = await this.prisma.otpRecord.findFirst({
+        where: {
+          phone,
+          purpose: CE_REG_VERIFIED_PURPOSE,
+          isUsed: false,
+          expiresAt: { gte: new Date() },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      if (
+        !record ||
+        !(await bcrypt.compare(dto.verificationToken, record.otpHash))
+      ) {
+        throw new BadRequestException('Invalid or expired verification token');
+      }
     }
 
     const existing = await this.prisma.customer.findFirst({
@@ -682,7 +719,19 @@ export class CustomerExecutiveService {
       return customer.id;
     });
 
-    await this.redisService.getClient().del(redisKey);
+    if (this.redisService.isEnabled()) {
+      const redisKey = `${CE_REG_VERIFIED_PREFIX}${phone}`;
+      await this.redisService.getClient().del(redisKey);
+    } else {
+      await this.prisma.otpRecord.updateMany({
+        where: {
+          phone,
+          purpose: CE_REG_VERIFIED_PURPOSE,
+          isUsed: false,
+        },
+        data: { isUsed: true },
+      });
+    }
 
     await this.loyaltyTransactionService.creditWelcomeBonus(customerId);
     await this.deliveryBenefitService.ensureBenefit(customerId);

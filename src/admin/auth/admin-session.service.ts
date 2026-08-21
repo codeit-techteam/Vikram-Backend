@@ -49,6 +49,10 @@ export class AdminSessionService {
     refreshTokenHash: string,
     session: AdminSessionData,
   ): Promise<void> {
+    if (!this.redisService.isEnabled()) {
+      return;
+    }
+
     try {
       const ttl = this.getRefreshTtlSeconds();
       const client = this.redisService.getClient();
@@ -69,6 +73,10 @@ export class AdminSessionService {
     adminId: string,
     refreshTokenHash: string,
   ): Promise<void> {
+    if (!this.redisService.isEnabled()) {
+      return;
+    }
+
     try {
       const client = this.redisService.getClient();
       await client.del(`${ADMIN_SESSION_PREFIX}${adminId}:${refreshTokenHash}`);
@@ -79,6 +87,10 @@ export class AdminSessionService {
   }
 
   async revokeAllSessions(adminId: string): Promise<void> {
+    if (!this.redisService.isEnabled()) {
+      return;
+    }
+
     try {
       const client = this.redisService.getClient();
       const hashes = await client.smembers(`${ADMIN_REFRESH_PREFIX}${adminId}`);
@@ -95,6 +107,10 @@ export class AdminSessionService {
   }
 
   async getActiveSessionCount(adminId: string): Promise<number> {
+    if (!this.redisService.isEnabled()) {
+      return 0;
+    }
+
     try {
       const client = this.redisService.getClient();
       return client.scard(`${ADMIN_REFRESH_PREFIX}${adminId}`);

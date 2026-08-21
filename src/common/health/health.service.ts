@@ -15,16 +15,26 @@ export class HealthService {
   ) {}
 
   async check(): Promise<HealthResponseDto> {
-    const [databaseConnected, redisConnected] = await Promise.all([
-      this.prismaService.isConnected(),
-      this.redisService.isConnected(),
-    ]);
+    const databaseConnected = await this.prismaService.isConnected();
 
     if (!databaseConnected) {
       this.logger.warn(
         `HEALTH_DATABASE_DISCONNECTED env=${this.configService.get('app.env')}`,
       );
     }
+
+    // TEMPORARILY DISABLED — report Redis as Disabled instead of pinging.
+    if (!this.redisService.isEnabled()) {
+      return {
+        backend: 'Running',
+        database: databaseConnected ? 'Connected' : 'Disconnected',
+        redis: 'Disabled',
+        environment: this.configService.get<string>('app.env', 'development'),
+        timestamp: new Date().toISOString(),
+      };
+    }
+
+    const redisConnected = await this.redisService.isConnected();
 
     if (!redisConnected) {
       this.logger.warn(

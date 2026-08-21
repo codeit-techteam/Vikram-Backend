@@ -1,5 +1,6 @@
 import { ConfigService } from '@nestjs/config';
 import type { RedisOptions } from 'ioredis';
+import { REDIS_BULLMQ_ENABLED } from './redis-bullmq.feature';
 
 const PLACEHOLDER_PATTERN = /YOUR_|CHANGE_ME|<\w+>/i;
 
@@ -35,6 +36,16 @@ export function isPlaceholderRedisValue(value?: string): boolean {
 export function resolveRedisFromEnv(
   env: NodeJS.ProcessEnv = process.env,
 ): ResolvedRedisConfig {
+  // TEMPORARILY DISABLED — skip Redis env resolution when BullMQ/Redis is off.
+  if (!REDIS_BULLMQ_ENABLED) {
+    return {
+      host: 'disabled',
+      port: 6379,
+      db: 0,
+      tls: false,
+    };
+  }
+
   const redisUrl = env.REDIS_URL?.trim();
 
   if (redisUrl) {
