@@ -19,7 +19,8 @@ export class AddCartItemDto {
   productId!: string;
 
   @ApiPropertyOptional({
-    description: 'Product variant UUID (required when product has multiple variants)',
+    description:
+      'Product variant UUID (required when product has multiple variants)',
   })
   @IsOptional()
   @IsUUID()
@@ -28,7 +29,8 @@ export class AddCartItemDto {
   @ApiPropertyOptional({
     example: 1,
     default: 1,
-    description: 'Quantity to add (increments if product+variant already in cart)',
+    description:
+      'Quantity to add (increments if product+variant already in cart)',
     minimum: 1,
   })
   @IsOptional()
@@ -42,7 +44,9 @@ export class AddCartItemDto {
   @IsUUID()
   hubId?: string;
 
-  @ApiPropertyOptional({ description: 'Snapshot ETA minutes from delivery API' })
+  @ApiPropertyOptional({
+    description: 'Snapshot ETA minutes from delivery API',
+  })
   @IsOptional()
   @Transform(({ value }) => {
     if (value === '' || value == null) return undefined;
@@ -142,7 +146,10 @@ export class CartItemResponseDto {
   @ApiProperty({ example: 1003, description: 'Line total including GST' })
   lineTotal!: number;
 
-  @ApiPropertyOptional({ example: 50, description: 'Bulk discount saved on this line' })
+  @ApiPropertyOptional({
+    example: 50,
+    description: 'Bulk discount saved on this line',
+  })
   bulkDiscount?: number;
 
   @ApiPropertyOptional({ example: 35 })
@@ -168,7 +175,10 @@ export class CartResponseDto {
   @ApiProperty({ example: 153 })
   gstAmount!: number;
 
-  @ApiProperty({ example: 150, description: 'Delivery charge (0 if free delivery threshold met)' })
+  @ApiProperty({
+    example: 150,
+    description: 'Delivery charge (0 if free delivery threshold met)',
+  })
   deliveryCharge!: number;
 
   @ApiProperty({ example: 1153 })

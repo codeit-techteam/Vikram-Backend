@@ -16,7 +16,10 @@ import {
   SupportTicketReason,
   SupportTicketStatus,
 } from '../../../../generated/prisma/client';
-import { PaginationMetaDto, PaginationQueryDto } from '../../../common/dto/pagination.dto';
+import {
+  PaginationMetaDto,
+  PaginationQueryDto,
+} from '../../../common/dto/pagination.dto';
 
 export class SendSupportMessageDto {
   @ApiProperty({

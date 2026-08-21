@@ -63,7 +63,7 @@ export class SchedulerLogService {
         error: error ?? null,
         metadata: result.metadata
           ? JSON.parse(JSON.stringify(result.metadata))
-          : existing.metadata ?? undefined,
+          : (existing.metadata ?? undefined),
       },
     });
   }

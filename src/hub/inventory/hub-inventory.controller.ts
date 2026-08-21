@@ -9,7 +9,10 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { SWAGGER_BEARER_AUTH, SWAGGER_TAGS } from '../../common/constants/swagger.constants';
+import {
+  SWAGGER_BEARER_AUTH,
+  SWAGGER_TAGS,
+} from '../../common/constants/swagger.constants';
 import { HubJwtAuthGuard } from '../guards/hub-jwt-auth.guard';
 import { HubRolesGuard } from '../guards/hub-roles.guard';
 import { HubPermission } from '../decorators/hub-roles.decorator';
@@ -87,7 +90,11 @@ export class HubInventoryController {
     @CurrentHubUser() user: AuthenticatedHubUser,
     @Body() dto: HubInventoryAdjustDto,
   ) {
-    const data = await this.inventoryService.adjust(user.hubId, dto, user.fullName);
+    const data = await this.inventoryService.adjust(
+      user.hubId,
+      dto,
+      user.fullName,
+    );
     return { success: true, message: 'Inventory adjusted', data };
   }
 
@@ -98,7 +105,11 @@ export class HubInventoryController {
     @CurrentHubUser() user: AuthenticatedHubUser,
     @Body() dto: HubInventoryTransferDto,
   ) {
-    const data = await this.inventoryService.transfer(user.hubId, dto, user.fullName);
+    const data = await this.inventoryService.transfer(
+      user.hubId,
+      dto,
+      user.fullName,
+    );
     return { success: true, message: 'Inventory transfer completed', data };
   }
 }

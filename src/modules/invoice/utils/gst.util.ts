@@ -79,7 +79,8 @@ export function parseFinancialSnapshot(
 ): InvoiceFinancialSnapshot {
   const data = (raw ?? {}) as Partial<InvoiceFinancialSnapshot>;
   return {
-    loyaltyPointsUsed: data.loyaltyPointsUsed ?? fallback?.loyaltyPointsUsed ?? 0,
+    loyaltyPointsUsed:
+      data.loyaltyPointsUsed ?? fallback?.loyaltyPointsUsed ?? 0,
     loyaltyRedeemedAmount:
       data.loyaltyRedeemedAmount ?? fallback?.loyaltyRedeemedAmount ?? 0,
     membershipDiscount:

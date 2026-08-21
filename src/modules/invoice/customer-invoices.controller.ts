@@ -5,7 +5,10 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { SWAGGER_BEARER_AUTH, SWAGGER_TAGS } from '../../common/constants/swagger.constants';
+import {
+  SWAGGER_BEARER_AUTH,
+  SWAGGER_TAGS,
+} from '../../common/constants/swagger.constants';
 import { CurrentCustomer } from '../../common/decorators/current-customer.decorator';
 import type { AuthenticatedCustomer } from '../../auth/jwt/jwt-payload.interface';
 import { CustomerInvoiceQueryDto } from './dto/invoice-query.dto';

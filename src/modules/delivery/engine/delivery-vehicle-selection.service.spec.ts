@@ -614,4 +614,3 @@ describe('material transport profiles → vehicle selection', () => {
     expect(result.vehicleType).toBe(DeliveryVehicleType.PICK_UP_VAN);
   });
 });
-

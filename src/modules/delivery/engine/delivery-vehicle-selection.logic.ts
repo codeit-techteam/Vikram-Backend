@@ -59,10 +59,7 @@ function exceedsBulkThreshold(
   return false;
 }
 
-function clampToAllowed(
-  candidate: VT,
-  allowed: VT[] | null,
-): VT {
+function clampToAllowed(candidate: VT, allowed: VT[] | null): VT {
   if (!allowed || allowed.length === 0) return candidate;
   if (allowed.includes(candidate)) return candidate;
   const sorted = [...allowed].sort(
@@ -70,8 +67,7 @@ function clampToAllowed(
   );
   const minIdx = priorityIndex(candidate);
   return (
-    sorted.find((t) => priorityIndex(t) >= minIdx) ??
-    sorted[sorted.length - 1]!
+    sorted.find((t) => priorityIndex(t) >= minIdx) ?? sorted[sorted.length - 1]
   );
 }
 
@@ -128,7 +124,10 @@ function unavailableResult(
   };
 }
 
-function canCarry(vehicle: VehicleCapacityView, load: OrderLoadResult): boolean {
+function canCarry(
+  vehicle: VehicleCapacityView,
+  load: OrderLoadResult,
+): boolean {
   if (load.hasWeightDimension) {
     if (vehicle.usableWeightKg == null) return false;
     if (load.totalWeightKg > vehicle.usableWeightKg) return false;
@@ -161,7 +160,10 @@ function passesProductRestrictions(
 
   const logisticsTypes = load.logisticsTypes ?? [];
   if (logisticsTypes.includes('RMC')) {
-    if (!vehicle.supportsRmc && vehicle.vehicleType !== DeliveryVehicleType.RMC_TRANSIT_MIXER) {
+    if (
+      !vehicle.supportsRmc &&
+      vehicle.vehicleType !== DeliveryVehicleType.RMC_TRANSIT_MIXER
+    ) {
       return false;
     }
   }
@@ -223,10 +225,18 @@ function requiredVehicleCount(
   load: OrderLoadResult,
 ): number {
   const ratios: number[] = [];
-  if (load.hasWeightDimension && vehicle.usableWeightKg && vehicle.usableWeightKg > 0) {
+  if (
+    load.hasWeightDimension &&
+    vehicle.usableWeightKg &&
+    vehicle.usableWeightKg > 0
+  ) {
     ratios.push(load.totalWeightKg / vehicle.usableWeightKg);
   }
-  if (load.hasVolumeDimension && vehicle.usableVolumeCft && vehicle.usableVolumeCft > 0) {
+  if (
+    load.hasVolumeDimension &&
+    vehicle.usableVolumeCft &&
+    vehicle.usableVolumeCft > 0
+  ) {
     ratios.push(load.totalVolumeCft / vehicle.usableVolumeCft);
   }
   if (
@@ -271,7 +281,8 @@ export function selectVehicleForLoad(
 
   const configured = configs.filter((c) => c.hasConfiguredCapacity);
   const useCapacityEngine =
-    configured.length > 0 && (load.hasWeightDimension || load.hasVolumeDimension);
+    configured.length > 0 &&
+    (load.hasWeightDimension || load.hasVolumeDimension);
 
   if (!useCapacityEngine) {
     const missingUnrestricted =
@@ -336,7 +347,7 @@ export function selectVehicleForLoad(
     .sort((a, b) => a.priority - b.priority);
 
   if (eligible.length > 0) {
-    const selected = eligible[0]!;
+    const selected = eligible[0];
     const { used, limit, pct } = utilization(selected, load);
     return {
       ok: true,
@@ -361,14 +372,11 @@ export function selectVehicleForLoad(
     .sort((a, b) => b.priority - a.priority)[0];
 
   if (!largest) {
-    return unavailableResult(
-      'No eligible vehicle for this order.',
-      {
-        reason:
-          load.restrictionReason ??
-          'No active vehicle is compatible with this material and load.',
-      },
-    );
+    return unavailableResult('No eligible vehicle for this order.', {
+      reason:
+        load.restrictionReason ??
+        'No active vehicle is compatible with this material and load.',
+    });
   }
 
   const count = requiredVehicleCount(largest, load);

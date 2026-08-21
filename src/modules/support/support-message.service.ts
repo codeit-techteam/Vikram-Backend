@@ -450,7 +450,9 @@ export class SupportMessageService {
 
     if (options.admin) {
       if (options.admin.role === AdminRole.WAREHOUSE_MANAGER) {
-        throw new ForbiddenException('Warehouse managers cannot access support');
+        throw new ForbiddenException(
+          'Warehouse managers cannot access support',
+        );
       }
       this.assertExecutiveAccess(ticket, options.admin);
     }
@@ -482,7 +484,9 @@ export class SupportMessageService {
   }
 
   mapMessage(
-    message: Prisma.SupportMessageGetPayload<{ include: typeof messageInclude }>,
+    message: Prisma.SupportMessageGetPayload<{
+      include: typeof messageInclude;
+    }>,
   ): SupportMessageResponseDto {
     return {
       id: message.id,

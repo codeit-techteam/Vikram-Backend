@@ -42,7 +42,10 @@ const PENDING_DISPATCH_STATUSES: OrderStatus[] = [
   'DRIVER_ASSIGNED',
 ];
 
-const OUT_FOR_DELIVERY_STATUSES: OrderStatus[] = ['OUT_FOR_DELIVERY', 'DISPATCHED'];
+const OUT_FOR_DELIVERY_STATUSES: OrderStatus[] = [
+  'OUT_FOR_DELIVERY',
+  'DISPATCHED',
+];
 
 const LEGACY_ORDER_GROUP_MAP: Record<string, OrderStatus[]> = {
   PENDING: ORDER_STATUS_BUCKETS.pending,
@@ -64,7 +67,9 @@ const ORDER_LIST_INCLUDE = {
       id: true,
       fullName: true,
       phone: true,
-      profile: { select: { businessType: true, gstNumber: true, companyName: true } },
+      profile: {
+        select: { businessType: true, gstNumber: true, companyName: true },
+      },
     },
   },
   hub: { select: { id: true, code: true, name: true } },
@@ -76,10 +81,18 @@ const ORDER_LIST_INCLUDE = {
       vehicle: { select: { registration: true, vehicleType: true } },
     },
   },
-  assignedVehicle: { select: { id: true, registration: true, vehicleType: true } },
+  assignedVehicle: {
+    select: { id: true, registration: true, vehicleType: true },
+  },
   invoice: { select: { id: true, invoiceNumber: true, status: true } },
   address: {
-    select: { line1: true, line2: true, city: true, pincode: true, state: true },
+    select: {
+      line1: true,
+      line2: true,
+      city: true,
+      pincode: true,
+      state: true,
+    },
   },
   _count: { select: { items: true } },
 } satisfies Prisma.OrderInclude;
@@ -100,7 +113,11 @@ export class AdminHubOrdersService {
 
     const weekStart = new Date(todayStart);
     weekStart.setDate(weekStart.getDate() - weekStart.getDay());
-    const monthStart = new Date(todayStart.getFullYear(), todayStart.getMonth(), 1);
+    const monthStart = new Date(
+      todayStart.getFullYear(),
+      todayStart.getMonth(),
+      1,
+    );
 
     const [
       totalOrders,
@@ -133,7 +150,10 @@ export class AdminHubOrdersService {
         where: { ...hubScope, createdAt: { gte: todayStart, lt: todayEnd } },
       }),
       this.prisma.order.count({
-        where: { ...hubScope, createdAt: { gte: yesterdayStart, lt: yesterdayEnd } },
+        where: {
+          ...hubScope,
+          createdAt: { gte: yesterdayStart, lt: yesterdayEnd },
+        },
       }),
       this.prisma.order.count({
         where: { ...hubScope, orderStatus: { in: PENDING_DISPATCH_STATUSES } },
@@ -213,8 +233,14 @@ export class AdminHubOrdersService {
       completedOrders: this.withTrend(completedOrders, completedOrders),
       cancelledOrders: this.withTrend(cancelledOrders, cancelledOrders),
       todaysOrders: this.withTrend(todaysOrders, yesterdaysOrders),
-      ordersPendingDispatch: this.withTrend(ordersPendingDispatch, ordersPendingDispatch),
-      ordersOutForDelivery: this.withTrend(ordersOutForDelivery, ordersOutForDelivery),
+      ordersPendingDispatch: this.withTrend(
+        ordersPendingDispatch,
+        ordersPendingDispatch,
+      ),
+      ordersOutForDelivery: this.withTrend(
+        ordersOutForDelivery,
+        ordersOutForDelivery,
+      ),
       deliveredToday: this.withTrend(deliveredToday, deliveredYesterday),
       totalRevenue: {
         value: Number(totalRevenueAgg._sum.grandTotal ?? 0),
@@ -243,7 +269,11 @@ export class AdminHubOrdersService {
 
     const weekStart = new Date(todayStart);
     weekStart.setDate(weekStart.getDate() - 6);
-    const monthStart = new Date(todayStart.getFullYear(), todayStart.getMonth(), 1);
+    const monthStart = new Date(
+      todayStart.getFullYear(),
+      todayStart.getMonth(),
+      1,
+    );
 
     const [
       todaysOrders,
@@ -410,7 +440,9 @@ export class AdminHubOrdersService {
 
     const csvLines = [
       headers.map(csvEscape).join(','),
-      ...rows.map((row) => row.map((cell) => csvEscape(String(cell ?? ''))).join(',')),
+      ...rows.map((row) =>
+        row.map((cell) => csvEscape(String(cell ?? ''))).join(','),
+      ),
     ];
 
     const contentType =
@@ -556,7 +588,11 @@ export class AdminHubOrdersService {
         return { gte: start, lt: todayEnd };
       }
       case 'month': {
-        const start = new Date(todayStart.getFullYear(), todayStart.getMonth(), 1);
+        const start = new Date(
+          todayStart.getFullYear(),
+          todayStart.getMonth(),
+          1,
+        );
         return { gte: start, lt: todayEnd };
       }
       case 'custom':
@@ -581,7 +617,11 @@ export class AdminHubOrdersService {
   private resolvePaymentMethod(input: string): PaymentMethod {
     const normalized = input.toUpperCase().replace(/\s+/g, '_');
     if (normalized === 'CASH') return PaymentMethod.CASH;
-    if (normalized === 'UPI' || normalized.startsWith('CREDIT') || normalized === 'ADVANCE') {
+    if (
+      normalized === 'UPI' ||
+      normalized.startsWith('CREDIT') ||
+      normalized === 'ADVANCE'
+    ) {
       return PaymentMethod.MANUAL;
     }
     return normalized as PaymentMethod;
@@ -619,10 +659,16 @@ export class AdminHubOrdersService {
           where: { ...hubScope, orderStatus: OrderStatus.CANCELLED },
         }),
         this.prisma.order.count({
-          where: { ...hubScope, orderStatus: { in: PENDING_DISPATCH_STATUSES } },
+          where: {
+            ...hubScope,
+            orderStatus: { in: PENDING_DISPATCH_STATUSES },
+          },
         }),
         this.prisma.order.count({
-          where: { ...hubScope, orderStatus: { in: OUT_FOR_DELIVERY_STATUSES } },
+          where: {
+            ...hubScope,
+            orderStatus: { in: OUT_FOR_DELIVERY_STATUSES },
+          },
         }),
       ]);
 

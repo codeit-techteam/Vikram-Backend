@@ -63,7 +63,12 @@ export class AdminAuthService {
     });
 
     const user = this.mapAdminMe(admin);
-    const tokens = await this.generateTokens(admin.id, admin.email, admin.role, user.permissions);
+    const tokens = await this.generateTokens(
+      admin.id,
+      admin.email,
+      admin.role,
+      user.permissions,
+    );
 
     return { ...tokens, user, admin: user };
   }
@@ -75,7 +80,13 @@ export class AdminAuthService {
       where: { tokenHash, isRevoked: false, expiresAt: { gt: new Date() } },
       include: {
         adminUser: {
-          select: { id: true, email: true, role: true, isActive: true, deletedAt: true },
+          select: {
+            id: true,
+            email: true,
+            role: true,
+            isActive: true,
+            deletedAt: true,
+          },
         },
       },
     });
@@ -201,11 +212,16 @@ export class AdminAuthService {
     const value = parseInt(match[1], 10);
     const unit = match[2];
     switch (unit) {
-      case 's': return value * 1000;
-      case 'm': return value * 60 * 1000;
-      case 'h': return value * 60 * 60 * 1000;
-      case 'd': return value * 24 * 60 * 60 * 1000;
-      default: return 30 * 24 * 60 * 60 * 1000;
+      case 's':
+        return value * 1000;
+      case 'm':
+        return value * 60 * 1000;
+      case 'h':
+        return value * 60 * 60 * 1000;
+      case 'd':
+        return value * 24 * 60 * 60 * 1000;
+      default:
+        return 30 * 24 * 60 * 60 * 1000;
     }
   }
 }

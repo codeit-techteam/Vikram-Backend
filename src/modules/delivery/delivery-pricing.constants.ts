@@ -13,16 +13,18 @@ export type DeliveryVehicleType =
   (typeof DeliveryVehicleType)[keyof typeof DeliveryVehicleType];
 
 /** Display names shared across Admin, Customer App, Hub, and APIs. */
-export const DELIVERY_VEHICLE_DISPLAY_NAMES: Record<DeliveryVehicleType, string> =
-  {
-    BIKE: 'Bike',
-    E_LOADER: 'E-Loader',
-    THREE_WHEELER_LOADER: '3 Wheeler Loader',
-    PICK_UP_VAN: 'Pick Up Van',
-    FULL_TRUCK: 'Full Truck',
-    HEAVY_LOADER: '600 sqft Loader',
-    RMC_TRANSIT_MIXER: 'RMC Transit Mixer',
-  };
+export const DELIVERY_VEHICLE_DISPLAY_NAMES: Record<
+  DeliveryVehicleType,
+  string
+> = {
+  BIKE: 'Bike',
+  E_LOADER: 'E-Loader',
+  THREE_WHEELER_LOADER: '3 Wheeler Loader',
+  PICK_UP_VAN: 'Pick Up Van',
+  FULL_TRUCK: 'Full Truck',
+  HEAVY_LOADER: '600 sqft Loader',
+  RMC_TRANSIT_MIXER: 'RMC Transit Mixer',
+};
 
 export const DELIVERY_VEHICLE_TYPES = Object.values(
   DeliveryVehicleType,
@@ -53,10 +55,30 @@ export const INITIAL_DELIVERY_PRICING_SEED: ReadonlyArray<{
   distanceToKm: number;
   price: number;
 }> = [
-  { vehicleType: DeliveryVehicleType.BIKE, distanceFromKm: 0, distanceToKm: 3, price: 100 },
-  { vehicleType: DeliveryVehicleType.E_LOADER, distanceFromKm: 0, distanceToKm: 3, price: 250 },
-  { vehicleType: DeliveryVehicleType.E_LOADER, distanceFromKm: 0, distanceToKm: 4, price: 350 },
-  { vehicleType: DeliveryVehicleType.E_LOADER, distanceFromKm: 0, distanceToKm: 5, price: 450 },
+  {
+    vehicleType: DeliveryVehicleType.BIKE,
+    distanceFromKm: 0,
+    distanceToKm: 3,
+    price: 100,
+  },
+  {
+    vehicleType: DeliveryVehicleType.E_LOADER,
+    distanceFromKm: 0,
+    distanceToKm: 3,
+    price: 250,
+  },
+  {
+    vehicleType: DeliveryVehicleType.E_LOADER,
+    distanceFromKm: 0,
+    distanceToKm: 4,
+    price: 350,
+  },
+  {
+    vehicleType: DeliveryVehicleType.E_LOADER,
+    distanceFromKm: 0,
+    distanceToKm: 5,
+    price: 450,
+  },
   {
     vehicleType: DeliveryVehicleType.THREE_WHEELER_LOADER,
     distanceFromKm: 0,
@@ -75,12 +97,42 @@ export const INITIAL_DELIVERY_PRICING_SEED: ReadonlyArray<{
     distanceToKm: 5,
     price: 550,
   },
-  { vehicleType: DeliveryVehicleType.PICK_UP_VAN, distanceFromKm: 0, distanceToKm: 3, price: 450 },
-  { vehicleType: DeliveryVehicleType.PICK_UP_VAN, distanceFromKm: 0, distanceToKm: 4, price: 550 },
-  { vehicleType: DeliveryVehicleType.PICK_UP_VAN, distanceFromKm: 0, distanceToKm: 5, price: 650 },
-  { vehicleType: DeliveryVehicleType.FULL_TRUCK, distanceFromKm: 0, distanceToKm: 3, price: 1500 },
-  { vehicleType: DeliveryVehicleType.FULL_TRUCK, distanceFromKm: 0, distanceToKm: 4, price: 1600 },
-  { vehicleType: DeliveryVehicleType.FULL_TRUCK, distanceFromKm: 0, distanceToKm: 5, price: 1700 },
+  {
+    vehicleType: DeliveryVehicleType.PICK_UP_VAN,
+    distanceFromKm: 0,
+    distanceToKm: 3,
+    price: 450,
+  },
+  {
+    vehicleType: DeliveryVehicleType.PICK_UP_VAN,
+    distanceFromKm: 0,
+    distanceToKm: 4,
+    price: 550,
+  },
+  {
+    vehicleType: DeliveryVehicleType.PICK_UP_VAN,
+    distanceFromKm: 0,
+    distanceToKm: 5,
+    price: 650,
+  },
+  {
+    vehicleType: DeliveryVehicleType.FULL_TRUCK,
+    distanceFromKm: 0,
+    distanceToKm: 3,
+    price: 1500,
+  },
+  {
+    vehicleType: DeliveryVehicleType.FULL_TRUCK,
+    distanceFromKm: 0,
+    distanceToKm: 4,
+    price: 1600,
+  },
+  {
+    vehicleType: DeliveryVehicleType.FULL_TRUCK,
+    distanceFromKm: 0,
+    distanceToKm: 5,
+    price: 1700,
+  },
 ];
 
 export const DEFAULT_FREE_BIKE_DELIVERIES = 3;

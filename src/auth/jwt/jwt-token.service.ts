@@ -73,7 +73,9 @@ export class JwtTokenService {
         expiresAt: { gt: new Date() },
       },
       include: {
-        customer: { select: { id: true, phone: true, status: true, deletedAt: true } },
+        customer: {
+          select: { id: true, phone: true, status: true, deletedAt: true },
+        },
       },
     });
 
@@ -100,7 +102,10 @@ export class JwtTokenService {
     );
   }
 
-  async revokeRefreshToken(refreshToken: string, customerId: string): Promise<void> {
+  async revokeRefreshToken(
+    refreshToken: string,
+    customerId: string,
+  ): Promise<void> {
     const tokenHash = this.hashToken(refreshToken);
 
     await this.prisma.refreshToken.updateMany({

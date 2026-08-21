@@ -1,7 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/database/prisma.service';
 import { HubOrderRepository } from '../repositories/hub-order.repository';
-import type { HubUnloadingCompleteDto, HubUnloadingStartDto } from '../dto/hub.dto';
+import type {
+  HubUnloadingCompleteDto,
+  HubUnloadingStartDto,
+} from '../dto/hub.dto';
 
 @Injectable()
 export class HubUnloadingService {
@@ -44,7 +47,11 @@ export class HubUnloadingService {
     });
   }
 
-  async complete(hubId: string, dto: HubUnloadingCompleteDto, completedBy: string) {
+  async complete(
+    hubId: string,
+    dto: HubUnloadingCompleteDto,
+    completedBy: string,
+  ) {
     const record = await this.prisma.hubUnloadingRecord.findFirst({
       where: { orderId: dto.orderId, hubId },
     });

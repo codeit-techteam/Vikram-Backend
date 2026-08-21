@@ -1,4 +1,11 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Post,
+} from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiBody,
@@ -7,7 +14,10 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { Public } from '../../common/decorators/public.decorator';
-import { SWAGGER_BEARER_AUTH, SWAGGER_TAGS } from '../../common/constants/swagger.constants';
+import {
+  SWAGGER_BEARER_AUTH,
+  SWAGGER_TAGS,
+} from '../../common/constants/swagger.constants';
 import { ApiErrorResponseDto } from '../../common/dto/api-response.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthenticatedCustomer } from '../../auth/jwt/jwt-payload.interface';
@@ -30,9 +40,11 @@ export class MembershipController {
   @ApiOperation({ summary: 'Get current membership' })
   @ApiResponse({ status: 200, type: MembershipSummaryDto })
   @ApiResponse({ status: 401, type: ApiErrorResponseDto })
-  async getCurrent(
-    @CurrentUser() user: AuthenticatedCustomer,
-  ): Promise<{ success: boolean; message: string; data: MembershipSummaryDto }> {
+  async getCurrent(@CurrentUser() user: AuthenticatedCustomer): Promise<{
+    success: boolean;
+    message: string;
+    data: MembershipSummaryDto;
+  }> {
     const data = await this.membershipService.getCurrentMembership(user.id);
     return {
       success: true,
@@ -96,7 +108,10 @@ export class MembershipController {
     message: string;
     data: CustomerMembershipResponseDto;
   }> {
-    const data = await this.membershipService.renewMembership(user.id, dto.planId);
+    const data = await this.membershipService.renewMembership(
+      user.id,
+      dto.planId,
+    );
     return {
       success: true,
       message: 'Membership renewed successfully',

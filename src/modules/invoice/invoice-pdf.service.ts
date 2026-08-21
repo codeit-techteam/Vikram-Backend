@@ -34,7 +34,8 @@ export class InvoicePdfService {
   }
 
   private renderInvoice(doc: PDFKit.PDFDocument, data: GstInvoiceData): void {
-    const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+    const pageWidth =
+      doc.page.width - doc.page.margins.left - doc.page.margins.right;
     const left = doc.page.margins.left;
 
     // Header
@@ -49,7 +50,10 @@ export class InvoicePdfService {
       .fontSize(10)
       .font('Helvetica')
       .fillColor('#666666')
-      .text('GST Compliant Invoice', left, doc.y, { align: 'center', width: pageWidth });
+      .text('GST Compliant Invoice', left, doc.y, {
+        align: 'center',
+        width: pageWidth,
+      });
 
     doc.moveDown(1.2);
 
@@ -190,7 +194,11 @@ export class InvoicePdfService {
     x: number,
     y: number,
   ): void {
-    doc.fontSize(10).font('Helvetica-Bold').fillColor('#111111').text(title, x, y);
+    doc
+      .fontSize(10)
+      .font('Helvetica-Bold')
+      .fillColor('#111111')
+      .text(title, x, y);
   }
 
   private drawCustomerBlock(
@@ -208,7 +216,8 @@ export class InvoicePdfService {
       { width },
     );
     doc.font('Helvetica');
-    if (data.customer.gstNumber) doc.text(`GSTIN: ${data.customer.gstNumber}`, x);
+    if (data.customer.gstNumber)
+      doc.text(`GSTIN: ${data.customer.gstNumber}`, x);
     doc.text(`Phone: ${data.customer.phone}`, x);
     if (data.customer.email) doc.text(`Email: ${data.customer.email}`, x);
     doc.text(formatAddress(data.billingAddress), x, doc.y, { width });
@@ -247,13 +256,19 @@ export class InvoicePdfService {
     x += cols.qty;
     doc.text('Rate', x, tableTop + 6, { width: cols.rate - 4, align: 'right' });
     x += cols.rate;
-    doc.text('Disc.', x, tableTop + 6, { width: cols.disc - 4, align: 'right' });
+    doc.text('Disc.', x, tableTop + 6, {
+      width: cols.disc - 4,
+      align: 'right',
+    });
     x += cols.disc;
     doc.text('GST%', x, tableTop + 6, { width: cols.gst - 4, align: 'right' });
     x += cols.gst;
     doc.text('Tax', x, tableTop + 6, { width: cols.tax - 4, align: 'right' });
     x += cols.tax;
-    doc.text('Amount', x, tableTop + 6, { width: cols.amount - 4, align: 'right' });
+    doc.text('Amount', x, tableTop + 6, {
+      width: cols.amount - 4,
+      align: 'right',
+    });
 
     let y = tableTop + rowHeight;
     doc.font('Helvetica').fontSize(8).fillColor('#333333');

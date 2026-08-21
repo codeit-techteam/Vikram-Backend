@@ -150,11 +150,7 @@ export class DeliverySlotService {
     return new Map(grouped.map((row) => [row.slotId, row._count._all]));
   }
 
-  async holdSlot(input: {
-    customerId: string;
-    slotId: string;
-    db?: DbClient;
-  }) {
+  async holdSlot(input: { customerId: string; slotId: string; db?: DbClient }) {
     const db = input.db ?? this.prisma;
     await this.expireStaleReservations(db);
     const slot = await db.deliverySlot.findUnique({

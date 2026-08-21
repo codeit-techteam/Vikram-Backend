@@ -149,7 +149,11 @@ export class BulkService {
     }
 
     const resolved = await this.resolveCategories(dto);
-    this.validateBrickFields(resolved.primarySlug, dto, resolved.categoriesJson);
+    this.validateBrickFields(
+      resolved.primarySlug,
+      dto,
+      resolved.categoriesJson,
+    );
     const withQty = this.applyMaterialQuantities(resolved.categoriesJson, dto);
 
     const companyName =
@@ -157,8 +161,7 @@ export class BulkService {
       customer.profile?.companyName ||
       customer.fullName ||
       'Customer';
-    const projectName =
-      dto.projectName?.trim() || 'Bulk Procurement Enquiry';
+    const projectName = dto.projectName?.trim() || 'Bulk Procurement Enquiry';
 
     const mixedCategories = Array.isArray(resolved.categoriesJson)
       ? (resolved.categoriesJson as Array<{ slug: string }>)
@@ -179,8 +182,7 @@ export class BulkService {
 
     const contactPhone =
       normalizeContactPhone(dto.contactPhone) || customer.phone;
-    const contactEmail =
-      dto.contactEmail?.trim() || customer.email || null;
+    const contactEmail = dto.contactEmail?.trim() || customer.email || null;
 
     const autoAssign = customer.assignedExecutive;
     const initialStatus = autoAssign
@@ -225,19 +227,15 @@ export class BulkService {
           city: dto.city?.trim() || null,
           state: dto.state?.trim() || null,
           pincode: dto.pincode?.trim() || null,
-          latitude:
-            dto.latitude !== undefined ? dto.latitude : undefined,
-          longitude:
-            dto.longitude !== undefined ? dto.longitude : undefined,
+          latitude: dto.latitude !== undefined ? dto.latitude : undefined,
+          longitude: dto.longitude !== undefined ? dto.longitude : undefined,
           addressId: dto.addressId ?? null,
           additionalNotes: dto.additionalNotes?.trim() || null,
           remarks: dto.additionalNotes?.trim() || null,
           expectedQuantity: withQty.expectedQuantity,
           expectedUnit: withQty.expectedUnit,
           deliveryRequirement: dto.deliveryRequirement,
-          deliveryDate: dto.deliveryDate
-            ? new Date(dto.deliveryDate)
-            : null,
+          deliveryDate: dto.deliveryDate ? new Date(dto.deliveryDate) : null,
           preferredContact:
             dto.preferredContact &&
             dto.preferredContact !== BulkPreferredContact.BOTH
@@ -276,10 +274,7 @@ export class BulkService {
           quotations: {
             where: {
               status: {
-                in: [
-                  BulkQuotationStatus.SENT,
-                  BulkQuotationStatus.ACCEPTED,
-                ],
+                in: [BulkQuotationStatus.SENT, BulkQuotationStatus.ACCEPTED],
               },
             },
             orderBy: { createdAt: 'desc' },
@@ -306,7 +301,7 @@ export class BulkService {
       // Non-fatal: enquiry already created
     }
 
-    return this.mapCustomerEnquiry(enquiry as EnquiryWithRelations);
+    return this.mapCustomerEnquiry(enquiry);
   }
 
   async listEnquiries(
@@ -317,10 +312,8 @@ export class BulkService {
     const limit = query.limit ?? 20;
     const skip = (page - 1) * limit;
 
-    const cacheKey =
-      CACHE_KEYS.BULK(customerId) + `:p${page}:l${limit}`;
-    const cached =
-      await this.cache.get<BulkEnquiryListResponseDto>(cacheKey);
+    const cacheKey = CACHE_KEYS.BULK(customerId) + `:p${page}:l${limit}`;
+    const cached = await this.cache.get<BulkEnquiryListResponseDto>(cacheKey);
     if (cached) return cached;
 
     const where: Prisma.BulkEnquiryWhereInput = { customerId };
@@ -338,10 +331,7 @@ export class BulkService {
           quotations: {
             where: {
               status: {
-                in: [
-                  BulkQuotationStatus.SENT,
-                  BulkQuotationStatus.ACCEPTED,
-                ],
+                in: [BulkQuotationStatus.SENT, BulkQuotationStatus.ACCEPTED],
               },
             },
             orderBy: { createdAt: 'desc' },
@@ -368,8 +358,7 @@ export class BulkService {
     id: string,
   ): Promise<BulkEnquiryResponseDto> {
     const cacheKey = CACHE_KEYS.BULK_DETAIL(customerId, id);
-    const cached =
-      await this.cache.get<BulkEnquiryResponseDto>(cacheKey);
+    const cached = await this.cache.get<BulkEnquiryResponseDto>(cacheKey);
     if (cached) return cached;
 
     const enquiry = await this.prisma.bulkEnquiry.findFirst({
@@ -381,10 +370,7 @@ export class BulkService {
         quotations: {
           where: {
             status: {
-              in: [
-                BulkQuotationStatus.SENT,
-                BulkQuotationStatus.ACCEPTED,
-              ],
+              in: [BulkQuotationStatus.SENT, BulkQuotationStatus.ACCEPTED],
             },
           },
           orderBy: { createdAt: 'desc' },
@@ -445,10 +431,7 @@ export class BulkService {
         quotations: {
           where: {
             status: {
-              in: [
-                BulkQuotationStatus.SENT,
-                BulkQuotationStatus.ACCEPTED,
-              ],
+              in: [BulkQuotationStatus.SENT, BulkQuotationStatus.ACCEPTED],
             },
           },
           orderBy: { createdAt: 'desc' },
@@ -484,9 +467,7 @@ export class BulkService {
       ...(dto.materialCategorySlug
         ? [dto.materialCategorySlug.trim().toLowerCase()]
         : []),
-      ...(dto.materialCategorySlugs ?? []).map((s) =>
-        s.trim().toLowerCase(),
-      ),
+      ...(dto.materialCategorySlugs ?? []).map((s) => s.trim().toLowerCase()),
     ];
 
     const mixedHint =
@@ -532,7 +513,9 @@ export class BulkService {
         select: { id: true, slug: true, name: true, imageUrl: true },
       });
       if (byId.length !== idSet.size) {
-        throw new BadRequestException('One or more material categories not found');
+        throw new BadRequestException(
+          'One or more material categories not found',
+        );
       }
       categories.push(...byId);
     }
@@ -572,7 +555,8 @@ export class BulkService {
     const primary = categories[0] ?? null;
     const primarySlug = isMixedLoad
       ? MIXED_LOAD_SLUG
-      : primary?.slug ?? (slugHints.includes(MIXED_LOAD_SLUG) ? MIXED_LOAD_SLUG : null);
+      : (primary?.slug ??
+        (slugHints.includes(MIXED_LOAD_SLUG) ? MIXED_LOAD_SLUG : null));
 
     if (isMixedLoad && categories.length === 0) {
       throw new BadRequestException(
@@ -586,9 +570,7 @@ export class BulkService {
 
     return {
       primary: isMixedLoad ? null : primary,
-      primarySlug: isMixedLoad
-        ? MIXED_LOAD_SLUG
-        : primarySlug,
+      primarySlug: isMixedLoad ? MIXED_LOAD_SLUG : primarySlug,
       isMixedLoad,
       categoriesJson:
         isMixedLoad && categories.length
@@ -770,9 +752,7 @@ export class BulkService {
       preferredContact: enquiry.preferredContact,
       status: enquiry.status,
       customerFacingStatus: customerFacingBulkStatus(enquiry.status),
-      assignedExecutive: executiveName
-        ? { name: executiveName }
-        : null,
+      assignedExecutive: executiveName ? { name: executiveName } : null,
       quotations,
       createdAt: enquiry.createdAt.toISOString(),
       updatedAt: enquiry.updatedAt.toISOString(),

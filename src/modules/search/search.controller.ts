@@ -96,9 +96,7 @@ export class SearchController {
       },
     },
   })
-  async suggestions(
-    @Query() query: SearchSuggestionsQueryDto,
-  ): Promise<{
+  async suggestions(@Query() query: SearchSuggestionsQueryDto): Promise<{
     success: boolean;
     message: string;
     data: SearchSuggestionsResponseDto;
@@ -113,7 +111,10 @@ export class SearchController {
 
   @Get('trending')
   @ApiOperation({ summary: 'Get trending / popular search terms' })
-  @ApiResponse({ status: 200, description: 'Trending terms fetched successfully' })
+  @ApiResponse({
+    status: 200,
+    description: 'Trending terms fetched successfully',
+  })
   async trending(): Promise<{
     success: boolean;
     message: string;

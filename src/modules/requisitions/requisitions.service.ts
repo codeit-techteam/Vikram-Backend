@@ -66,7 +66,14 @@ export class RequisitionsService {
     return {
       hub: { select: { id: true, code: true, name: true, city: true } },
       warehouseHub: { select: { id: true, code: true, name: true } },
-      vehicle: { select: { id: true, registration: true, capacity: true, vehicleType: true } },
+      vehicle: {
+        select: {
+          id: true,
+          registration: true,
+          capacity: true,
+          vehicleType: true,
+        },
+      },
       driver: { select: { id: true, name: true, phone: true } },
       items: {
         include: {
@@ -91,7 +98,12 @@ export class RequisitionsService {
   private hubCodePrefix(code: string): string {
     const match = code.match(/HUB-([A-Z]+)/i);
     if (match?.[1]) return match[1].toUpperCase();
-    return code.replace(/[^A-Z0-9]/gi, '').slice(0, 3).toUpperCase() || 'HUB';
+    return (
+      code
+        .replace(/[^A-Z0-9]/gi, '')
+        .slice(0, 3)
+        .toUpperCase() || 'HUB'
+    );
   }
 
   async resolveWarehouseHub() {
@@ -182,8 +194,7 @@ export class RequisitionsService {
     const totalItems = items.length;
     const totalQty = items.reduce((sum, item) => sum + item.requestedQty, 0);
     const totalValue = items.reduce(
-      (sum, item) =>
-        sum + item.requestedQty * Number(item.unitPrice ?? 0),
+      (sum, item) => sum + item.requestedQty * Number(item.unitPrice ?? 0),
       0,
     );
     return { totalItems, totalQty, totalValue };
@@ -315,11 +326,18 @@ export class RequisitionsService {
   }
 
   private mapAdminStatus(status: RequisitionStatus) {
-    if (status === 'PENDING_APPROVAL' || status === 'SUBMITTED') return 'PENDING';
+    if (status === 'PENDING_APPROVAL' || status === 'SUBMITTED')
+      return 'PENDING';
     if (status === 'IN_TRANSIT') return 'TRANSFERRED';
     if (status === 'REJECTED') return 'REJECTED';
     if (status === 'COMPLETED' || status === 'RECEIVED') return 'COMPLETED';
-    return status as 'APPROVED' | 'ALLOCATED' | 'PENDING' | 'REJECTED' | 'COMPLETED' | 'TRANSFERRED';
+    return status as
+      | 'APPROVED'
+      | 'ALLOCATED'
+      | 'PENDING'
+      | 'REJECTED'
+      | 'COMPLETED'
+      | 'TRANSFERRED';
   }
 
   private async findOneRaw(id: string, hubId?: string) {
@@ -483,7 +501,9 @@ export class RequisitionsService {
           ? `${Number(row.vehicle.capacity)} Tons`
           : '—',
         status:
-          status === 'in_transit' || status === 'dispatched' || status === 'delayed'
+          status === 'in_transit' ||
+          status === 'dispatched' ||
+          status === 'delayed'
             ? 'On Route'
             : status === 'received'
               ? 'Delivered'
@@ -494,8 +514,7 @@ export class RequisitionsService {
         phone: driverPhone,
       },
       materials: row.items.map((item) => {
-        const qty =
-          item.allocatedQty ?? item.approvedQty ?? item.requestedQty;
+        const qty = item.allocatedQty ?? item.approvedQty ?? item.requestedQty;
         return {
           id: item.id,
           name: item.productName,
@@ -511,8 +530,7 @@ export class RequisitionsService {
         };
       }),
       manifest: row.items.map((item) => {
-        const qty =
-          item.allocatedQty ?? item.approvedQty ?? item.requestedQty;
+        const qty = item.allocatedQty ?? item.approvedQty ?? item.requestedQty;
         return {
           id: item.id,
           name: item.productName,
@@ -553,8 +571,7 @@ export class RequisitionsService {
             })
           : undefined,
         status: step.stepStatus as 'completed' | 'active' | 'pending',
-        highlight:
-          step.stepStatus === 'active' ? etaDisplay : undefined,
+        highlight: step.stepStatus === 'active' ? etaDisplay : undefined,
       })),
       documents: this.mergeTransferDocuments(row),
       photos: this.parseReceivingPhotos(row.receivingPhotos),
@@ -663,12 +680,7 @@ export class RequisitionsService {
     const rows = await this.prisma.requisition.findMany({
       where: {
         status: {
-          in: [
-            'DISPATCHED',
-            'IN_TRANSIT',
-            'RECEIVED',
-            'COMPLETED',
-          ],
+          in: ['DISPATCHED', 'IN_TRANSIT', 'RECEIVED', 'COMPLETED'],
         },
       },
       orderBy: [
@@ -743,8 +755,7 @@ export class RequisitionsService {
     row: Awaited<ReturnType<typeof this.findOneRaw>>,
     detailed = false,
   ) {
-    const isReceived =
-      row.status === 'COMPLETED' || row.status === 'RECEIVED';
+    const isReceived = row.status === 'COMPLETED' || row.status === 'RECEIVED';
     const photos = this.parseReceivingPhotos(row.receivingPhotos);
     const documents = this.parseReceivingDocuments(row.receivingDocuments);
     const materials = row.items.map((item) => {
@@ -793,7 +804,9 @@ export class RequisitionsService {
       receivedAt: row.receivedAt?.toISOString() ?? null,
       receivedBy: row.receivedByName ?? null,
       rawStatus: row.status,
-      queueStatus: isReceived ? ('received' as const) : ('awaiting_receipt' as const),
+      queueStatus: isReceived
+        ? ('received' as const)
+        : ('awaiting_receipt' as const),
       priority: row.priority,
       materialSummary: materials
         .map((m) => `${m.productName} x ${m.dispatchedQty}`)
@@ -835,7 +848,6 @@ export class RequisitionsService {
     };
   }
 
-
   private async writeAudit(
     requisitionId: string,
     actor: ActorContext,
@@ -871,7 +883,8 @@ export class RequisitionsService {
         title,
         subtitle,
         stepStatus,
-        occurredAt: occurredAt ?? (stepStatus === 'completed' ? new Date() : null),
+        occurredAt:
+          occurredAt ?? (stepStatus === 'completed' ? new Date() : null),
       },
     });
   }
@@ -986,7 +999,9 @@ export class RequisitionsService {
       throw new BadRequestException('At least one material is required');
     }
     if (submitting && items.some((item) => item.requestedQty <= 0)) {
-      throw new BadRequestException('Requested quantity must be greater than 0');
+      throw new BadRequestException(
+        'Requested quantity must be greater than 0',
+      );
     }
 
     const hub = await this.assertHubOperational(hubId);
@@ -1080,10 +1095,13 @@ export class RequisitionsService {
   ) {
     const existing = await this.findOneRaw(id, hubId);
     if (!['DRAFT', 'SUBMITTED', 'PENDING_APPROVAL'].includes(existing.status)) {
-      throw new BadRequestException('Requisition cannot be edited in current status');
+      throw new BadRequestException(
+        'Requisition cannot be edited in current status',
+      );
     }
 
-    let itemRows: Prisma.RequisitionItemCreateManyRequisitionInput[] | undefined;
+    let itemRows:
+      Prisma.RequisitionItemCreateManyRequisitionInput[] | undefined;
     if (dto.items) {
       const warehouseHub = await this.resolveWarehouseHub();
       itemRows = await Promise.all(
@@ -1092,7 +1110,9 @@ export class RequisitionsService {
             where: { id: item.productId },
           });
           if (!product) {
-            throw new BadRequestException(`Product ${item.productId} not found`);
+            throw new BadRequestException(
+              `Product ${item.productId} not found`,
+            );
           }
           const hubStock = await this.getStockSnapshot(hubId, item.productId);
           const warehouseStock = await this.getStockSnapshot(
@@ -1150,7 +1170,13 @@ export class RequisitionsService {
       });
     });
 
-    await this.writeAudit(existing.id, actor, 'UPDATE', existing.status, updated.status);
+    await this.writeAudit(
+      existing.id,
+      actor,
+      'UPDATE',
+      existing.status,
+      updated.status,
+    );
     return this.mapDetail(updated);
   }
 
@@ -1164,10 +1190,14 @@ export class RequisitionsService {
       throw new BadRequestException('Requisition already submitted');
     }
     if (!existing.items.length) {
-      throw new BadRequestException('Add at least one material before submitting');
+      throw new BadRequestException(
+        'Add at least one material before submitting',
+      );
     }
     if (existing.items.some((item) => item.requestedQty <= 0)) {
-      throw new BadRequestException('Requested quantity must be greater than 0');
+      throw new BadRequestException(
+        'Requested quantity must be greater than 0',
+      );
     }
 
     const updated = await this.prisma.requisition.update({
@@ -1184,7 +1214,13 @@ export class RequisitionsService {
       'Submitted',
       `${actor.name} submitted requisition`,
     );
-    await this.writeAudit(id, actor, 'SUBMIT', existing.status, 'PENDING_APPROVAL');
+    await this.writeAudit(
+      id,
+      actor,
+      'SUBMIT',
+      existing.status,
+      'PENDING_APPROVAL',
+    );
 
     return this.mapDetail(updated);
   }
@@ -1214,12 +1250,19 @@ export class RequisitionsService {
         ? {
             OR: [
               { requestNo: { contains: query.search, mode: 'insensitive' } },
-              { hub: { name: { contains: query.search, mode: 'insensitive' } } },
+              {
+                hub: { name: { contains: query.search, mode: 'insensitive' } },
+              },
               {
                 items: {
                   some: {
                     OR: [
-                      { productName: { contains: query.search, mode: 'insensitive' } },
+                      {
+                        productName: {
+                          contains: query.search,
+                          mode: 'insensitive',
+                        },
+                      },
                       { sku: { contains: query.search, mode: 'insensitive' } },
                     ],
                   },
@@ -1249,7 +1292,10 @@ export class RequisitionsService {
       this.prisma.requisition.count({ where }),
     ]);
 
-    const mapper = view === 'admin' ? this.mapAdminListItem.bind(this) : this.mapListItem.bind(this);
+    const mapper =
+      view === 'admin'
+        ? this.mapAdminListItem.bind(this)
+        : this.mapListItem.bind(this);
 
     return {
       data: rows.map((row) => mapper(row)),
@@ -1285,7 +1331,14 @@ export class RequisitionsService {
         where: {
           ...baseWhere,
           status: {
-            in: ['SUBMITTED', 'PENDING_APPROVAL', 'APPROVED', 'ALLOCATED', 'DISPATCHED', 'IN_TRANSIT'],
+            in: [
+              'SUBMITTED',
+              'PENDING_APPROVAL',
+              'APPROVED',
+              'ALLOCATED',
+              'DISPATCHED',
+              'IN_TRANSIT',
+            ],
           },
         },
       }),
@@ -1326,9 +1379,15 @@ export class RequisitionsService {
     ]);
 
     return {
-      openRequests: { value: openRequests, badge: openRequests > 0 ? `+${openRequests} active` : 'None' },
+      openRequests: {
+        value: openRequests,
+        badge: openRequests > 0 ? `+${openRequests} active` : 'None',
+      },
       approvedRequests: { value: approvedRequests, badge: 'Stable' },
-      delayedRequests: { value: delayedRequests, badge: delayedRequests > 0 ? 'Critical' : 'On track' },
+      delayedRequests: {
+        value: delayedRequests,
+        badge: delayedRequests > 0 ? 'Critical' : 'On track',
+      },
       drafts,
       pendingApproval,
       pendingRequests: pendingApproval,
@@ -1361,7 +1420,9 @@ export class RequisitionsService {
       throw new BadRequestException('Rejected requisition cannot be approved.');
     }
     if (!['PENDING_APPROVAL', 'SUBMITTED'].includes(existing.status)) {
-      throw new BadRequestException('Only pending requisitions can be approved');
+      throw new BadRequestException(
+        'Only pending requisitions can be approved',
+      );
     }
 
     const updated = await this.prisma.$transaction(async (tx) => {
@@ -1408,7 +1469,9 @@ export class RequisitionsService {
   async reject(id: string, actor: ActorContext, dto: RejectRequisitionDto) {
     const existing = await this.findOneRaw(id);
     if (!['PENDING_APPROVAL', 'APPROVED'].includes(existing.status)) {
-      throw new BadRequestException('Requisition cannot be rejected in current status');
+      throw new BadRequestException(
+        'Requisition cannot be rejected in current status',
+      );
     }
 
     const updated = await this.prisma.requisition.update({
@@ -1443,7 +1506,9 @@ export class RequisitionsService {
       throw new BadRequestException('Requisition has already been allocated.');
     }
     if (existing.status !== 'APPROVED') {
-      throw new BadRequestException('Only approved requisitions can be allocated');
+      throw new BadRequestException(
+        'Only approved requisitions can be allocated',
+      );
     }
 
     const warehouseHub = await this.resolveWarehouseHub();
@@ -1455,7 +1520,9 @@ export class RequisitionsService {
         if (!row) continue;
 
         if (item.allocatedQty < 0) {
-          throw new BadRequestException('Allocated quantity cannot be negative');
+          throw new BadRequestException(
+            'Allocated quantity cannot be negative',
+          );
         }
 
         const maxAllowed = Number(row.approvedQty ?? row.requestedQty);
@@ -1660,7 +1727,9 @@ export class RequisitionsService {
       throw new BadRequestException('Transfer has already been dispatched.');
     }
     if (existing.status !== 'ALLOCATED') {
-      throw new BadRequestException('Only allocated requisitions can be dispatched');
+      throw new BadRequestException(
+        'Only allocated requisitions can be dispatched',
+      );
     }
 
     await this.assertHubOperational(existing.hubId);
@@ -1672,10 +1741,14 @@ export class RequisitionsService {
     const driverId = dto.driverId ?? existing.driverId;
 
     if (!vehicleId) {
-      throw new BadRequestException('Vehicle assignment is required before dispatch');
+      throw new BadRequestException(
+        'Vehicle assignment is required before dispatch',
+      );
     }
     if (!driverId) {
-      throw new BadRequestException('Driver assignment is required before dispatch');
+      throw new BadRequestException(
+        'Driver assignment is required before dispatch',
+      );
     }
 
     const vehicle = await this.prisma.vehicle.findUnique({
@@ -1688,13 +1761,16 @@ export class RequisitionsService {
 
     const totalAllocatedBags = existing.items.reduce(
       (sum, item) =>
-        sum + Number(item.allocatedQty ?? item.approvedQty ?? item.requestedQty),
+        sum +
+        Number(item.allocatedQty ?? item.approvedQty ?? item.requestedQty),
       0,
     );
     const capacity = Number(vehicle.capacity ?? 0);
     // capacity is stored in tons for some vehicles; if capacity looks like bag count (>50) treat as bags
     const capacityBags =
-      capacity > 0 && capacity <= 50 ? Math.floor(capacity * 1000) : Math.floor(capacity);
+      capacity > 0 && capacity <= 50
+        ? Math.floor(capacity * 1000)
+        : Math.floor(capacity);
     if (capacityBags > 0 && totalAllocatedBags > capacityBags) {
       throw new BadRequestException(
         `Vehicle capacity insufficient. Capacity: ${capacityBags} bags, Material: ${totalAllocatedBags} bags`,
@@ -1767,7 +1843,9 @@ export class RequisitionsService {
         where: { id },
         data: {
           status: 'IN_TRANSIT',
-          dispatchedAt: dto.dispatchDate ? new Date(dto.dispatchDate) : new Date(),
+          dispatchedAt: dto.dispatchDate
+            ? new Date(dto.dispatchDate)
+            : new Date(),
           vehicleId,
           driverId,
           vehicleRegistration,
@@ -1781,7 +1859,11 @@ export class RequisitionsService {
       });
     });
 
-    await this.activateTimelineStep(id, 'Dispatched', dto.lrNumber ?? undefined);
+    await this.activateTimelineStep(
+      id,
+      'Dispatched',
+      dto.lrNumber ?? undefined,
+    );
     await this.activateTimelineStep(id, 'In Transit');
     await this.writeAudit(id, actor, 'DISPATCH', existing.status, 'IN_TRANSIT');
     await this.notifyHub(
@@ -1846,9 +1928,7 @@ export class RequisitionsService {
       if (existing.status === 'COMPLETED' || remainingBefore <= 0) {
         throw new BadRequestException('Transfer already fully received.');
       }
-      if (
-        !['IN_TRANSIT', 'DISPATCHED', 'RECEIVED'].includes(existing.status)
-      ) {
+      if (!['IN_TRANSIT', 'DISPATCHED', 'RECEIVED'].includes(existing.status)) {
         throw new BadRequestException('Requisition is not ready for receiving');
       }
 
@@ -1896,7 +1976,8 @@ export class RequisitionsService {
         const alreadyReceived = Number(row.receivedQty ?? 0);
         const remaining = Math.max(0, dispatched - alreadyReceived);
         const newReceived = alreadyReceived + item.receivedQty;
-        const newDamage = Number(row.damageQty ?? 0) + Number(item.damageQty ?? 0);
+        const newDamage =
+          Number(row.damageQty ?? 0) + Number(item.damageQty ?? 0);
         const newMissing =
           Number(row.missingQty ?? 0) + Number(item.missingQty ?? 0);
         const shortageQty =
@@ -2026,7 +2107,13 @@ export class RequisitionsService {
     if (finalStatus === 'COMPLETED') {
       await this.activateTimelineStep(requisitionId, 'Completed');
     }
-    await this.writeAudit(requisitionId, actor, 'RECEIVE', 'IN_TRANSIT', finalStatus);
+    await this.writeAudit(
+      requisitionId,
+      actor,
+      'RECEIVE',
+      'IN_TRANSIT',
+      finalStatus,
+    );
 
     const shortageLines = updated.items
       .map((row) => {
@@ -2056,7 +2143,11 @@ export class RequisitionsService {
     return this.mapDetail(updated);
   }
 
-  async addComment(id: string, actor: ActorContext, dto: RequisitionCommentDto) {
+  async addComment(
+    id: string,
+    actor: ActorContext,
+    dto: RequisitionCommentDto,
+  ) {
     await this.findOneRaw(id);
     const comment = await this.prisma.requisitionComment.create({
       data: {
@@ -2124,7 +2215,8 @@ export class RequisitionsService {
           warehouseId: warehouseHub.id,
           unit: row.product.unit,
           unitPrice: Number(row.product.retailPrice),
-          lowStock: row.availableQty <= (row.minimumStock || row.lowStockThreshold),
+          lowStock:
+            row.availableQty <= (row.minimumStock || row.lowStockThreshold),
         };
       }),
     );

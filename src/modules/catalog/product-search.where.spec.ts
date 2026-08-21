@@ -23,8 +23,16 @@ describe('buildProductSearchClause', () => {
     expect(clause).toEqual(
       expect.objectContaining({
         AND: [
-          { OR: expect.arrayContaining([{ name: { contains: 'ppc', mode: 'insensitive' } }]) },
-          { OR: expect.arrayContaining([{ name: { contains: 'cement', mode: 'insensitive' } }]) },
+          {
+            OR: expect.arrayContaining([
+              { name: { contains: 'ppc', mode: 'insensitive' } },
+            ]),
+          },
+          {
+            OR: expect.arrayContaining([
+              { name: { contains: 'cement', mode: 'insensitive' } },
+            ]),
+          },
         ],
       }),
     );

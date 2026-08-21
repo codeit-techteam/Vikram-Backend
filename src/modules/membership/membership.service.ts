@@ -67,7 +67,11 @@ export class MembershipService {
     });
 
     const result = plans.map((p) => this.mapPlan(p));
-    await this.cache.set(CACHE_KEYS.MEMBERSHIP_PLANS, result, CACHE_TTL.MEMBERSHIP);
+    await this.cache.set(
+      CACHE_KEYS.MEMBERSHIP_PLANS,
+      result,
+      CACHE_TTL.MEMBERSHIP,
+    );
     return result;
   }
 
@@ -243,9 +247,7 @@ export class MembershipService {
       price: Number(plan.price),
       durationDays: plan.durationDays,
       description: plan.description,
-      benefits: Array.isArray(plan.benefits)
-        ? (plan.benefits as string[])
-        : [],
+      benefits: Array.isArray(plan.benefits) ? (plan.benefits as string[]) : [],
       status: plan.status,
     };
   }
@@ -272,7 +274,8 @@ export class MembershipService {
     const daysRemaining = Math.max(
       0,
       Math.ceil(
-        (membership.expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24),
+        (membership.expiryDate.getTime() - now.getTime()) /
+          (1000 * 60 * 60 * 24),
       ),
     );
 

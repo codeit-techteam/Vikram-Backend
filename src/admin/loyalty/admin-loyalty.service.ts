@@ -1,5 +1,12 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
-import { LoyaltyTransactionType, Prisma } from '../../../generated/prisma/client';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
+import {
+  LoyaltyTransactionType,
+  Prisma,
+} from '../../../generated/prisma/client';
 import { PrismaService } from '../../common/database/prisma.service';
 import { LoyaltyTransactionService } from '../../modules/loyalty/loyalty-transaction.service';
 import {

@@ -238,9 +238,7 @@ export class ReviewsService {
       rating: review.rating,
       title: review.title,
       comment: review.comment,
-      images: Array.isArray(review.images)
-        ? (review.images as string[])
-        : null,
+      images: Array.isArray(review.images) ? (review.images as string[]) : null,
       createdAt: review.createdAt.toISOString(),
       updatedAt: review.updatedAt.toISOString(),
     };

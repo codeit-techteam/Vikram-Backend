@@ -12,7 +12,8 @@ export class AdminOrderQueryDto {
   @ApiPropertyOptional() @IsOptional() @IsString() search?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() status?: string;
   @ApiPropertyOptional({
-    description: 'Status bucket: pending | accepted | dispatch | completed | delivered | cancelled | unassigned',
+    description:
+      'Status bucket: pending | accepted | dispatch | completed | delivered | cancelled | unassigned',
   })
   @IsOptional()
   @IsString()
@@ -20,7 +21,8 @@ export class AdminOrderQueryDto {
   @ApiPropertyOptional() @IsOptional() @IsString() customerId?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() hubId?: string;
   @ApiPropertyOptional({
-    description: 'When true, only orders with no hub assigned (awaiting allocation).',
+    description:
+      'When true, only orders with no hub assigned (awaiting allocation).',
   })
   @IsOptional()
   @Transform(({ value }) => toBoolean(value))
@@ -28,8 +30,18 @@ export class AdminOrderQueryDto {
   unassigned?: boolean;
   @ApiPropertyOptional() @IsOptional() @IsString() fromDate?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() toDate?: string;
-  @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsInt() @Min(1) page?: number = 1;
-  @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsInt() @Min(1) limit?: number = 20;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number = 1;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  limit?: number = 20;
 }
 
 export class UpdateOrderStatusDto {

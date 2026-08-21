@@ -23,7 +23,9 @@ export type DeliveryPreferenceSnapshot = {
   hubName: string | null;
 };
 
-export function dateKeyFromDate(value: Date | string | null | undefined): string | null {
+export function dateKeyFromDate(
+  value: Date | string | null | undefined,
+): string | null {
   if (!value) return null;
   if (typeof value === 'string') return value.slice(0, 10);
   return value.toISOString().slice(0, 10);
@@ -71,13 +73,14 @@ export function mapDeliveryPreferenceView(order: {
   const type = (order.deliveryPreferenceType ??
     snapshot?.type ??
     'ASAP') as DeliveryPreferenceType;
-  const dateKey = dateKeyFromDate(order.scheduledDate) ?? snapshot?.scheduledDate ?? null;
+  const dateKey =
+    dateKeyFromDate(order.scheduledDate) ?? snapshot?.scheduledDate ?? null;
   const startIso = order.scheduledStartAt
     ? new Date(order.scheduledStartAt).toISOString()
-    : snapshot?.scheduledStartAt ?? null;
+    : (snapshot?.scheduledStartAt ?? null);
   const endIso = order.scheduledEndAt
     ? new Date(order.scheduledEndAt).toISOString()
-    : snapshot?.scheduledEndAt ?? null;
+    : (snapshot?.scheduledEndAt ?? null);
   let slotLabel = snapshot?.scheduledSlotLabel ?? null;
   if (!slotLabel && startIso && endIso) {
     const start = new Date(startIso);
@@ -94,19 +97,26 @@ export function mapDeliveryPreferenceView(order: {
     type,
     label: DELIVERY_PREFERENCE_LABELS[type] ?? type,
     scheduledDate: dateKey,
-    scheduledDateLabel: dateKey ? formatDateLabel(dateKey) : snapshot?.scheduledDateLabel ?? null,
+    scheduledDateLabel: dateKey
+      ? formatDateLabel(dateKey)
+      : (snapshot?.scheduledDateLabel ?? null),
     scheduledSlotId: order.scheduledSlotId ?? snapshot?.scheduledSlotId ?? null,
     scheduledSlotLabel: slotLabel,
     scheduledStartAt: startIso,
     scheduledEndAt: endIso,
     customerRemark:
-      order.deliveryCustomerRemark ?? snapshot?.customerRemark ?? order.notes ?? null,
+      order.deliveryCustomerRemark ??
+      snapshot?.customerRemark ??
+      order.notes ??
+      null,
     selectedAt: order.deliveryPreferenceSelectedAt
       ? new Date(order.deliveryPreferenceSelectedAt).toISOString()
-      : snapshot?.selectedAt ?? null,
+      : (snapshot?.selectedAt ?? null),
     timezone: order.deliveryTimezone ?? snapshot?.timezone ?? 'Asia/Kolkata',
-    etaMinMinutes: order.deliveryEtaMinMinutes ?? snapshot?.etaMinMinutes ?? null,
-    etaMaxMinutes: order.deliveryEtaMaxMinutes ?? snapshot?.etaMaxMinutes ?? null,
+    etaMinMinutes:
+      order.deliveryEtaMinMinutes ?? snapshot?.etaMinMinutes ?? null,
+    etaMaxMinutes:
+      order.deliveryEtaMaxMinutes ?? snapshot?.etaMaxMinutes ?? null,
     snapshot,
   };
 }

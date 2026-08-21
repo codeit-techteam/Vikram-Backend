@@ -1,5 +1,13 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsInt, IsOptional, IsString, IsUUID, MaxLength, Min } from 'class-validator';
+import {
+  IsEnum,
+  IsInt,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MaxLength,
+  Min,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import {
   OrderStatus,
@@ -226,7 +234,11 @@ export class OrderResponseDto {
   @ApiProperty({ type: OrderAddressSnapshotDto })
   address!: OrderAddressSnapshotDto;
 
-  @ApiPropertyOptional({ type: OrderHubSummaryDto, nullable: true, deprecated: true })
+  @ApiPropertyOptional({
+    type: OrderHubSummaryDto,
+    nullable: true,
+    deprecated: true,
+  })
   hub?: OrderHubSummaryDto | null;
 
   @ApiProperty({ type: [OrderItemResponseDto] })

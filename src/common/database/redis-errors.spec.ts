@@ -4,7 +4,9 @@ describe('redis-errors', () => {
   it('classifies DigitalOcean max requests limit', () => {
     expect(
       classifyRedisError(
-        new Error('ReplyError: ERR max requests limit exceeded. Limit: 500000, Usage: 500004'),
+        new Error(
+          'ReplyError: ERR max requests limit exceeded. Limit: 500000, Usage: 500004',
+        ),
       ).category,
     ).toBe('REDIS_RATE_LIMITED');
   });

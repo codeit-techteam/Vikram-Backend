@@ -47,7 +47,10 @@ export class VerifyOtpDto {
   @IsString()
   fcmToken?: string;
 
-  @ApiPropertyOptional({ enum: DevicePlatform, example: DevicePlatform.ANDROID })
+  @ApiPropertyOptional({
+    enum: DevicePlatform,
+    example: DevicePlatform.ANDROID,
+  })
   @IsOptional()
   @IsEnum(DevicePlatform)
   platform?: DevicePlatform;

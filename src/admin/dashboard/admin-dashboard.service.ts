@@ -57,26 +57,42 @@ export class AdminDashboardService {
       this.prisma.emergencyOrder.count(),
       this.prisma.testimonial.count(),
       this.prisma.order.count({
-        where: { orderStatus: { in: ORDER_STATUS_BUCKETS.pending }, deletedAt: null },
+        where: {
+          orderStatus: { in: ORDER_STATUS_BUCKETS.pending },
+          deletedAt: null,
+        },
       }),
       this.prisma.order.count({
-        where: { orderStatus: { in: ORDER_STATUS_BUCKETS.accepted }, deletedAt: null },
+        where: {
+          orderStatus: { in: ORDER_STATUS_BUCKETS.accepted },
+          deletedAt: null,
+        },
       }),
       this.prisma.order.count({
-        where: { orderStatus: { in: ORDER_STATUS_BUCKETS.cancelled }, deletedAt: null },
+        where: {
+          orderStatus: { in: ORDER_STATUS_BUCKETS.cancelled },
+          deletedAt: null,
+        },
       }),
       this.prisma.order.count({
         where: { orderStatus: OrderStatus.DELIVERED, deletedAt: null },
       }),
       this.prisma.order.count({
-        where: { orderStatus: { in: ORDER_STATUS_BUCKETS.dispatch }, deletedAt: null },
+        where: {
+          orderStatus: { in: ORDER_STATUS_BUCKETS.dispatch },
+          deletedAt: null,
+        },
       }),
       this.prisma.product.count({
         where: { entityStatus: 'ACTIVE', deletedAt: null },
       }),
-      this.prisma.category.count({ where: { status: 'ACTIVE', deletedAt: null } }),
+      this.prisma.category.count({
+        where: { status: 'ACTIVE', deletedAt: null },
+      }),
       this.prisma.video.count({ where: { status: 'ACTIVE', deletedAt: null } }),
-      this.prisma.banner.count({ where: { status: 'ACTIVE', deletedAt: null } }),
+      this.prisma.banner.count({
+        where: { status: 'ACTIVE', deletedAt: null },
+      }),
       this.prisma.notification.count({ where: { deletedAt: null } }),
       this.prisma.offer.count({
         where: { status: 'ACTIVE', isVisible: true, deletedAt: null },

@@ -396,7 +396,8 @@ export class HubDispatchCreateDto {
 
 export class HubDispatchLiveQueryDto extends HubPaginationQueryDto {
   @ApiPropertyOptional({
-    description: 'Queue tab: pending | loading | dispatched | out_for_delivery | delivered | cancelled | delay | all',
+    description:
+      'Queue tab: pending | loading | dispatched | out_for_delivery | delivered | cancelled | delay | all',
   })
   @IsOptional()
   @IsString()

@@ -125,7 +125,11 @@ export class AdminSupportController {
   @ApiQuery({ name: 'page', required: false })
   @ApiQuery({ name: 'limit', required: false })
   @ApiResponse({ status: 200, type: SupportConversationResponseDto })
-  @ApiResponse({ status: 404, description: 'Ticket not found', type: ApiErrorResponseDto })
+  @ApiResponse({
+    status: 404,
+    description: 'Ticket not found',
+    type: ApiErrorResponseDto,
+  })
   async getMessages(
     @Param('id', ParseUUIDPipe) id: string,
     @Query() query: AdminMessageQueryDto,
@@ -151,7 +155,11 @@ export class AdminSupportController {
   })
   @ApiParam({ name: 'id', description: 'Support ticket UUID' })
   @ApiResponse({ status: 201, type: SupportMessageResponseDto })
-  @ApiResponse({ status: 400, description: 'Ticket is closed', type: ApiErrorResponseDto })
+  @ApiResponse({
+    status: 400,
+    description: 'Ticket is closed',
+    type: ApiErrorResponseDto,
+  })
   async sendMessage(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: SendSupportMessageDto,
@@ -174,7 +182,8 @@ export class AdminSupportController {
   @ApiAdminRoles(...ROLE_GROUPS.CUSTOMER_EXECUTIVE)
   @ApiOperation({
     summary: 'Mark customer messages as read',
-    description: 'Marks all unread customer messages as read when admin opens the ticket.',
+    description:
+      'Marks all unread customer messages as read when admin opens the ticket.',
   })
   @ApiParam({ name: 'id', description: 'Support ticket UUID' })
   @ApiResponse({ status: 200, type: MarkMessagesReadResponseDto })
@@ -224,7 +233,11 @@ export class AdminSupportController {
   })
   @ApiParam({ name: 'id', description: 'Support ticket UUID' })
   @ApiResponse({ status: 200, type: SupportTicketDetailDto })
-  @ApiResponse({ status: 404, description: 'Ticket not found', type: ApiErrorResponseDto })
+  @ApiResponse({
+    status: 404,
+    description: 'Ticket not found',
+    type: ApiErrorResponseDto,
+  })
   async findOne(
     @Param('id') id: string,
     @CurrentAdmin() admin: AuthenticatedAdmin,
@@ -238,7 +251,8 @@ export class AdminSupportController {
   @ApiAdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
   @ApiOperation({
     summary: 'Assign executive to ticket',
-    description: 'Assigns a customer executive. Sets status to ASSIGNED when ticket is OPEN.',
+    description:
+      'Assigns a customer executive. Sets status to ASSIGNED when ticket is OPEN.',
   })
   @ApiParam({ name: 'id', description: 'Support ticket UUID' })
   @ApiResponse({ status: 200, type: SupportTicketDetailDto })

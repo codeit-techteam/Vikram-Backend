@@ -17,7 +17,9 @@ export class NotificationResponseDto {
   @ApiProperty({ example: 'Order #BJW-882 confirmed' })
   title!: string;
 
-  @ApiProperty({ example: 'Your order has been confirmed and is being packed.' })
+  @ApiProperty({
+    example: 'Your order has been confirmed and is being packed.',
+  })
   body!: string;
 
   @ApiPropertyOptional({ example: 'Track Order' })

@@ -1,5 +1,10 @@
 import { Controller, Get, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { SWAGGER_BEARER_AUTH } from '../../common/constants/swagger.constants';
 import { ROLE_GROUPS } from '../constants/admin-rbac.constants';
 import { AdminRoles } from '../decorators/admin-roles.decorator';

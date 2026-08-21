@@ -1,4 +1,10 @@
-import { Controller, Get, NotFoundException, Param, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  NotFoundException,
+  Param,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { SWAGGER_BEARER_AUTH } from '../../common/constants/swagger.constants';
 import { AdminJwtAuthGuard } from '../../admin/guards/admin-jwt-auth.guard';
@@ -22,7 +28,9 @@ export class RequisitionTrackingController {
   @Get('requisition/:id')
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth(SWAGGER_BEARER_AUTH)
-  @ApiOperation({ summary: 'Track requisition timeline + dispatch (admin/warehouse)' })
+  @ApiOperation({
+    summary: 'Track requisition timeline + dispatch (admin/warehouse)',
+  })
   async trackRequisitionAdmin(@Param('id') id: string) {
     const data = await this.requisitionsService.findOne(id);
     return {
@@ -47,7 +55,8 @@ export class RequisitionTrackingController {
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth(SWAGGER_BEARER_AUTH)
   @ApiOperation({
-    summary: 'Track dispatch by requisition id (dispatch is denormalized on requisition)',
+    summary:
+      'Track dispatch by requisition id (dispatch is denormalized on requisition)',
   })
   async trackDispatch(@Param('id') id: string) {
     const data = await this.requisitionsService.findOne(id);
@@ -76,7 +85,9 @@ export class RequisitionTrackingController {
   @Get('transfer/:id')
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth(SWAGGER_BEARER_AUTH)
-  @ApiOperation({ summary: 'Track transfer (alias — same as requisition tracking)' })
+  @ApiOperation({
+    summary: 'Track transfer (alias — same as requisition tracking)',
+  })
   async trackTransfer(@Param('id') id: string) {
     return this.trackRequisitionAdmin(id);
   }
@@ -92,9 +103,7 @@ export class HubRequisitionTrackingController {
 
   @Get('requisition/:id')
   @ApiOperation({ summary: 'Hub-scoped requisition tracking' })
-  async track(
-    @Param('id') id: string,
-  ) {
+  async track(@Param('id') id: string) {
     // findOne without hubId still works; hub controller receive path scopes by hub
     const data = await this.requisitionsService.findOne(id);
     return {

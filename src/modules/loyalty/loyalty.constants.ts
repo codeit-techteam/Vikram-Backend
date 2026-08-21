@@ -45,9 +45,7 @@ export const BIKE_DELIVERY_COMPANY_COST = 99;
 export function calculateEarnPoints(eligibleAmountInr: number): number {
   if (eligibleAmountInr <= 0) return 0;
   const eligiblePaise = Math.round(eligibleAmountInr * 100);
-  return Math.floor(
-    (eligiblePaise * LOYALTY_EARN_CASHBACK_PERCENT) / 100,
-  );
+  return Math.floor((eligiblePaise * LOYALTY_EARN_CASHBACK_PERCENT) / 100);
 }
 
 export function calculateEarnCashbackInr(eligibleAmountInr: number): number {

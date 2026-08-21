@@ -7,7 +7,13 @@ export class AdminSearchService {
 
   async globalSearch(query: string, limit = 10) {
     if (!query || query.trim().length < 2) {
-      return { customers: [], products: [], orders: [], memberships: [], bulk: [] };
+      return {
+        customers: [],
+        products: [],
+        orders: [],
+        memberships: [],
+        bulk: [],
+      };
     }
 
     const q = query.trim();
@@ -22,7 +28,13 @@ export class AdminSearchService {
             { email: { contains: q, mode: 'insensitive' } },
           ],
         },
-        select: { id: true, phone: true, fullName: true, email: true, status: true },
+        select: {
+          id: true,
+          phone: true,
+          fullName: true,
+          email: true,
+          status: true,
+        },
         take: limit,
       }),
       this.prisma.product.findMany({
@@ -34,7 +46,13 @@ export class AdminSearchService {
             { slug: { contains: q, mode: 'insensitive' } },
           ],
         },
-        select: { id: true, name: true, sku: true, retailPrice: true, entityStatus: true },
+        select: {
+          id: true,
+          name: true,
+          sku: true,
+          retailPrice: true,
+          entityStatus: true,
+        },
         take: limit,
       }),
       this.prisma.order.findMany({
@@ -42,7 +60,13 @@ export class AdminSearchService {
           deletedAt: null,
           orderNumber: { contains: q, mode: 'insensitive' },
         },
-        select: { id: true, orderNumber: true, grandTotal: true, orderStatus: true, createdAt: true },
+        select: {
+          id: true,
+          orderNumber: true,
+          grandTotal: true,
+          orderStatus: true,
+          createdAt: true,
+        },
         take: limit,
       }),
       this.prisma.customerMembership.findMany({
@@ -70,7 +94,13 @@ export class AdminSearchService {
             { projectName: { contains: q, mode: 'insensitive' } },
           ],
         },
-        select: { id: true, companyName: true, projectName: true, status: true, createdAt: true },
+        select: {
+          id: true,
+          companyName: true,
+          projectName: true,
+          status: true,
+          createdAt: true,
+        },
         take: limit,
       }),
     ]);

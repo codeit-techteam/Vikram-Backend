@@ -39,7 +39,11 @@ export class HubJwtStrategy extends PassportStrategy(Strategy, 'hub-jwt') {
       throw new UnauthorizedException('Invalid token type');
     }
 
-    if (!HUB_ACCESS_ROLES.includes(payload.role as (typeof HUB_ACCESS_ROLES)[number])) {
+    if (
+      !HUB_ACCESS_ROLES.includes(
+        payload.role as (typeof HUB_ACCESS_ROLES)[number],
+      )
+    ) {
       throw new UnauthorizedException('Invalid hub role');
     }
 

@@ -6,7 +6,10 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { SWAGGER_BEARER_AUTH, SWAGGER_TAGS } from '../../common/constants/swagger.constants';
+import {
+  SWAGGER_BEARER_AUTH,
+  SWAGGER_TAGS,
+} from '../../common/constants/swagger.constants';
 import { ApiErrorResponseDto } from '../../common/dto/api-response.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthenticatedCustomer } from '../../auth/jwt/jwt-payload.interface';

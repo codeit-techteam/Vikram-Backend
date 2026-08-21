@@ -33,10 +33,7 @@ type UiDispatchStatus =
   | 'cancelled';
 
 type UiMaintenanceStatus =
-  | 'scheduled'
-  | 'in_maintenance'
-  | 'completed'
-  | 'overdue';
+  'scheduled' | 'in_maintenance' | 'completed' | 'overdue';
 
 type ShipmentIssue =
   | 'vehicle_breakdown'
@@ -220,7 +217,13 @@ export class AdminLogisticsService {
       this.prisma.requisition.count({
         where: {
           status: {
-            in: ['ALLOCATED', 'DISPATCHED', 'IN_TRANSIT', 'RECEIVED', 'COMPLETED'],
+            in: [
+              'ALLOCATED',
+              'DISPATCHED',
+              'IN_TRANSIT',
+              'RECEIVED',
+              'COMPLETED',
+            ],
           },
         },
       }),
@@ -402,12 +405,7 @@ export class AdminLogisticsService {
       }),
     ]);
 
-    const [
-      whInTransit,
-      whPending,
-      whDelayed,
-      whCompleted,
-    ] = warehouseHub;
+    const [whInTransit, whPending, whDelayed, whCompleted] = warehouseHub;
     const [ready, ofd, delivered, failed, returned] = hubCustomer;
 
     const criticalShipments = [
@@ -477,7 +475,7 @@ export class AdminLogisticsService {
             row.expectedDeliveryAt?.toISOString() ??
             '',
           issue,
-          priority: isDelayed ? ('high' as UiPriority) : ('medium' as UiPriority),
+          priority: isDelayed ? 'high' : 'medium',
           status: mapCustomerStatus(row.orderStatus),
         };
       }),
@@ -580,10 +578,7 @@ export class AdminLogisticsService {
         where.driverId = null;
       } else if (s === 'assigned') {
         where.status = 'ALLOCATED';
-        where.OR = [
-          { vehicleId: { not: null } },
-          { driverId: { not: null } },
-        ];
+        where.OR = [{ vehicleId: { not: null } }, { driverId: { not: null } }];
       } else if (s === 'loading') {
         where.status = 'ALLOCATED';
         where.vehicleId = { not: null };
@@ -599,62 +594,70 @@ export class AdminLogisticsService {
       }
     }
 
-    const [rows, total, transfersToday, pending, loading, inTransit, delayed, completed] =
-      await Promise.all([
-        this.prisma.requisition.findMany({
-          where,
-          skip,
-          take: limit,
-          orderBy: { updatedAt: 'desc' },
-          include: {
-            hub: { select: { id: true, name: true, code: true } },
-            warehouseHub: { select: { id: true, name: true, code: true } },
-            vehicle: {
-              select: { id: true, registration: true, status: true },
-            },
-            driver: { select: { id: true, name: true, phone: true } },
+    const [
+      rows,
+      total,
+      transfersToday,
+      pending,
+      loading,
+      inTransit,
+      delayed,
+      completed,
+    ] = await Promise.all([
+      this.prisma.requisition.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { updatedAt: 'desc' },
+        include: {
+          hub: { select: { id: true, name: true, code: true } },
+          warehouseHub: { select: { id: true, name: true, code: true } },
+          vehicle: {
+            select: { id: true, registration: true, status: true },
           },
-        }),
-        this.prisma.requisition.count({ where }),
-        this.prisma.requisition.count({
-          where: {
-            status: {
-              in: ['DISPATCHED', 'IN_TRANSIT', 'RECEIVED', 'COMPLETED'],
-            },
-            OR: [
-              { dispatchedAt: { gte: today } },
-              { allocatedAt: { gte: today } },
-              { createdAt: { gte: today } },
-            ],
+          driver: { select: { id: true, name: true, phone: true } },
+        },
+      }),
+      this.prisma.requisition.count({ where }),
+      this.prisma.requisition.count({
+        where: {
+          status: {
+            in: ['DISPATCHED', 'IN_TRANSIT', 'RECEIVED', 'COMPLETED'],
           },
-        }),
-        this.prisma.requisition.count({
-          where: {
-            status: 'ALLOCATED',
-            vehicleId: null,
-            driverId: null,
-          },
-        }),
-        this.prisma.requisition.count({
-          where: {
-            status: 'ALLOCATED',
-            vehicleId: { not: null },
-            driverId: { not: null },
-          },
-        }),
-        this.prisma.requisition.count({
-          where: { status: { in: ['DISPATCHED', 'IN_TRANSIT'] } },
-        }),
-        this.prisma.requisition.count({
-          where: {
-            status: { in: ['DISPATCHED', 'IN_TRANSIT'] },
-            estimatedArrival: { lt: now },
-          },
-        }),
-        this.prisma.requisition.count({
-          where: { status: { in: ['RECEIVED', 'COMPLETED'] } },
-        }),
-      ]);
+          OR: [
+            { dispatchedAt: { gte: today } },
+            { allocatedAt: { gte: today } },
+            { createdAt: { gte: today } },
+          ],
+        },
+      }),
+      this.prisma.requisition.count({
+        where: {
+          status: 'ALLOCATED',
+          vehicleId: null,
+          driverId: null,
+        },
+      }),
+      this.prisma.requisition.count({
+        where: {
+          status: 'ALLOCATED',
+          vehicleId: { not: null },
+          driverId: { not: null },
+        },
+      }),
+      this.prisma.requisition.count({
+        where: { status: { in: ['DISPATCHED', 'IN_TRANSIT'] } },
+      }),
+      this.prisma.requisition.count({
+        where: {
+          status: { in: ['DISPATCHED', 'IN_TRANSIT'] },
+          estimatedArrival: { lt: now },
+        },
+      }),
+      this.prisma.requisition.count({
+        where: { status: { in: ['RECEIVED', 'COMPLETED'] } },
+      }),
+    ]);
 
     const data = rows.map((row) => {
       const isDelayed =
@@ -774,55 +777,62 @@ export class AdminLogisticsService {
       ? { hubId: query.hubId, deletedAt: null }
       : { hubId: { not: null }, deletedAt: null };
 
-    const [rows, total, ordersReady, outForDelivery, delivered, failed, returned] =
-      await Promise.all([
-        this.prisma.order.findMany({
-          where,
-          skip,
-          take: limit,
-          orderBy: { updatedAt: 'desc' },
-          include: {
-            customer: {
-              select: { id: true, fullName: true, phone: true },
-            },
-            hub: { select: { id: true, name: true, code: true } },
-            assignedDriver: { select: { id: true, name: true, phone: true } },
-            assignedVehicle: {
-              select: { id: true, registration: true },
-            },
-            dispatch: {
-              include: {
-                driver: { select: { id: true, name: true, phone: true } },
-                vehicle: { select: { id: true, registration: true } },
-              },
+    const [
+      rows,
+      total,
+      ordersReady,
+      outForDelivery,
+      delivered,
+      failed,
+      returned,
+    ] = await Promise.all([
+      this.prisma.order.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { updatedAt: 'desc' },
+        include: {
+          customer: {
+            select: { id: true, fullName: true, phone: true },
+          },
+          hub: { select: { id: true, name: true, code: true } },
+          assignedDriver: { select: { id: true, name: true, phone: true } },
+          assignedVehicle: {
+            select: { id: true, registration: true },
+          },
+          dispatch: {
+            include: {
+              driver: { select: { id: true, name: true, phone: true } },
+              vehicle: { select: { id: true, registration: true } },
             },
           },
-        }),
-        this.prisma.order.count({ where }),
-        this.prisma.order.count({
-          where: {
-            ...hubScope,
-            orderStatus: {
-              in: [OrderStatus.PACKED, OrderStatus.READY_FOR_DISPATCH],
-            },
+        },
+      }),
+      this.prisma.order.count({ where }),
+      this.prisma.order.count({
+        where: {
+          ...hubScope,
+          orderStatus: {
+            in: [OrderStatus.PACKED, OrderStatus.READY_FOR_DISPATCH],
           },
-        }),
-        this.prisma.order.count({
-          where: {
-            ...hubScope,
-            orderStatus: {
-              in: [OrderStatus.OUT_FOR_DELIVERY, OrderStatus.DISPATCHED],
-            },
+        },
+      }),
+      this.prisma.order.count({
+        where: {
+          ...hubScope,
+          orderStatus: {
+            in: [OrderStatus.OUT_FOR_DELIVERY, OrderStatus.DISPATCHED],
           },
-        }),
-        this.prisma.order.count({
-          where: { ...hubScope, orderStatus: OrderStatus.DELIVERED },
-        }),
-        this.prisma.order.count({
-          where: { ...hubScope, orderStatus: OrderStatus.CANCELLED },
-        }),
-        Promise.resolve(0),
-      ]);
+        },
+      }),
+      this.prisma.order.count({
+        where: { ...hubScope, orderStatus: OrderStatus.DELIVERED },
+      }),
+      this.prisma.order.count({
+        where: { ...hubScope, orderStatus: OrderStatus.CANCELLED },
+      }),
+      Promise.resolve(0),
+    ]);
 
     const data = rows.map((row) => {
       const driver = row.dispatch?.driver ?? row.assignedDriver;
@@ -914,56 +924,61 @@ export class AdminLogisticsService {
       ];
     }
 
-    const [warehouseRows, orderRows, driversWaiting, vehiclesWaiting, centralWarehouse] =
-      await Promise.all([
-        this.prisma.requisition.findMany({
-          where: warehouseWhere,
-          orderBy: { updatedAt: 'desc' },
-          take: 200,
-          include: {
-            hub: { select: { id: true, name: true, hubType: true } },
-            warehouseHub: { select: { id: true, name: true, hubType: true } },
-            vehicle: { select: { id: true, registration: true } },
-            driver: { select: { id: true, name: true } },
-          },
-        }),
-        this.prisma.order.findMany({
-          where: orderWhere,
-          orderBy: { updatedAt: 'desc' },
-          take: 200,
-          include: {
-            customer: { select: { fullName: true } },
-            hub: { select: { id: true, name: true, hubType: true } },
-            assignedDriver: { select: { id: true, name: true } },
-            assignedVehicle: { select: { id: true, registration: true } },
-            dispatch: {
-              include: {
-                driver: { select: { id: true, name: true } },
-                vehicle: { select: { id: true, registration: true } },
-              },
+    const [
+      warehouseRows,
+      orderRows,
+      driversWaiting,
+      vehiclesWaiting,
+      centralWarehouse,
+    ] = await Promise.all([
+      this.prisma.requisition.findMany({
+        where: warehouseWhere,
+        orderBy: { updatedAt: 'desc' },
+        take: 200,
+        include: {
+          hub: { select: { id: true, name: true, hubType: true } },
+          warehouseHub: { select: { id: true, name: true, hubType: true } },
+          vehicle: { select: { id: true, registration: true } },
+          driver: { select: { id: true, name: true } },
+        },
+      }),
+      this.prisma.order.findMany({
+        where: orderWhere,
+        orderBy: { updatedAt: 'desc' },
+        take: 200,
+        include: {
+          customer: { select: { fullName: true } },
+          hub: { select: { id: true, name: true, hubType: true } },
+          assignedDriver: { select: { id: true, name: true } },
+          assignedVehicle: { select: { id: true, registration: true } },
+          dispatch: {
+            include: {
+              driver: { select: { id: true, name: true } },
+              vehicle: { select: { id: true, registration: true } },
             },
           },
-        }),
-        this.prisma.driver.count({
-          where: {
-            deletedAt: null,
-            isActive: true,
-            availability: 'AVAILABLE',
-          },
-        }),
-        this.prisma.vehicle.count({
-          where: {
-            deletedAt: null,
-            isActive: true,
-            status: 'AVAILABLE',
-          },
-        }),
-        this.prisma.hub.findFirst({
-          where: { hubType: 'CENTRAL_WAREHOUSE', isActive: true },
-          select: { id: true, name: true },
-          orderBy: { createdAt: 'asc' },
-        }),
-      ]);
+        },
+      }),
+      this.prisma.driver.count({
+        where: {
+          deletedAt: null,
+          isActive: true,
+          availability: 'AVAILABLE',
+        },
+      }),
+      this.prisma.vehicle.count({
+        where: {
+          deletedAt: null,
+          isActive: true,
+          status: 'AVAILABLE',
+        },
+      }),
+      this.prisma.hub.findFirst({
+        where: { hubType: 'CENTRAL_WAREHOUSE', isActive: true },
+        select: { id: true, name: true },
+        orderBy: { createdAt: 'asc' },
+      }),
+    ]);
 
     const centralName = centralWarehouse?.name ?? 'Central Warehouse';
     const centralId = centralWarehouse?.id ?? null;
@@ -997,13 +1012,14 @@ export class AdminLogisticsService {
             driverName: row.driverName ?? row.driver?.name ?? null,
             route: `${sourceName} → ${row.hub.name}`,
             eta: row.estimatedArrival?.toISOString() ?? '',
-            status: (row.status === 'ALLOCATED'
-              ? row.vehicleId
-                ? 'assigned'
-                : 'pending'
-              : row.status === 'IN_TRANSIT'
-                ? 'in_transit'
-                : 'dispatched') as UiDispatchStatus,
+            status:
+              row.status === 'ALLOCATED'
+                ? row.vehicleId
+                  ? 'assigned'
+                  : 'pending'
+                : row.status === 'IN_TRANSIT'
+                  ? 'in_transit'
+                  : 'dispatched',
             createdAt: row.createdAt.toISOString(),
             kind: 'warehouse' as const,
           };
@@ -1024,28 +1040,27 @@ export class AdminLogisticsService {
           return true;
         })
         .map((row) => {
-        const driver = row.dispatch?.driver ?? row.assignedDriver;
-        const vehicle = row.dispatch?.vehicle ?? row.assignedVehicle;
-        return {
-          id: row.id,
-          dispatchId:
-            row.dispatch?.dispatchNo ?? `DSP-${row.orderNumber}`,
-          source: row.hub?.name ?? 'Hub',
-          destination: row.customer?.fullName ?? 'Customer',
-          vehicleId: vehicle?.id ?? null,
-          vehicleNumber: vehicle?.registration ?? null,
-          driverId: driver?.id ?? null,
-          driverName: driver?.name ?? null,
-          route: `${row.hub?.name ?? 'Hub'} → ${row.customer?.fullName ?? 'Customer'}`,
-          eta:
-            row.dispatch?.estimatedEtaAt?.toISOString() ??
-            row.expectedDeliveryAt?.toISOString() ??
-            '',
-          status: mapDispatchStatus(row.orderStatus),
-          createdAt: row.createdAt.toISOString(),
-          kind: 'customer' as const,
-        };
-      }),
+          const driver = row.dispatch?.driver ?? row.assignedDriver;
+          const vehicle = row.dispatch?.vehicle ?? row.assignedVehicle;
+          return {
+            id: row.id,
+            dispatchId: row.dispatch?.dispatchNo ?? `DSP-${row.orderNumber}`,
+            source: row.hub?.name ?? 'Hub',
+            destination: row.customer?.fullName ?? 'Customer',
+            vehicleId: vehicle?.id ?? null,
+            vehicleNumber: vehicle?.registration ?? null,
+            driverId: driver?.id ?? null,
+            driverName: driver?.name ?? null,
+            route: `${row.hub?.name ?? 'Hub'} → ${row.customer?.fullName ?? 'Customer'}`,
+            eta:
+              row.dispatch?.estimatedEtaAt?.toISOString() ??
+              row.expectedDeliveryAt?.toISOString() ??
+              '',
+            status: mapDispatchStatus(row.orderStatus),
+            createdAt: row.createdAt.toISOString(),
+            kind: 'customer' as const,
+          };
+        }),
     ];
 
     if (query.status && query.status !== 'all') {
@@ -1142,7 +1157,8 @@ export class AdminLogisticsService {
       let status: UiMaintenanceStatus;
       if (v.status === 'MAINTENANCE') {
         status =
-          v.maintenanceExpectedAt && v.maintenanceExpectedAt.getTime() < now.getTime()
+          v.maintenanceExpectedAt &&
+          v.maintenanceExpectedAt.getTime() < now.getTime()
             ? 'overdue'
             : 'in_maintenance';
       } else if (
@@ -1169,8 +1185,7 @@ export class AdminLogisticsService {
           '',
         status,
         scheduledDate:
-          v.maintenanceStartedAt?.toISOString() ??
-          v.updatedAt.toISOString(),
+          v.maintenanceStartedAt?.toISOString() ?? v.updatedAt.toISOString(),
       };
     });
 
@@ -1181,8 +1196,7 @@ export class AdminLogisticsService {
 
     const stats = {
       scheduled: mapped.filter((m) => m.status === 'scheduled').length,
-      inMaintenance: mapped.filter((m) => m.status === 'in_maintenance')
-        .length,
+      inMaintenance: mapped.filter((m) => m.status === 'in_maintenance').length,
       completed: mapped.filter((m) => m.status === 'completed').length,
       overdue: mapped.filter((m) => m.status === 'overdue').length,
     };
@@ -1264,7 +1278,8 @@ export class AdminLogisticsService {
       return {
         shipmentId: requisition.requestNo.replace(/^REQ-/, 'TRN-'),
         shipmentType: 'warehouse_transfer' as const,
-        currentStage: stages.find((s) => s.isCurrent)?.stage ?? 'shipment_created',
+        currentStage:
+          stages.find((s) => s.isCurrent)?.stage ?? 'shipment_created',
         stages,
         vehicleNumber:
           requisition.vehicleRegistration ??
@@ -1361,7 +1376,8 @@ export class AdminLogisticsService {
     return {
       shipmentId: order.orderNumber,
       shipmentType: 'customer_delivery' as const,
-      currentStage: stages.find((s) => s.isCurrent)?.stage ?? 'shipment_created',
+      currentStage:
+        stages.find((s) => s.isCurrent)?.stage ?? 'shipment_created',
       stages,
       vehicleNumber: vehicle?.registration ?? null,
       driverName: driver?.name ?? null,
@@ -1409,14 +1425,22 @@ export class AdminLogisticsService {
         stage: 'vehicle_assigned' as const,
         label: 'Vehicle Assigned',
         completedAt: row.vehicleId
-          ? (byTitle('vehicle') ?? row.allocatedAt ?? row.createdAt).toISOString()
+          ? (
+              byTitle('vehicle') ??
+              row.allocatedAt ??
+              row.createdAt
+            ).toISOString()
           : null,
       },
       {
         stage: 'driver_assigned' as const,
         label: 'Driver Assigned',
         completedAt: row.driverId
-          ? (byTitle('driver') ?? row.allocatedAt ?? row.createdAt).toISOString()
+          ? (
+              byTitle('driver') ??
+              row.allocatedAt ??
+              row.createdAt
+            ).toISOString()
           : null,
       },
       {
@@ -1424,8 +1448,8 @@ export class AdminLogisticsService {
         label: 'Loading',
         completedAt:
           row.vehicleId && row.driverId
-            ? (byTitle('load') ?? row.dispatchedAt)?.toISOString() ??
-              (row.dispatchedAt ? row.dispatchedAt.toISOString() : null)
+            ? ((byTitle('load') ?? row.dispatchedAt)?.toISOString() ??
+              (row.dispatchedAt ? row.dispatchedAt.toISOString() : null))
             : null,
       },
       {
@@ -1436,10 +1460,11 @@ export class AdminLogisticsService {
       {
         stage: 'checkpoint' as const,
         label: 'In Transit',
-        completedAt:
-          ['IN_TRANSIT', 'RECEIVED', 'COMPLETED'].includes(row.status)
-            ? (row.dispatchedAt ?? byTitle('transit'))?.toISOString() ?? null
-            : null,
+        completedAt: ['IN_TRANSIT', 'RECEIVED', 'COMPLETED'].includes(
+          row.status,
+        )
+          ? ((row.dispatchedAt ?? byTitle('transit'))?.toISOString() ?? null)
+          : null,
       },
       {
         stage: 'reached_hub' as const,
@@ -1451,11 +1476,13 @@ export class AdminLogisticsService {
         label: 'Received',
         completedAt:
           row.completedAt?.toISOString() ??
-          (row.status === 'COMPLETED' ? row.receivedAt?.toISOString() ?? null : null),
+          (row.status === 'COMPLETED'
+            ? (row.receivedAt?.toISOString() ?? null)
+            : null),
       },
     ];
 
-    let currentIdx = stages.findIndex((s) => !s.completedAt);
+    const currentIdx = stages.findIndex((s) => !s.completedAt);
     // When every stage is complete, do not keep the last stage as "current"
     // so the UI can show a green check on Delivered/Received.
     if (currentIdx < 0) {
@@ -1473,7 +1500,11 @@ export class AdminLogisticsService {
     createdAt: Date;
     dispatchedAt: Date | null;
     deliveredAt: Date | null;
-    timeline: Array<{ status: OrderStatus; createdAt: Date; message: string | null }>;
+    timeline: Array<{
+      status: OrderStatus;
+      createdAt: Date;
+      message: string | null;
+    }>;
     dispatch: { dispatchedAt: Date | null; completedAt: Date | null } | null;
   }) {
     const findStatus = (status: OrderStatus) =>
@@ -1509,27 +1540,26 @@ export class AdminLogisticsService {
       {
         stage: 'checkpoint' as const,
         label: 'Out for Delivery',
-        completedAt:
-          (
-            [
-              OrderStatus.OUT_FOR_DELIVERY,
-              OrderStatus.DISPATCHED,
-              OrderStatus.DELIVERED,
-            ] as OrderStatus[]
-          ).includes(order.orderStatus)
-            ? (
-                order.dispatch?.dispatchedAt ??
-                order.dispatchedAt ??
-                findStatus(OrderStatus.OUT_FOR_DELIVERY)
-              )?.toISOString() ?? null
-            : null,
+        completedAt: (
+          [
+            OrderStatus.OUT_FOR_DELIVERY,
+            OrderStatus.DISPATCHED,
+            OrderStatus.DELIVERED,
+          ] as OrderStatus[]
+        ).includes(order.orderStatus)
+          ? ((
+              order.dispatch?.dispatchedAt ??
+              order.dispatchedAt ??
+              findStatus(OrderStatus.OUT_FOR_DELIVERY)
+            )?.toISOString() ?? null)
+          : null,
       },
       {
         stage: 'reached_hub' as const,
         label: 'Reached Customer',
         completedAt:
           order.orderStatus === OrderStatus.DELIVERED
-            ? order.deliveredAt?.toISOString() ?? null
+            ? (order.deliveredAt?.toISOString() ?? null)
             : null,
       },
       {
@@ -1539,7 +1569,7 @@ export class AdminLogisticsService {
       },
     ];
 
-    let currentIdx = stages.findIndex((s) => !s.completedAt);
+    const currentIdx = stages.findIndex((s) => !s.completedAt);
     if (currentIdx < 0) {
       return stages.map((s) => ({ ...s, isCurrent: false }));
     }

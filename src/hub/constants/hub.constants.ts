@@ -1,5 +1,8 @@
 import type { OrderStatus } from '../../../generated/prisma/client';
-import { ORDER_STATUS_BUCKETS, ORDER_STATUS_LABELS } from '../../modules/orders/order-lifecycle.constants';
+import {
+  ORDER_STATUS_BUCKETS,
+  ORDER_STATUS_LABELS,
+} from '../../modules/orders/order-lifecycle.constants';
 
 export const HUB_ACCESS_ROLES = [
   'HUB_MANAGER',
@@ -30,7 +33,8 @@ export const HUB_ORDER_FILTER_MAP: Record<string, OrderStatus[]> = {
 };
 
 /** Same labels as customer + admin (single source of truth). */
-export const HUB_TIMELINE_LABELS: Record<OrderStatus, string> = ORDER_STATUS_LABELS;
+export const HUB_TIMELINE_LABELS: Record<OrderStatus, string> =
+  ORDER_STATUS_LABELS;
 
 export const HUB_ROLE_PERMISSIONS: Record<string, string[]> = {
   HUB_MANAGER: ['*'],

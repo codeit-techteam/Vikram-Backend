@@ -1,6 +1,13 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
-  IsString, IsNumber, IsOptional, IsBoolean, IsInt, IsArray, IsEnum, Min,
+  IsString,
+  IsNumber,
+  IsOptional,
+  IsBoolean,
+  IsInt,
+  IsArray,
+  IsEnum,
+  Min,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -101,7 +108,11 @@ export class UpdateInventoryDto {
   @ApiProperty() @IsString() hubId: string;
   @ApiProperty() @IsInt() @Min(0) availableQty: number;
   @ApiPropertyOptional() @IsOptional() @IsInt() @Min(0) reservedQty?: number;
-  @ApiPropertyOptional() @IsOptional() @IsInt() @Min(0) lowStockThreshold?: number;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  lowStockThreshold?: number;
 }
 
 export class ProductQueryDto {
@@ -110,6 +121,16 @@ export class ProductQueryDto {
   @ApiPropertyOptional() @IsOptional() @IsString() status?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() productType?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() grade?: string;
-  @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsInt() @Min(1) page?: number = 1;
-  @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsInt() @Min(1) limit?: number = 20;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number = 1;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  limit?: number = 20;
 }

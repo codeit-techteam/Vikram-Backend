@@ -1,6 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { DriversService } from '../../modules/drivers/drivers.service';
-import type { HubDriverCreateDto, HubDriversQueryDto, HubDriverUpdateDto } from '../dto/hub.dto';
+import type {
+  HubDriverCreateDto,
+  HubDriversQueryDto,
+  HubDriverUpdateDto,
+} from '../dto/hub.dto';
 
 @Injectable()
 export class HubDriversService {
@@ -45,7 +49,12 @@ export class HubDriversService {
     );
   }
 
-  async update(hubId: string, id: string, dto: HubDriverUpdateDto, actor?: string) {
+  async update(
+    hubId: string,
+    id: string,
+    dto: HubDriverUpdateDto,
+    actor?: string,
+  ) {
     return this.driversService.update(
       id,
       {
@@ -61,7 +70,8 @@ export class HubDriversService {
         address: dto.address,
         emergencyContactName: dto.emergencyContactName,
         emergencyContactNumber: dto.emergencyContactNumber,
-        onLeave: dto.availability === 'OFF_DUTY' || dto.availability === 'ON_LEAVE',
+        onLeave:
+          dto.availability === 'OFF_DUTY' || dto.availability === 'ON_LEAVE',
         isActive:
           dto.isActive !== undefined
             ? dto.isActive

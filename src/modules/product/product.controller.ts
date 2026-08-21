@@ -70,9 +70,11 @@ export class ProductController {
       },
     },
   })
-  async findAll(
-    @Query() query: ProductQueryDto,
-  ): Promise<{ success: boolean; message: string; data: ProductListResponseDto }> {
+  async findAll(@Query() query: ProductQueryDto): Promise<{
+    success: boolean;
+    message: string;
+    data: ProductListResponseDto;
+  }> {
     const data = await this.productService.findAll(query);
     return {
       success: true,

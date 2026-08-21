@@ -1,10 +1,5 @@
 import { Controller, Get, Param, Query } from '@nestjs/common';
-import {
-  ApiOperation,
-  ApiParam,
-  ApiResponse,
-  ApiTags,
-} from '@nestjs/swagger';
+import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Public } from '../../common/decorators/public.decorator';
 import { SWAGGER_TAGS } from '../../common/constants/swagger.constants';
 import { ApiResponseDto } from '../../common/dto/api-response.dto';
@@ -37,9 +32,11 @@ export class CategoryController {
     status: 200,
     description: 'Categories fetched successfully',
   })
-  async findAll(
-    @Query() query: CategoryQueryDto,
-  ): Promise<{ success: boolean; message: string; data: CategoryResponseDto[] }> {
+  async findAll(@Query() query: CategoryQueryDto): Promise<{
+    success: boolean;
+    message: string;
+    data: CategoryResponseDto[];
+  }> {
     const data = await this.categoryService.findAll(query.featured);
     return {
       success: true,
@@ -54,7 +51,11 @@ export class CategoryController {
     description:
       'Paginated products for the given category id/slug. Includes child subcategory products when filtering by parent.',
   })
-  @ApiParam({ name: 'id', example: 'cement', description: 'Category UUID or slug' })
+  @ApiParam({
+    name: 'id',
+    example: 'cement',
+    description: 'Category UUID or slug',
+  })
   @ApiResponse({ status: 200, description: 'Category products fetched' })
   @ApiResponse({ status: 404, description: 'Category not found' })
   async findProducts(
@@ -81,9 +82,7 @@ export class CategoryController {
   @ApiParam({ name: 'slug', example: 'cement' })
   @ApiResponse({ status: 200, type: ApiResponseDto })
   @ApiResponse({ status: 404, description: 'Category not found' })
-  async findBySlug(
-    @Param('slug') slug: string,
-  ): Promise<{
+  async findBySlug(@Param('slug') slug: string): Promise<{
     success: boolean;
     message: string;
     data: CategoryDetailResponseDto;

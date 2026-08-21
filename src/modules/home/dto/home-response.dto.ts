@@ -44,10 +44,16 @@ export class HomeQuickStatsDto {
 }
 
 export class HomeResponseDto {
-  @ApiProperty({ type: [BannerResponseDto], description: 'Hero banner carousel' })
+  @ApiProperty({
+    type: [BannerResponseDto],
+    description: 'Hero banner carousel',
+  })
   banners!: BannerResponseDto[];
 
-  @ApiProperty({ type: [OfferResponseDto], description: 'Featured offers strip' })
+  @ApiProperty({
+    type: [OfferResponseDto],
+    description: 'Featured offers strip',
+  })
   featuredOffers!: OfferResponseDto[];
 
   @ApiProperty({
@@ -83,13 +89,22 @@ export class HomeResponseDto {
   @ApiProperty({ type: HomeQuickStatsDto })
   quickStats!: HomeQuickStatsDto;
 
-  @ApiProperty({ type: [TestimonialResponseDto], description: 'Published customer testimonials' })
+  @ApiProperty({
+    type: [TestimonialResponseDto],
+    description: 'Published customer testimonials',
+  })
   testimonials!: TestimonialResponseDto[];
 
-  @ApiPropertyOptional({ type: [BannerResponseDto], description: 'Bulk procurement promo banner' })
+  @ApiPropertyOptional({
+    type: [BannerResponseDto],
+    description: 'Bulk procurement promo banner',
+  })
   bulkBanner?: BannerResponseDto[];
 
-  @ApiPropertyOptional({ type: [BannerResponseDto], description: 'Emergency delivery promo banner' })
+  @ApiPropertyOptional({
+    type: [BannerResponseDto],
+    description: 'Emergency delivery promo banner',
+  })
   emergencyBanner?: BannerResponseDto[];
 
   @ApiPropertyOptional({

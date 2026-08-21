@@ -48,10 +48,9 @@ export class AdminJwtStrategy extends PassportStrategy(Strategy, 'admin-jwt') {
       throw new UnauthorizedException('Admin not found or inactive');
     }
 
-    const permissions =
-      payload.permissions?.length
-        ? payload.permissions
-        : getPermissionsForRole(admin.role);
+    const permissions = payload.permissions?.length
+      ? payload.permissions
+      : getPermissionsForRole(admin.role);
 
     return {
       id: admin.id,

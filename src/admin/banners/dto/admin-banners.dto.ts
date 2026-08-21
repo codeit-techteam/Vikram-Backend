@@ -73,8 +73,16 @@ export class CreateBannerDto {
   @IsOptional()
   @IsEnum(BannerTargetAudience)
   targetAudience?: BannerTargetAudience;
-  @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsInt() displayOrder?: number;
-  @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsInt() priority?: number;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  displayOrder?: number;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  priority?: number;
   @ApiPropertyOptional() @IsOptional() @IsDateString() startsAt?: string;
   @ApiPropertyOptional() @IsOptional() @IsDateString() endsAt?: string;
   @ApiPropertyOptional() @IsOptional() @IsBoolean() publish?: boolean;

@@ -32,7 +32,10 @@ export class OrderTrackingService {
     customerId: string,
     orderId: string,
   ): Promise<OrderStatusResponseDto> {
-    const order = await this.ordersService.ensureOwnedOrder(customerId, orderId);
+    const order = await this.ordersService.ensureOwnedOrder(
+      customerId,
+      orderId,
+    );
 
     return {
       orderId: order.id,

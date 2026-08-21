@@ -3,7 +3,10 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { LoyaltyTransactionType, Prisma } from '../../../generated/prisma/client';
+import {
+  LoyaltyTransactionType,
+  Prisma,
+} from '../../../generated/prisma/client';
 import { PrismaService } from '../../common/database/prisma.service';
 import { CacheService } from '../../common/cache/cache.service';
 import { CACHE_KEYS } from '../../common/cache/cache.constants';
@@ -72,10 +75,7 @@ export class LoyaltyTransactionService {
     private readonly cache: CacheService,
   ) {}
 
-  async ensureAccount(
-    tx: Prisma.TransactionClient,
-    customerId: string,
-  ) {
+  async ensureAccount(tx: Prisma.TransactionClient, customerId: string) {
     return tx.loyaltyAccount.upsert({
       where: { customerId },
       create: {
@@ -89,7 +89,10 @@ export class LoyaltyTransactionService {
   }
 
   /** Credit lots that can still be redeemed (EARN / ADJUSTMENT / ADMIN with remainingPoints). */
-  private creditLotWhere(accountId: string, now: Date): Prisma.LoyaltyTransactionWhereInput {
+  private creditLotWhere(
+    accountId: string,
+    now: Date,
+  ): Prisma.LoyaltyTransactionWhereInput {
     return {
       accountId,
       remainingPoints: { gt: 0 },
@@ -134,8 +137,12 @@ export class LoyaltyTransactionService {
     availablePoints: number;
     soft?: boolean;
   }): LoyaltyRedemptionValidation {
-    const { requestedPoints, orderValueInr, availablePoints, soft = false } =
-      params;
+    const {
+      requestedPoints,
+      orderValueInr,
+      availablePoints,
+      soft = false,
+    } = params;
 
     const base: LoyaltyRedemptionValidation = {
       requestedPoints,
@@ -314,11 +321,16 @@ export class LoyaltyTransactionService {
         accountUpdate.currentPoints = { decrement: points };
       }
     } else {
-      throw new BadRequestException(`Unsupported transaction type: ${input.type}`);
+      throw new BadRequestException(
+        `Unsupported transaction type: ${input.type}`,
+      );
     }
 
     if (input.type === LoyaltyTransactionType.REDEEM) {
-      const lotBalance = await this.getNonExpiredBalanceInTx(tx, lockedAccount.id);
+      const lotBalance = await this.getNonExpiredBalanceInTx(
+        tx,
+        lockedAccount.id,
+      );
       if (lotBalance < points) {
         throw new BadRequestException(
           'Insufficient non-expired loyalty points to redeem',
@@ -331,7 +343,10 @@ export class LoyaltyTransactionService {
       input.type === LoyaltyTransactionType.ADJUSTMENT &&
       input.direction === 'DEBIT'
     ) {
-      const lotBalance = await this.getNonExpiredBalanceInTx(tx, lockedAccount.id);
+      const lotBalance = await this.getNonExpiredBalanceInTx(
+        tx,
+        lockedAccount.id,
+      );
       if (lotBalance < points) {
         throw new BadRequestException('Insufficient loyalty points for debit');
       }
@@ -478,7 +493,9 @@ export class LoyaltyTransactionService {
     }
 
     if (order.loyaltyPointsUsed > 0) {
-      throw new BadRequestException('Loyalty points already redeemed for this order');
+      throw new BadRequestException(
+        'Loyalty points already redeemed for this order',
+      );
     }
 
     const orderValueInr = this.eligibleOrderValue(order);

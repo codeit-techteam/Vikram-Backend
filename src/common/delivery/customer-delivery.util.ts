@@ -67,10 +67,7 @@ export function buildDeliverySubtitle(
  * Use DeliveryEtaEngineService / DeliveryService.calculateEta instead.
  */
 export function computeDeliveryEtaMinutes(distanceKm: number): number {
-  const travelMinutes = Math.max(
-    1,
-    Math.ceil((distanceKm / 25) * 60 * 1.25),
-  );
+  const travelMinutes = Math.max(1, Math.ceil((distanceKm / 25) * 60 * 1.25));
   return 25 + travelMinutes;
 }
 

@@ -13,7 +13,11 @@ export class UpdateHomeSectionDto {
   @ApiPropertyOptional() @IsOptional() @IsString() title?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() subtitle?: string;
   @ApiPropertyOptional() @IsOptional() @IsBoolean() enabled?: boolean;
-  @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsInt() displayOrder?: number;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  displayOrder?: number;
   @ApiPropertyOptional() @IsOptional() @IsString() apiSource?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() layoutType?: string;
 }

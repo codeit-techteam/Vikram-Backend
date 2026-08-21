@@ -37,11 +37,17 @@ export class AdminAuthController {
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Admin login with email and password' })
-  @ApiResponse({ status: 200, description: 'Login successful', type: AdminLoginResponseDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Login successful',
+    type: AdminLoginResponseDto,
+  })
   @ApiResponse({ status: 401, description: 'Invalid credentials' })
-  async login(
-    @Body() dto: AdminLoginDto,
-  ): Promise<{ success: boolean; message: string; data: AdminLoginResponseDto }> {
+  async login(@Body() dto: AdminLoginDto): Promise<{
+    success: boolean;
+    message: string;
+    data: AdminLoginResponseDto;
+  }> {
     const data = await this.adminAuthService.login(dto.email, dto.password);
     return { success: true, message: 'Login successful', data };
   }
@@ -50,10 +56,16 @@ export class AdminAuthController {
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Refresh admin access token' })
-  @ApiResponse({ status: 200, description: 'Token refreshed', type: AdminTokenResponseDto })
-  async refresh(
-    @Body() dto: AdminRefreshTokenDto,
-  ): Promise<{ success: boolean; message: string; data: AdminTokenResponseDto }> {
+  @ApiResponse({
+    status: 200,
+    description: 'Token refreshed',
+    type: AdminTokenResponseDto,
+  })
+  async refresh(@Body() dto: AdminRefreshTokenDto): Promise<{
+    success: boolean;
+    message: string;
+    data: AdminTokenResponseDto;
+  }> {
     const data = await this.adminAuthService.refresh(dto.refreshToken);
     return { success: true, message: 'Token refreshed successfully', data };
   }

@@ -20,7 +20,9 @@ export const VISIBLE_WHERE = {
 export function hashQueryParams(params: Record<string, unknown>): string {
   const sorted = Object.keys(params)
     .sort()
-    .filter((k) => params[k] !== undefined && params[k] !== null && params[k] !== '')
+    .filter(
+      (k) => params[k] !== undefined && params[k] !== null && params[k] !== '',
+    )
     .map((k) => `${k}=${String(params[k])}`)
     .join('&');
   return sorted || 'default';

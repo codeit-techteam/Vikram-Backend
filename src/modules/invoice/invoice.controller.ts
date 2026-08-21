@@ -14,7 +14,10 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { SWAGGER_BEARER_AUTH, SWAGGER_TAGS } from '../../common/constants/swagger.constants';
+import {
+  SWAGGER_BEARER_AUTH,
+  SWAGGER_TAGS,
+} from '../../common/constants/swagger.constants';
 import { SkipResponseWrap } from '../../common/decorators/skip-response-wrap.decorator';
 import { ApiErrorResponseDto } from '../../common/dto/api-response.dto';
 import { CurrentCustomer } from '../../common/decorators/current-customer.decorator';
@@ -36,7 +39,11 @@ export class InvoiceController {
   })
   @ApiParam({ name: 'orderId', description: 'Order UUID' })
   @ApiResponse({ status: 200, type: InvoiceResponseDto })
-  @ApiResponse({ status: 404, description: 'Order not found', type: ApiErrorResponseDto })
+  @ApiResponse({
+    status: 404,
+    description: 'Order not found',
+    type: ApiErrorResponseDto,
+  })
   async getInvoice(
     @CurrentCustomer() customer: AuthenticatedCustomer,
     @Param('orderId', ParseUUIDPipe) orderId: string,
@@ -60,7 +67,11 @@ export class InvoiceController {
   })
   @ApiParam({ name: 'orderId', description: 'Order UUID' })
   @ApiResponse({ status: 200, description: 'PDF file stream' })
-  @ApiResponse({ status: 404, description: 'Order not found', type: ApiErrorResponseDto })
+  @ApiResponse({
+    status: 404,
+    description: 'Order not found',
+    type: ApiErrorResponseDto,
+  })
   async getInvoicePdf(
     @CurrentCustomer() customer: AuthenticatedCustomer,
     @Param('orderId', ParseUUIDPipe) orderId: string,

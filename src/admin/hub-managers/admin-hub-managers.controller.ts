@@ -8,11 +8,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import {
-  ApiBearerAuth,
-  ApiOperation,
-  ApiTags,
-} from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { SWAGGER_BEARER_AUTH } from '../../common/constants/swagger.constants';
 import { ROLE_GROUPS } from '../constants/admin-rbac.constants';
 import { AdminRoles } from '../decorators/admin-roles.decorator';
@@ -64,7 +60,11 @@ export class AdminHubManagersController {
     @Body() dto: CreateHubManagerDto,
     @CurrentAdmin() admin: AuthenticatedAdmin,
   ) {
-    const data = await this.hubManagersService.create(dto, admin.id, admin.email);
+    const data = await this.hubManagersService.create(
+      dto,
+      admin.id,
+      admin.email,
+    );
     return { success: true, message: 'Hub manager created', data };
   }
 
@@ -75,7 +75,12 @@ export class AdminHubManagersController {
     @Body() dto: UpdateHubManagerDto,
     @CurrentAdmin() admin: AuthenticatedAdmin,
   ) {
-    const data = await this.hubManagersService.update(id, dto, admin.id, admin.email);
+    const data = await this.hubManagersService.update(
+      id,
+      dto,
+      admin.id,
+      admin.email,
+    );
     return { success: true, message: 'Hub manager updated', data };
   }
 
@@ -86,21 +91,40 @@ export class AdminHubManagersController {
     @Body() dto: TransferHubManagerDto,
     @CurrentAdmin() admin: AuthenticatedAdmin,
   ) {
-    const data = await this.hubManagersService.transferHub(id, dto, admin.id, admin.email);
+    const data = await this.hubManagersService.transferHub(
+      id,
+      dto,
+      admin.id,
+      admin.email,
+    );
     return { success: true, message: 'Hub manager transferred', data };
   }
 
   @Patch(':id/deactivate')
   @ApiOperation({ summary: 'Deactivate hub manager login' })
-  async deactivate(@Param('id') id: string, @CurrentAdmin() admin: AuthenticatedAdmin) {
-    const data = await this.hubManagersService.deactivate(id, admin.id, admin.email);
+  async deactivate(
+    @Param('id') id: string,
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+  ) {
+    const data = await this.hubManagersService.deactivate(
+      id,
+      admin.id,
+      admin.email,
+    );
     return { success: true, message: 'Hub manager deactivated', data };
   }
 
   @Patch(':id/reactivate')
   @ApiOperation({ summary: 'Reactivate hub manager login' })
-  async reactivate(@Param('id') id: string, @CurrentAdmin() admin: AuthenticatedAdmin) {
-    const data = await this.hubManagersService.reactivate(id, admin.id, admin.email);
+  async reactivate(
+    @Param('id') id: string,
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+  ) {
+    const data = await this.hubManagersService.reactivate(
+      id,
+      admin.id,
+      admin.email,
+    );
     return { success: true, message: 'Hub manager reactivated', data };
   }
 
@@ -111,7 +135,12 @@ export class AdminHubManagersController {
     @Body() dto: ResetHubManagerPasswordDto,
     @CurrentAdmin() admin: AuthenticatedAdmin,
   ) {
-    const data = await this.hubManagersService.resetPassword(id, dto, admin.id, admin.email);
+    const data = await this.hubManagersService.resetPassword(
+      id,
+      dto,
+      admin.id,
+      admin.email,
+    );
     return { success: true, message: 'Password reset successfully', data };
   }
 }

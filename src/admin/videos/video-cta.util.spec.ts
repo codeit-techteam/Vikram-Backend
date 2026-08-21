@@ -21,21 +21,17 @@ describe('video CTA helpers', () => {
 
   it('heals legacy /category/* routes into CATEGORY slugs', () => {
     expect(inferVideoLinkType('ROUTE', '/category/cement')).toBe('CATEGORY');
-    expect(
-      normalizeVideoLinkTarget('CATEGORY', '/category/cement', null),
-    ).toBe('cement');
+    expect(normalizeVideoLinkTarget('CATEGORY', '/category/cement', null)).toBe(
+      'cement',
+    );
   });
 
   it('heals legacy /products/* routes into PRODUCT ids', () => {
+    expect(inferVideoLinkType(null, '/products/detail/abc-123', null)).toBe(
+      'PRODUCT',
+    );
     expect(
-      inferVideoLinkType(null, '/products/detail/abc-123', null),
-    ).toBe('PRODUCT');
-    expect(
-      normalizeVideoLinkTarget(
-        'PRODUCT',
-        '/products/detail/abc-123',
-        null,
-      ),
+      normalizeVideoLinkTarget('PRODUCT', '/products/detail/abc-123', null),
     ).toBe('abc-123');
   });
 

@@ -86,7 +86,9 @@ export class ScheduledNotificationDispatchService {
       case ScheduledNotificationChannel.IN_APP:
       case ScheduledNotificationChannel.PUSH:
         if (!item.customerId) {
-          throw new Error('customerId is required for IN_APP/PUSH notifications');
+          throw new Error(
+            'customerId is required for IN_APP/PUSH notifications',
+          );
         }
         await this.notificationService.createForCustomer({
           customerId: item.customerId,

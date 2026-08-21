@@ -33,7 +33,10 @@ export class AdminOffersService {
     const limit = query.limit ?? 20;
     const skip = (page - 1) * limit;
     const where: Record<string, unknown> = { deletedAt: null };
-    if (query.status && ['ACTIVE', 'INACTIVE', 'DRAFT'].includes(query.status)) {
+    if (
+      query.status &&
+      ['ACTIVE', 'INACTIVE', 'DRAFT'].includes(query.status)
+    ) {
       where['status'] = query.status;
     }
     if (query.search) {

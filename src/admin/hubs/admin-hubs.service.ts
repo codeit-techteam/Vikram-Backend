@@ -219,7 +219,9 @@ export class AdminHubsService {
           phone: true,
           availability: true,
           isActive: true,
-          vehicle: { select: { id: true, registration: true, vehicleType: true } },
+          vehicle: {
+            select: { id: true, registration: true, vehicleType: true },
+          },
         },
         orderBy: { name: 'asc' },
         take: 50,
@@ -336,15 +338,20 @@ export class AdminHubsService {
           select: { id: true },
         });
         if (products.length !== productIds.length) {
-          throw new BadRequestException('One or more inventory products were not found');
+          throw new BadRequestException(
+            'One or more inventory products were not found',
+          );
         }
       }
     }
 
-    const resolvedInventory = await this.resolveProvisionInventory(dto.inventory ?? []);
+    const resolvedInventory = await this.resolveProvisionInventory(
+      dto.inventory ?? [],
+    );
 
     const plainPassword =
-      dto.manager.password?.trim() || this.generateTempPassword(dto.manager.fullName);
+      dto.manager.password?.trim() ||
+      this.generateTempPassword(dto.manager.fullName);
     const passwordHash = await bcrypt.hash(plainPassword, 10);
 
     const coveragePincodes = Array.from(
@@ -983,7 +990,10 @@ export class AdminHubsService {
     return {
       ...this.mapHub(updated),
       action: dto.action,
-      operationalStatus: this.deriveOperationalStatus(updated.isActive, updated.status),
+      operationalStatus: this.deriveOperationalStatus(
+        updated.isActive,
+        updated.status,
+      ),
       pendingUnfulfilledOrders: pendingUnfulfilled,
       warning,
     };
@@ -1230,7 +1240,12 @@ export class AdminHubsService {
 
   async listInventory(
     hubId: string,
-    query: { page?: number; limit?: number; search?: string; category?: string },
+    query: {
+      page?: number;
+      limit?: number;
+      search?: string;
+      category?: string;
+    },
   ) {
     return this.listNetworkInventory({ ...query, hubId });
   }
@@ -1347,7 +1362,8 @@ export class AdminHubsService {
     let lowStockItems = 0;
     let inventoryValue = 0;
     for (const row of aggregateRows) {
-      const onHand = Number(row.availableQty ?? 0) + Number(row.reservedQty ?? 0);
+      const onHand =
+        Number(row.availableQty ?? 0) + Number(row.reservedQty ?? 0);
       const reserved = Number(row.reservedQty ?? 0);
       const free = Number(row.availableQty ?? 0);
       const reorder = Number(row.lowStockThreshold ?? row.minimumStock ?? 0);
@@ -1696,7 +1712,10 @@ export class AdminHubsService {
 
   private async getOrderStatusCounts(hubId: string) {
     const hubScope = { hubId, deletedAt: null };
-    const groups = Object.entries(ORDER_GROUP_MAP) as [HubOrderGroup, OrderStatus[]][];
+    const groups = Object.entries(ORDER_GROUP_MAP) as [
+      HubOrderGroup,
+      OrderStatus[],
+    ][];
 
     const counts = await Promise.all(
       groups.map(async ([group, statuses]) => ({
@@ -1929,13 +1948,7 @@ export class AdminHubsService {
     const inventoryHealth = metrics?.inventoryHealth ?? 100;
     const healthStatus =
       metrics?.healthStatus ??
-      this.deriveDisplayHealth(
-        hub.isActive,
-        hub.status,
-        inventoryHealth,
-        0,
-        0,
-      );
+      this.deriveDisplayHealth(hub.isActive, hub.status, inventoryHealth, 0, 0);
 
     return {
       id: hub.id,
@@ -2148,7 +2161,9 @@ export class AdminHubsService {
       const inventoryHealth =
         inv.total === 0
           ? 100
-          : Math.round(((inv.total - inv.oos - inv.low * 0.5) / inv.total) * 100);
+          : Math.round(
+              ((inv.total - inv.oos - inv.low * 0.5) / inv.total) * 100,
+            );
       const hub = hubMeta.get(hubId);
       result.set(hubId, {
         inventoryHealth,
@@ -2190,7 +2205,9 @@ export class AdminHubsService {
     const source = (city || name || state || 'HUB').trim();
     const letters = source.replace(/[^a-zA-Z]/g, '').toUpperCase();
     const cityCode =
-      letters.length >= 3 ? letters.slice(0, 3) : (letters || 'HUB').padEnd(3, 'X');
+      letters.length >= 3
+        ? letters.slice(0, 3)
+        : (letters || 'HUB').padEnd(3, 'X');
     const prefix = `HUB-${cityCode}-`;
 
     const existing = await this.prisma.hub.findMany({
@@ -2250,7 +2267,11 @@ export class AdminHubsService {
     deliveredAt: Date | null;
     createdAt: Date;
     updatedAt: Date;
-    customer: { id: string; fullName: string | null; phone: string | null } | null;
+    customer: {
+      id: string;
+      fullName: string | null;
+      phone: string | null;
+    } | null;
     hub: { id: string; name: string; code: string } | null;
     assignedDriver: { id: string; name: string; phone: string } | null;
     assignedVehicle: {
@@ -2299,9 +2320,7 @@ export class AdminHubsService {
       order.deliveryAddress &&
       typeof order.deliveryAddress === 'object' &&
       'pincode' in order.deliveryAddress
-        ? String(
-            (order.deliveryAddress as { pincode?: string }).pincode ?? '',
-          )
+        ? String((order.deliveryAddress as { pincode?: string }).pincode ?? '')
         : '';
 
     return {

@@ -40,7 +40,11 @@ export class AllExceptionsFilter implements ExceptionFilter {
         exceptionResponse =
           'Database temporarily unavailable. Please try again shortly.';
         this.logger.error(
-          formatDatabaseDiagnostic(diagnostic, {}, process.env.NODE_ENV ?? 'unknown'),
+          formatDatabaseDiagnostic(
+            diagnostic,
+            {},
+            process.env.NODE_ENV ?? 'unknown',
+          ),
         );
       } else {
         const redisDiagnostic = classifyRedisError(exception);

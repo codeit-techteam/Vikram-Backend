@@ -125,7 +125,8 @@ export class CoverageService {
   }
 
   private logRouting(decision: HubRoutingDecision): void {
-    const { snapshot, nearestHub, nearestEligibleHub, assignableHub } = decision;
+    const { snapshot, nearestHub, nearestEligibleHub, assignableHub } =
+      decision;
     const focus = assignableHub ?? nearestEligibleHub ?? nearestHub;
 
     this.logger.log(

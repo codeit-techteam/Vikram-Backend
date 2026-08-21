@@ -27,8 +27,12 @@ export class AuditService {
           action: input.action,
           resource: input.resource,
           resourceId: input.resourceId ?? null,
-          oldValue: input.oldValue ? JSON.parse(JSON.stringify(input.oldValue)) : undefined,
-          newValue: input.newValue ? JSON.parse(JSON.stringify(input.newValue)) : undefined,
+          oldValue: input.oldValue
+            ? JSON.parse(JSON.stringify(input.oldValue))
+            : undefined,
+          newValue: input.newValue
+            ? JSON.parse(JSON.stringify(input.newValue))
+            : undefined,
           ipAddress: input.ipAddress ?? null,
           userAgent: input.userAgent ?? null,
         },

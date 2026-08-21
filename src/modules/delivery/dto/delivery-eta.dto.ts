@@ -23,7 +23,11 @@ export class DeliveryEtaCartItemDto {
   @IsUUID()
   variantId?: string;
 
-  @ApiProperty({ example: 1, minimum: 0.01, description: 'Supports decimal qty for RMC' })
+  @ApiProperty({
+    example: 1,
+    minimum: 0.01,
+    description: 'Supports decimal qty for RMC',
+  })
   @Type(() => Number)
   @IsNumber()
   @Min(0.01)
@@ -156,7 +160,10 @@ export class DeliveryEtaResponseDto {
   @ApiProperty()
   serviceable!: boolean;
 
-  @ApiProperty({ example: 95, description: 'Point ETA in minutes (mid of range)' })
+  @ApiProperty({
+    example: 95,
+    description: 'Point ETA in minutes (mid of range)',
+  })
   deliveryETA!: number;
 
   @ApiPropertyOptional({ example: 85 })
@@ -195,7 +202,9 @@ export class DeliveryEtaResponseDto {
   @ApiPropertyOptional({ example: 'RMC Transit Mixer' })
   deliveryVehicleDisplayName?: string;
 
-  @ApiPropertyOptional({ example: 'https://cdn.example.com/delivery-vehicles/bike.png' })
+  @ApiPropertyOptional({
+    example: 'https://cdn.example.com/delivery-vehicles/bike.png',
+  })
   deliveryVehicleImageUrl?: string | null;
 
   @ApiPropertyOptional({ example: 1 })
@@ -229,7 +238,7 @@ export class DeliveryEtaResponseDto {
   timing?: DeliveryEtaTimingDto;
 
   @ApiPropertyOptional()
-      trafficDataAvailable?: boolean;
+  trafficDataAvailable?: boolean;
 
   @ApiPropertyOptional({ example: 2 })
   calculationVersion?: number;

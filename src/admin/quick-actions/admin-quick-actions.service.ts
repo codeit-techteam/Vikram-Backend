@@ -57,9 +57,13 @@ export class AdminQuickActionsService {
         ...(dto.slug !== undefined && { slug: dto.slug }),
         ...(dto.iconUrl !== undefined && { iconUrl: dto.iconUrl }),
         ...(dto.iconKey !== undefined && { iconKey: dto.iconKey }),
-        ...(dto.redirectType !== undefined && { redirectType: dto.redirectType }),
+        ...(dto.redirectType !== undefined && {
+          redirectType: dto.redirectType,
+        }),
         ...(dto.redirectId !== undefined && { redirectId: dto.redirectId }),
-        ...(dto.displayOrder !== undefined && { displayOrder: dto.displayOrder }),
+        ...(dto.displayOrder !== undefined && {
+          displayOrder: dto.displayOrder,
+        }),
         ...(dto.isVisible !== undefined && { isVisible: dto.isVisible }),
         ...(dto.startsAt !== undefined && {
           startsAt: dto.startsAt ? new Date(dto.startsAt) : null,

@@ -20,7 +20,11 @@ export function classifyRedisError(error: unknown): RedisErrorDiagnostic {
   if (/etimedout|timeout|timed out/i.test(combined)) {
     return { category: 'REDIS_TIMEOUT', reason };
   }
-  if (/noauth|wrong pass|invalid password|authentication|unauthorized/i.test(combined)) {
+  if (
+    /noauth|wrong pass|invalid password|authentication|unauthorized/i.test(
+      combined,
+    )
+  ) {
     return { category: 'REDIS_AUTH_FAILED', reason };
   }
   if (

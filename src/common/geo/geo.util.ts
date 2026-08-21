@@ -5,11 +5,21 @@ const EARTH_RADIUS_KM = 6371;
 const RADIUS_EPSILON_KM = 0.001;
 
 export function isValidLatitude(value: unknown): value is number {
-  return typeof value === 'number' && Number.isFinite(value) && value >= -90 && value <= 90;
+  return (
+    typeof value === 'number' &&
+    Number.isFinite(value) &&
+    value >= -90 &&
+    value <= 90
+  );
 }
 
 export function isValidLongitude(value: unknown): value is number {
-  return typeof value === 'number' && Number.isFinite(value) && value >= -180 && value <= 180;
+  return (
+    typeof value === 'number' &&
+    Number.isFinite(value) &&
+    value >= -180 &&
+    value <= 180
+  );
 }
 
 /**

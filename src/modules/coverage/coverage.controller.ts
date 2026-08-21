@@ -1,9 +1,5 @@
 import { Controller, Get, Query } from '@nestjs/common';
-import {
-  ApiOperation,
-  ApiResponse,
-  ApiTags,
-} from '@nestjs/swagger';
+import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Public } from '../../common/decorators/public.decorator';
 import { CoverageService } from './coverage.service';
 import { FindHubQueryDto, HubStockQueryDto } from './dto/coverage.dto';
@@ -23,7 +19,10 @@ export class CoverageController {
   @ApiResponse({ status: 200, description: 'Nearest hub match (or null)' })
   async findHub(@Query() query: FindHubQueryDto) {
     const productIds = query.productIds
-      ? query.productIds.split(',').map((s) => s.trim()).filter(Boolean)
+      ? query.productIds
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean)
       : [];
     const quantities = query.quantities
       ? query.quantities.split(',').map((s) => Number(s.trim()) || 1)

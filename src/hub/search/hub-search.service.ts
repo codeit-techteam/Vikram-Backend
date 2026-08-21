@@ -65,21 +65,15 @@ export class HubSearchService {
   /** Unified hub-wide search for the header search bar. */
   private async searchAll(hubId: string, q: string) {
     const perType = 5;
-    const [
-      orders,
-      inventory,
-      drivers,
-      vehicles,
-      dispatches,
-      requisitions,
-    ] = await Promise.all([
-      this.searchOrders(hubId, q, 1, perType, 0),
-      this.searchProducts(hubId, q, 1, perType, 0),
-      this.searchDrivers(hubId, q, 1, perType, 0),
-      this.searchVehicles(hubId, q, 1, perType, 0),
-      this.searchDispatches(hubId, q, 1, perType, 0),
-      this.searchRequisitions(hubId, q, 1, perType, 0),
-    ]);
+    const [orders, inventory, drivers, vehicles, dispatches, requisitions] =
+      await Promise.all([
+        this.searchOrders(hubId, q, 1, perType, 0),
+        this.searchProducts(hubId, q, 1, perType, 0),
+        this.searchDrivers(hubId, q, 1, perType, 0),
+        this.searchVehicles(hubId, q, 1, perType, 0),
+        this.searchDispatches(hubId, q, 1, perType, 0),
+        this.searchRequisitions(hubId, q, 1, perType, 0),
+      ]);
 
     const groups = [
       {
@@ -441,11 +435,7 @@ export class HubSearchService {
       id: v.id,
       type: 'vehicles',
       title: v.registration,
-      subtitle: [
-        v.vehicleCategory || v.vehicleType,
-        v.status,
-        v.driver?.name,
-      ]
+      subtitle: [v.vehicleCategory || v.vehicleType, v.status, v.driver?.name]
         .filter(Boolean)
         .join(' · '),
       href: `/fleet?search=${encodeURIComponent(v.registration)}`,

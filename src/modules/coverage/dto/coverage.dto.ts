@@ -36,7 +36,8 @@ export class FindHubQueryDto {
   productIds?: string;
 
   @ApiPropertyOptional({
-    description: 'Optional quantities matching productIds order (comma-separated)',
+    description:
+      'Optional quantities matching productIds order (comma-separated)',
     example: '10,5',
   })
   @IsOptional()
@@ -45,7 +46,9 @@ export class FindHubQueryDto {
 }
 
 export class HubStockQueryDto {
-  @ApiPropertyOptional({ description: 'Hub UUID; if omitted uses find-hub result' })
+  @ApiPropertyOptional({
+    description: 'Hub UUID; if omitted uses find-hub result',
+  })
   @IsOptional()
   @IsUUID()
   hubId?: string;

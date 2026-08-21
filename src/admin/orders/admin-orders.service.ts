@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../../common/database/prisma.service';
 import {
   getOrderStatusLabel,
@@ -12,7 +16,11 @@ import { DeliveryBenefitService } from '../../modules/delivery/delivery-benefit.
 import { DeliverySlotService } from '../../modules/delivery/delivery-slot.service';
 import { mapDeliveryPreferenceView } from '../../modules/delivery/delivery-preference.view';
 import { MAX_ADMIN_INTERNAL_NOTE_LENGTH } from '../../modules/delivery/delivery-preference.constants';
-import type { AdminOrderQueryDto, UpdateOrderStatusDto, CancelOrderDto } from './dto/admin-orders.dto';
+import type {
+  AdminOrderQueryDto,
+  UpdateOrderStatusDto,
+  CancelOrderDto,
+} from './dto/admin-orders.dto';
 import { mapAdminRoutingView } from '../../modules/coverage/hub-routing.logic';
 import { OrderStatus } from '../../../generated/prisma/client';
 
@@ -33,9 +41,14 @@ export class AdminOrdersService {
 
     const where: Record<string, unknown> = { deletedAt: null };
 
-    if (query.bucket && ORDER_STATUS_BUCKETS[query.bucket as keyof typeof ORDER_STATUS_BUCKETS]) {
+    if (
+      query.bucket &&
+      ORDER_STATUS_BUCKETS[query.bucket as keyof typeof ORDER_STATUS_BUCKETS]
+    ) {
       where['orderStatus'] = {
-        in: ORDER_STATUS_BUCKETS[query.bucket as keyof typeof ORDER_STATUS_BUCKETS],
+        in: ORDER_STATUS_BUCKETS[
+          query.bucket as keyof typeof ORDER_STATUS_BUCKETS
+        ],
       };
     } else if (query.status) {
       const resolved = resolveStatusInput(query.status);
@@ -75,12 +88,19 @@ export class AdminOrdersService {
               name: true,
               users: {
                 where: { role: 'HUB_MANAGER', isActive: true, deletedAt: null },
-                select: { id: true, fullName: true, employeeId: true, phone: true },
+                select: {
+                  id: true,
+                  fullName: true,
+                  employeeId: true,
+                  phone: true,
+                },
                 take: 1,
               },
             },
           },
-          manager: { select: { id: true, fullName: true, phone: true, employeeId: true } },
+          manager: {
+            select: { id: true, fullName: true, phone: true, employeeId: true },
+          },
           assignedDriver: {
             select: {
               id: true,
@@ -124,7 +144,10 @@ export class AdminOrdersService {
       routing: mapAdminRoutingView(order),
     }));
 
-    return { data: mapped, meta: { page, limit, total, totalPages: Math.ceil(total / limit) } };
+    return {
+      data: mapped,
+      meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    };
   }
 
   async findOne(id: string) {
@@ -137,17 +160,30 @@ export class AdminOrdersService {
           include: {
             users: {
               where: { role: 'HUB_MANAGER', isActive: true, deletedAt: null },
-              select: { id: true, fullName: true, employeeId: true, phone: true },
+              select: {
+                id: true,
+                fullName: true,
+                employeeId: true,
+                phone: true,
+              },
               take: 1,
             },
           },
         },
-        manager: { select: { id: true, fullName: true, phone: true, employeeId: true } },
+        manager: {
+          select: { id: true, fullName: true, phone: true, employeeId: true },
+        },
         assignedDriver: {
-          include: { vehicle: { select: { registration: true, vehicleType: true } } },
+          include: {
+            vehicle: { select: { registration: true, vehicleType: true } },
+          },
         },
         assignedVehicle: true,
-        items: { include: { product: { select: { id: true, name: true, unit: true } } } },
+        items: {
+          include: {
+            product: { select: { id: true, name: true, unit: true } },
+          },
+        },
         timeline: { orderBy: { createdAt: 'asc' } },
         invoice: true,
         dispatch: true,
@@ -165,7 +201,7 @@ export class AdminOrdersService {
       invoiceId: order.invoice?.id ?? null,
       invoiceNumber: order.invoice?.invoiceNumber ?? null,
       manager: order.manager ?? order.hub?.users?.[0] ?? null,
-      orderAgeHours: Math.round(ageMs / (1000 * 60 * 60) * 10) / 10,
+      orderAgeHours: Math.round((ageMs / (1000 * 60 * 60)) * 10) / 10,
       deliveryOtpGenerated: Boolean(order.deliveryOtpGeneratedAt),
       deliveryVerification: {
         driverReached: Boolean(order.driverReachedAt),
@@ -174,16 +210,26 @@ export class AdminOrdersService {
         otpGeneratedAt: order.deliveryOtpGeneratedAt?.toISOString() ?? null,
         otpVerified: order.deliveryOtpVerified,
         verifiedBy: order.deliveryVerifiedBy,
-        verifiedAt: order.deliveryCompletedAt?.toISOString() ?? order.deliveredAt?.toISOString() ?? null,
+        verifiedAt:
+          order.deliveryCompletedAt?.toISOString() ??
+          order.deliveredAt?.toISOString() ??
+          null,
         delivered: order.orderStatus === 'DELIVERED',
         deliveredAt: order.deliveredAt?.toISOString() ?? null,
         deliveryCompletedAt: order.deliveryCompletedAt?.toISOString() ?? null,
         paymentCollectedAt: order.paymentCollectedAt?.toISOString() ?? null,
         driver: order.assignedDriver
-          ? { id: order.assignedDriver.id, name: order.assignedDriver.name, phone: order.assignedDriver.phone }
+          ? {
+              id: order.assignedDriver.id,
+              name: order.assignedDriver.name,
+              phone: order.assignedDriver.phone,
+            }
           : null,
         vehicle: order.assignedVehicle
-          ? { id: order.assignedVehicle.id, registration: order.assignedVehicle.registration }
+          ? {
+              id: order.assignedVehicle.id,
+              registration: order.assignedVehicle.registration,
+            }
           : null,
         hub: order.hub
           ? { id: order.hub.id, name: order.hub.name, code: order.hub.code }
@@ -209,7 +255,7 @@ export class AdminOrdersService {
           : null,
         lastUpdated: order.updatedAt.toISOString(),
         expectedDelivery: order.expectedDeliveryAt?.toISOString() ?? null,
-        orderAgeHours: Math.round(ageMs / (1000 * 60 * 60) * 10) / 10,
+        orderAgeHours: Math.round((ageMs / (1000 * 60 * 60)) * 10) / 10,
       },
       routing: mapAdminRoutingView(order),
       deliveryPreference: mapDeliveryPreferenceView(order),
@@ -218,7 +264,8 @@ export class AdminOrdersService {
       timeline: order.timeline.map((entry) => ({
         ...entry,
         statusLabel: getOrderStatusLabel(entry.status),
-        message: entry.message ?? entry.remarks ?? getOrderStatusLabel(entry.status),
+        message:
+          entry.message ?? entry.remarks ?? getOrderStatusLabel(entry.status),
       })),
     };
   }
@@ -234,7 +281,7 @@ export class AdminOrdersService {
       );
     }
 
-    const allowed = ORDER_STATUS_TRANSITIONS[order.orderStatus as OrderStatus] ?? [];
+    const allowed = ORDER_STATUS_TRANSITIONS[order.orderStatus] ?? [];
     if (!allowed.includes(next) && next !== order.orderStatus) {
       throw new BadRequestException(
         `Cannot transition from ${order.orderStatus} to ${next}`,
@@ -363,7 +410,11 @@ export class AdminOrdersService {
     const [updated] = await this.prisma.$transaction([
       this.prisma.order.update({
         where: { id },
-        data: { orderStatus: 'CANCELLED', cancelReason: dto.reason, cancelledAt: new Date() },
+        data: {
+          orderStatus: 'CANCELLED',
+          cancelReason: dto.reason,
+          cancelledAt: new Date(),
+        },
       }),
       this.prisma.orderTimeline.create({
         data: {
@@ -418,7 +469,8 @@ export class AdminOrdersService {
     return events.map((entry) => ({
       ...entry,
       statusLabel: getOrderStatusLabel(entry.status),
-      message: entry.message ?? entry.remarks ?? getOrderStatusLabel(entry.status),
+      message:
+        entry.message ?? entry.remarks ?? getOrderStatusLabel(entry.status),
     }));
   }
 

@@ -36,7 +36,9 @@ export class ServiceabilityCheckResponseDto {
   @ApiProperty({ example: 'Estimated delivery 45–70 mins' })
   deliveryMessage!: string;
 
-  @ApiPropertyOptional({ description: 'Why serviceability failed (customer-facing)' })
+  @ApiPropertyOptional({
+    description: 'Why serviceability failed (customer-facing)',
+  })
   reason?: string;
 
   @ApiPropertyOptional({

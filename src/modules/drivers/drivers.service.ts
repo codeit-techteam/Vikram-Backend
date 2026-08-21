@@ -87,10 +87,7 @@ const ALLOWED_DOC_MIMES = new Set([
 
 const MAX_DOC_BYTES = 10 * 1024 * 1024;
 
-const ACTIVE_TRIP_ORDER_STATUSES = [
-  'OUT_FOR_DELIVERY',
-  'DISPATCHED',
-] as const;
+const ACTIVE_TRIP_ORDER_STATUSES = ['OUT_FOR_DELIVERY', 'DISPATCHED'] as const;
 
 const ASSIGNED_ORDER_STATUSES = [
   'READY_FOR_DISPATCH',
@@ -98,7 +95,9 @@ const ASSIGNED_ORDER_STATUSES = [
 ] as const;
 
 const driverInclude = {
-  hub: { select: { id: true, code: true, name: true, hubType: true, city: true } },
+  hub: {
+    select: { id: true, code: true, name: true, hubType: true, city: true },
+  },
   warehouseHub: {
     select: { id: true, code: true, name: true, hubType: true, city: true },
   },
@@ -137,18 +136,24 @@ export class DriversService {
     const digits = phone.replace(/\D/g, '');
     const last10 = digits.slice(-10);
     if (last10.length !== 10) {
-      throw new BadRequestException('Phone must be a valid 10-digit Indian mobile number');
+      throw new BadRequestException(
+        'Phone must be a valid 10-digit Indian mobile number',
+      );
     }
     return last10;
   }
 
-  private normalizeEmployeeId(value?: string | null): string | null | undefined {
+  private normalizeEmployeeId(
+    value?: string | null,
+  ): string | null | undefined {
     if (value === undefined) return undefined;
     if (value === null || value === '') return null;
     return value.trim().toUpperCase();
   }
 
-  private async nextEmployeeId(tx: Prisma.TransactionClient = this.prisma): Promise<string> {
+  private async nextEmployeeId(
+    tx: Prisma.TransactionClient = this.prisma,
+  ): Promise<string> {
     const latest = await tx.driver.findFirst({
       where: { employeeId: { startsWith: 'DRV-' } },
       orderBy: { employeeId: 'desc' },
@@ -206,7 +211,10 @@ export class DriversService {
       where: {
         assignedDriverId: driver.id,
         orderStatus: {
-          in: [...ACTIVE_TRIP_ORDER_STATUSES, ...ASSIGNED_ORDER_STATUSES] as any,
+          in: [
+            ...ACTIVE_TRIP_ORDER_STATUSES,
+            ...ASSIGNED_ORDER_STATUSES,
+          ] as any,
         },
         deletedAt: null,
       },
@@ -233,7 +241,9 @@ export class DriversService {
     const withUrls = await Promise.all(
       docs.map(async (d: any) => ({
         ...d,
-        downloadUrl: await this.r2.generateSignedUrl(d.storageKey, 60 * 60).catch(() => null),
+        downloadUrl: await this.r2
+          .generateSignedUrl(d.storageKey, 60 * 60)
+          .catch(() => null),
       })),
     );
 
@@ -392,7 +402,10 @@ export class DriversService {
 
     let data = await Promise.all(rows.map((d) => this.enrichDriver(d)));
 
-    if (query.status && !['INACTIVE', 'ON_LEAVE', 'all'].includes(query.status)) {
+    if (
+      query.status &&
+      !['INACTIVE', 'ON_LEAVE', 'all'].includes(query.status)
+    ) {
       const want = query.status === 'ON_TRIP' ? 'ON_TRIP' : query.status;
       data = data.filter((d) => d.operationalStatus === want);
     }
@@ -545,7 +558,9 @@ export class DriversService {
           where: { employeeId, deletedAt: null },
         });
         if (clash) {
-          throw new ConflictException(`Employee ID ${employeeId} already exists`);
+          throw new ConflictException(
+            `Employee ID ${employeeId} already exists`,
+          );
         }
       }
 
@@ -554,7 +569,13 @@ export class DriversService {
       });
 
       if (input.vehicleId) {
-        await this.bindVehicleTx(tx, driver.id, input.hubId, input.vehicleId, input.createdBy);
+        await this.bindVehicleTx(
+          tx,
+          driver.id,
+          input.hubId,
+          input.vehicleId,
+          input.createdBy,
+        );
       }
 
       return driver;
@@ -607,7 +628,9 @@ export class DriversService {
           where: { employeeId, deletedAt: null, NOT: { id } },
         });
         if (clash) {
-          throw new ConflictException(`Employee ID ${employeeId} already exists`);
+          throw new ConflictException(
+            `Employee ID ${employeeId} already exists`,
+          );
         }
       }
 
@@ -675,7 +698,8 @@ export class DriversService {
           joiningDate: this.parseDate(input.joiningDate) ?? null,
         }),
         ...(input.employmentType !== undefined && {
-          employmentType: (input.employmentType as DriverEmploymentType) || null,
+          employmentType:
+            (input.employmentType as DriverEmploymentType) || null,
         }),
         ...(input.shift !== undefined && {
           shift: input.shift?.trim() || null,
@@ -764,7 +788,9 @@ export class DriversService {
     });
     if (!vehicle) throw new BadRequestException('Vehicle not found');
     if (vehicle.hubId !== hubId) {
-      throw new BadRequestException('Vehicle does not belong to the selected hub');
+      throw new BadRequestException(
+        'Vehicle does not belong to the selected hub',
+      );
     }
     if (
       ['MAINTENANCE', 'INACTIVE', 'BLOCKED', 'DOCUMENT_EXPIRED'].includes(
@@ -812,7 +838,10 @@ export class DriversService {
     );
   }
 
-  async softDelete(id: string, options?: { hubScope?: string; actor?: string }) {
+  async softDelete(
+    id: string,
+    options?: { hubScope?: string; actor?: string },
+  ) {
     const existing = await this.prisma.driver.findFirst({
       where: {
         id,
@@ -826,7 +855,10 @@ export class DriversService {
       where: {
         assignedDriverId: id,
         orderStatus: {
-          in: [...ACTIVE_TRIP_ORDER_STATUSES, ...ASSIGNED_ORDER_STATUSES] as any,
+          in: [
+            ...ACTIVE_TRIP_ORDER_STATUSES,
+            ...ASSIGNED_ORDER_STATUSES,
+          ] as any,
         },
         deletedAt: null,
       },
@@ -923,10 +955,14 @@ export class DriversService {
       );
     }
     if (dto.fileSize <= 0 || dto.fileSize > MAX_DOC_BYTES) {
-      throw new BadRequestException('File size must be between 1 byte and 10 MB.');
+      throw new BadRequestException(
+        'File size must be between 1 byte and 10 MB.',
+      );
     }
 
-    const safeName = dto.fileName.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 120);
+    const safeName = dto.fileName
+      .replace(/[^a-zA-Z0-9._-]/g, '_')
+      .slice(0, 120);
     const type = String(dto.documentType).toLowerCase();
     const key = `drivers/${driverId}/documents/${type}/${randomUUID()}-${safeName}`;
 
@@ -981,7 +1017,10 @@ export class DriversService {
     });
 
     if (dto.documentType === 'DRIVER_PHOTO') {
-      const url = await this.r2.generateSignedUrl(dto.storageKey, 60 * 60 * 24 * 7);
+      const url = await this.r2.generateSignedUrl(
+        dto.storageKey,
+        60 * 60 * 24 * 7,
+      );
       await this.prisma.driver.update({
         where: { id: driverId },
         data: { photoUrl: url },

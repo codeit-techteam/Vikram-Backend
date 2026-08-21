@@ -26,7 +26,11 @@ describe('inferLogisticsTypeFromCategory', () => {
 
   it('splits packaged categories instead of lumping them as LIGHT_MATERIAL', () => {
     expect(
-      inferLogisticsTypeFromCategory('waterproofing', 'Dr Fixit 101 LW+', 'Litre'),
+      inferLogisticsTypeFromCategory(
+        'waterproofing',
+        'Dr Fixit 101 LW+',
+        'Litre',
+      ),
     ).toBe('WATERPROOFING');
     expect(
       inferLogisticsTypeFromCategory('adhesives', 'Tile Adhesive', 'Bag'),
@@ -59,7 +63,9 @@ describe('resolveProductVehicleRestrictions', () => {
       preferredVehicleType: null,
     });
     expect(result.allowedVehicleTypes).not.toContain(DeliveryVehicleType.BIKE);
-    expect(result.allowedVehicleTypes).toContain(DeliveryVehicleType.PICK_UP_VAN);
+    expect(result.allowedVehicleTypes).toContain(
+      DeliveryVehicleType.PICK_UP_VAN,
+    );
   });
 
   it('forces RMC mixer', () => {

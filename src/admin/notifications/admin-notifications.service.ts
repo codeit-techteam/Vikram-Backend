@@ -1,6 +1,11 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/database/prisma.service';
-import type { CreateNotificationDto, BroadcastNotificationDto, UpdateNotificationDto, NotificationQueryDto } from './dto/admin-notifications.dto';
+import type {
+  CreateNotificationDto,
+  BroadcastNotificationDto,
+  UpdateNotificationDto,
+  NotificationQueryDto,
+} from './dto/admin-notifications.dto';
 
 @Injectable()
 export class AdminNotificationsService {
@@ -20,16 +25,23 @@ export class AdminNotificationsService {
         skip,
         take: limit,
         orderBy: { createdAt: 'desc' },
-        include: { customer: { select: { id: true, phone: true, fullName: true } } },
+        include: {
+          customer: { select: { id: true, phone: true, fullName: true } },
+        },
       }),
       this.prisma.notification.count({ where }),
     ]);
 
-    return { data, meta: { page, limit, total, totalPages: Math.ceil(total / limit) } };
+    return {
+      data,
+      meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    };
   }
 
   async findOne(id: string) {
-    const n = await this.prisma.notification.findFirst({ where: { id, deletedAt: null } });
+    const n = await this.prisma.notification.findFirst({
+      where: { id, deletedAt: null },
+    });
     if (!n) throw new NotFoundException('Notification not found');
     return n;
   }
@@ -39,7 +51,7 @@ export class AdminNotificationsService {
       data: {
         title: dto.title,
         body: dto.body,
-        type: (dto.type as any),
+        type: dto.type as any,
         label: dto.label,
         customerId: dto.customerId,
         isGlobal: dto.isGlobal ?? false,
@@ -55,7 +67,7 @@ export class AdminNotificationsService {
       data: {
         title: dto.title,
         body: dto.body,
-        type: (dto.type as any),
+        type: dto.type as any,
         label: dto.label,
         isGlobal: true,
         actionLabel: dto.actionLabel,
@@ -94,6 +106,9 @@ export class AdminNotificationsService {
 
   async remove(id: string) {
     await this.findOne(id);
-    return this.prisma.notification.update({ where: { id }, data: { deletedAt: new Date() } });
+    return this.prisma.notification.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+    });
   }
 }

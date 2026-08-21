@@ -89,7 +89,9 @@ export class AdminDeliveryPromotionsService {
         ctaLabel: dto.ctaLabel,
         ctaType: dto.ctaEnabled ? dto.ctaType || 'ROUTE' : 'NONE',
         ctaValue: dto.ctaEnabled ? dto.ctaValue : null,
-        startsAt: dto.startsAt ? parsePromotionStartAt(dto.startsAt) : undefined,
+        startsAt: dto.startsAt
+          ? parsePromotionStartAt(dto.startsAt)
+          : undefined,
         endsAt: dto.endsAt ? parsePromotionEndAt(dto.endsAt) : undefined,
         status,
         isVisible,
@@ -170,7 +172,11 @@ export class AdminDeliveryPromotionsService {
     const existing = await this.findOne(id);
     const row = await this.prisma.deliveryPromotion.update({
       where: { id },
-      data: { deletedAt: new Date(), isVisible: false, status: EntityStatus.INACTIVE },
+      data: {
+        deletedAt: new Date(),
+        isVisible: false,
+        status: EntityStatus.INACTIVE,
+      },
     });
 
     const urls = [
@@ -206,7 +212,10 @@ export class AdminDeliveryPromotionsService {
       data: {
         status: EntityStatus.ACTIVE,
         isVisible: true,
-        visibility: this.resolveVisibility(true, existing.startsAt?.toISOString()),
+        visibility: this.resolveVisibility(
+          true,
+          existing.startsAt?.toISOString(),
+        ),
         updatedBy: adminId,
       },
     });
@@ -229,12 +238,14 @@ export class AdminDeliveryPromotionsService {
     return this.withLifecycle(row);
   }
 
-  private withLifecycle<T extends {
-    status: string;
-    isVisible: boolean;
-    startsAt: Date | null;
-    endsAt: Date | null;
-  }>(row: T) {
+  private withLifecycle<
+    T extends {
+      status: string;
+      isVisible: boolean;
+      startsAt: Date | null;
+      endsAt: Date | null;
+    },
+  >(row: T) {
     return {
       ...row,
       lifecycleStatus: resolveDeliveryPromotionLifecycle(row),
@@ -282,7 +293,10 @@ export class AdminDeliveryPromotionsService {
     };
   }
 
-  private resolveVisibility(publish: boolean, startsAt?: string | null): Visibility {
+  private resolveVisibility(
+    publish: boolean,
+    startsAt?: string | null,
+  ): Visibility {
     if (!publish) return Visibility.HIDDEN;
     if (startsAt && new Date(startsAt).getTime() > Date.now()) {
       return Visibility.SCHEDULED;
@@ -295,19 +309,28 @@ export class AdminDeliveryPromotionsService {
     const start = parsePromotionStartAt(startsAt).getTime();
     const end = parsePromotionEndAt(endsAt).getTime();
     if (Number.isFinite(start) && Number.isFinite(end) && end < start) {
-      throw new BadRequestException('End date must be on or after the start date');
+      throw new BadRequestException(
+        'End date must be on or after the start date',
+      );
     }
   }
 
   private assertCta(enabled?: boolean, value?: string | null) {
     if (enabled && !value?.trim()) {
-      throw new BadRequestException('CTA destination is required when CTA is enabled');
+      throw new BadRequestException(
+        'CTA destination is required when CTA is enabled',
+      );
     }
   }
 
-  private assertBanner(bannerImage?: string | null, mobileBannerImage?: string | null) {
+  private assertBanner(
+    bannerImage?: string | null,
+    mobileBannerImage?: string | null,
+  ) {
     if (!bannerImage?.trim() && !mobileBannerImage?.trim()) {
-      throw new BadRequestException('Upload a mobile banner image before publishing');
+      throw new BadRequestException(
+        'Upload a mobile banner image before publishing',
+      );
     }
   }
 

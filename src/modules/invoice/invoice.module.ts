@@ -9,11 +9,7 @@ import { InvoiceService } from './invoice.service';
 @Module({
   imports: [EmailModule],
   controllers: [InvoiceController, CustomerInvoicesController],
-  providers: [
-    InvoiceService,
-    InvoicePdfService,
-    InvoiceStorageService,
-  ],
+  providers: [InvoiceService, InvoicePdfService, InvoiceStorageService],
   exports: [InvoiceService],
 })
 export class InvoiceModule {}

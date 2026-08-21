@@ -22,7 +22,9 @@ export class AdminRolesGuard implements CanActivate {
       return true;
     }
 
-    const request = context.switchToHttp().getRequest<{ user: AuthenticatedAdmin }>();
+    const request = context
+      .switchToHttp()
+      .getRequest<{ user: AuthenticatedAdmin }>();
     const admin = request.user;
 
     if (!admin) {

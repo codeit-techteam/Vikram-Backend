@@ -18,7 +18,10 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { SWAGGER_BEARER_AUTH, SWAGGER_TAGS } from '../../common/constants/swagger.constants';
+import {
+  SWAGGER_BEARER_AUTH,
+  SWAGGER_TAGS,
+} from '../../common/constants/swagger.constants';
 import { ApiErrorResponseDto } from '../../common/dto/api-response.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthenticatedCustomer } from '../../auth/jwt/jwt-payload.interface';
@@ -79,12 +82,23 @@ export class CartController {
     type: AddCartItemDto,
     examples: {
       default: {
-        value: { productId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890', quantity: 2 },
+        value: {
+          productId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+          quantity: 2,
+        },
       },
     },
   })
-  @ApiResponse({ status: 200, description: 'Item added', type: CartResponseDto })
-  @ApiResponse({ status: 400, description: 'Validation / stock / visibility error', type: ApiErrorResponseDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Item added',
+    type: CartResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Validation / stock / visibility error',
+    type: ApiErrorResponseDto,
+  })
   async addItem(
     @CurrentUser() user: AuthenticatedCustomer,
     @Body() dto: AddCartItemDto,
@@ -97,10 +111,15 @@ export class CartController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Add product to cart (alias)',
-    description: 'Alias for POST /cart — same behavior for mobile clients that call /cart/items.',
+    description:
+      'Alias for POST /cart — same behavior for mobile clients that call /cart/items.',
   })
   @ApiBody({ type: AddCartItemDto })
-  @ApiResponse({ status: 200, description: 'Item added', type: CartResponseDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Item added',
+    type: CartResponseDto,
+  })
   async addItemAlias(
     @CurrentUser() user: AuthenticatedCustomer,
     @Body() dto: AddCartItemDto,
@@ -112,13 +131,25 @@ export class CartController {
   @Patch('item/:itemId')
   @ApiOperation({
     summary: 'Update cart item quantity',
-    description: 'Sets absolute quantity for a cart line. Quantity cannot exceed available stock.',
+    description:
+      'Sets absolute quantity for a cart line. Quantity cannot exceed available stock.',
   })
   @ApiParam({ name: 'itemId', format: 'uuid' })
-  @ApiBody({ type: UpdateCartItemDto, examples: { default: { value: { quantity: 5 } } } })
+  @ApiBody({
+    type: UpdateCartItemDto,
+    examples: { default: { value: { quantity: 5 } } },
+  })
   @ApiResponse({ status: 200, type: CartResponseDto })
-  @ApiResponse({ status: 404, description: 'Cart item not found', type: ApiErrorResponseDto })
-  @ApiResponse({ status: 400, description: 'Stock / validation error', type: ApiErrorResponseDto })
+  @ApiResponse({
+    status: 404,
+    description: 'Cart item not found',
+    type: ApiErrorResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Stock / validation error',
+    type: ApiErrorResponseDto,
+  })
   async updateItem(
     @CurrentUser() user: AuthenticatedCustomer,
     @Param('itemId', ParseUUIDPipe) itemId: string,

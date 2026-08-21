@@ -62,7 +62,10 @@ export class AdminHubsController {
   })
   @ApiResponse({ status: 200, description: 'Hubs fetched successfully' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiResponse({ status: 403, description: 'Forbidden — CUSTOMER_EXECUTIVE has no access' })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden — CUSTOMER_EXECUTIVE has no access',
+  })
   async findAll(@Query() query: AdminHubQueryDto) {
     const data = await this.hubsService.findAll(query);
     return { success: true, message: 'Hubs fetched', data };
@@ -92,7 +95,10 @@ export class AdminHubsController {
       'Atomic create: hub + hub manager credentials + inventory + optional drivers/vehicles. Returns one-time plaintext password.',
   })
   @ApiResponse({ status: 201, description: 'Hub provisioned successfully' })
-  @ApiResponse({ status: 409, description: 'Hub code or manager already exists' })
+  @ApiResponse({
+    status: 409,
+    description: 'Hub code or manager already exists',
+  })
   async provision(
     @Body() dto: ProvisionHubDto,
     @CurrentAdmin() admin: AuthenticatedAdmin,
@@ -248,7 +254,10 @@ export class AdminHubsController {
   @AdminRoles(...ROLE_GROUPS.WAREHOUSE)
   @ApiOperation({ summary: 'Active hub orders' })
   @ApiParam({ name: 'id', description: 'Hub UUID' })
-  async getActiveOrders(@Param('id') id: string, @Query() query: AdminHubOrdersQueryDto) {
+  async getActiveOrders(
+    @Param('id') id: string,
+    @Query() query: AdminHubOrdersQueryDto,
+  ) {
     const data = await this.hubOrdersService.listActiveOrders(id, query);
     return { success: true, message: 'Active hub orders fetched', data };
   }
@@ -257,7 +266,10 @@ export class AdminHubsController {
   @AdminRoles(...ROLE_GROUPS.WAREHOUSE)
   @ApiOperation({ summary: 'Completed hub orders' })
   @ApiParam({ name: 'id', description: 'Hub UUID' })
-  async getCompletedOrders(@Param('id') id: string, @Query() query: AdminHubOrdersQueryDto) {
+  async getCompletedOrders(
+    @Param('id') id: string,
+    @Query() query: AdminHubOrdersQueryDto,
+  ) {
     const data = await this.hubOrdersService.listCompletedOrders(id, query);
     return { success: true, message: 'Completed hub orders fetched', data };
   }
@@ -266,7 +278,10 @@ export class AdminHubsController {
   @AdminRoles(...ROLE_GROUPS.WAREHOUSE)
   @ApiOperation({ summary: 'Cancelled hub orders' })
   @ApiParam({ name: 'id', description: 'Hub UUID' })
-  async getCancelledOrders(@Param('id') id: string, @Query() query: AdminHubOrdersQueryDto) {
+  async getCancelledOrders(
+    @Param('id') id: string,
+    @Query() query: AdminHubOrdersQueryDto,
+  ) {
     const data = await this.hubOrdersService.listCancelledOrders(id, query);
     return { success: true, message: 'Cancelled hub orders fetched', data };
   }
@@ -282,7 +297,10 @@ export class AdminHubsController {
   ) {
     const file = await this.hubOrdersService.exportOrders(id, query);
     res.setHeader('Content-Type', file.contentType);
-    res.setHeader('Content-Disposition', `attachment; filename="${file.filename}"`);
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${file.filename}"`,
+    );
     res.send(file.body);
   }
 
@@ -294,7 +312,10 @@ export class AdminHubsController {
       'Paginated hub orders with filters for tab, date range, payment, status, and search.',
   })
   @ApiParam({ name: 'id', description: 'Hub UUID' })
-  async getOrders(@Param('id') id: string, @Query() query: AdminHubOrdersQueryDto) {
+  async getOrders(
+    @Param('id') id: string,
+    @Query() query: AdminHubOrdersQueryDto,
+  ) {
     const data = await this.hubOrdersService.listOrders(id, query);
     return { success: true, message: 'Hub orders fetched', data };
   }
@@ -324,7 +345,12 @@ export class AdminHubsController {
     @Body() dto: UpdateHubStatusDto,
     @CurrentAdmin() admin: AuthenticatedAdmin,
   ) {
-    const data = await this.hubsService.updateStatus(id, dto, admin.id, admin.email);
+    const data = await this.hubsService.updateStatus(
+      id,
+      dto,
+      admin.id,
+      admin.email,
+    );
     return { success: true, message: 'Hub status updated', data };
   }
 
@@ -341,7 +367,12 @@ export class AdminHubsController {
     @Body() dto: AssignHubManagerDto,
     @CurrentAdmin() admin: AuthenticatedAdmin,
   ) {
-    const data = await this.hubsService.assignManager(id, dto, admin.id, admin.email);
+    const data = await this.hubsService.assignManager(
+      id,
+      dto,
+      admin.id,
+      admin.email,
+    );
     return { success: true, message: 'Hub manager assigned', data };
   }
 
@@ -369,7 +400,9 @@ export class AdminHubsController {
 
   @Post(':id/inventory')
   @AdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
-  @ApiOperation({ summary: 'Add or upsert hub inventory from catalog products' })
+  @ApiOperation({
+    summary: 'Add or upsert hub inventory from catalog products',
+  })
   @ApiParam({ name: 'id', description: 'Hub UUID' })
   async addInventory(
     @Param('id') id: string,
@@ -473,7 +506,10 @@ export class AdminHubsController {
     description: 'Marks hub as deleted. Never hard deletes. SUPER_ADMIN only.',
   })
   @ApiParam({ name: 'id', description: 'Hub UUID' })
-  async remove(@Param('id') id: string, @CurrentAdmin() admin: AuthenticatedAdmin) {
+  async remove(
+    @Param('id') id: string,
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+  ) {
     const data = await this.hubsService.remove(id, admin.id, admin.email);
     return { success: true, message: 'Hub deleted', data };
   }

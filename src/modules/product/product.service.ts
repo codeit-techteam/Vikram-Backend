@@ -7,7 +7,10 @@ import {
   buildPaginationMeta,
   SortOrder,
 } from '../../common/dto/pagination.dto';
-import { hashQueryParams, PRODUCT_ACTIVE_WHERE } from '../../common/utils/prisma.util';
+import {
+  hashQueryParams,
+  PRODUCT_ACTIVE_WHERE,
+} from '../../common/utils/prisma.util';
 import {
   normalizeMediaUrl,
   normalizeMediaUrlList,
@@ -204,9 +207,7 @@ export class ProductService {
 
     const product = await this.prisma.product.findFirst({
       where: {
-        ...(looksLikeUuid
-          ? { OR: [{ slug }, { id: slug }] }
-          : { slug }),
+        ...(looksLikeUuid ? { OR: [{ slug }, { id: slug }] } : { slug }),
         ...PRODUCT_ACTIVE_WHERE,
       },
       include: PRODUCT_DETAIL_INCLUDE,
@@ -270,7 +271,13 @@ export class ProductService {
     const hubInvMap = await this.getHubInventoryMap(products.map((p) => p.id));
     const etaMap = await this.catalogEtaMap(products, distanceKm);
     return products.map((p) =>
-      this.mapProduct(p, true, stockMap.get(p.id), hubInvMap.get(p.id), etaMap.get(p.id)),
+      this.mapProduct(
+        p,
+        true,
+        stockMap.get(p.id),
+        hubInvMap.get(p.id),
+        etaMap.get(p.id),
+      ),
     );
   }
 
@@ -327,7 +334,13 @@ export class ProductService {
     const hubInvMap = await this.getHubInventoryMap(products.map((p) => p.id));
     const etaMap = await this.catalogEtaMap(products, distanceKm);
     return products.map((p) =>
-      this.mapProduct(p, true, stockMap.get(p.id), hubInvMap.get(p.id), etaMap.get(p.id)),
+      this.mapProduct(
+        p,
+        true,
+        stockMap.get(p.id),
+        hubInvMap.get(p.id),
+        etaMap.get(p.id),
+      ),
     );
   }
 
@@ -382,7 +395,13 @@ export class ProductService {
     const hubInvMap = await this.getHubInventoryMap(ids, hubId);
     const etaMap = await this.catalogEtaMap(products, distanceKm);
     return products.map((p) =>
-      this.mapProduct(p, true, stockMap.get(p.id), hubInvMap.get(p.id), etaMap.get(p.id)),
+      this.mapProduct(
+        p,
+        true,
+        stockMap.get(p.id),
+        hubInvMap.get(p.id),
+        etaMap.get(p.id),
+      ),
     );
   }
 
@@ -417,10 +436,7 @@ export class ProductService {
           { showBulkPricing: true },
           { bulkPrice: { not: null } },
           {
-            AND: [
-              { mrp: { not: null } },
-              { retailPrice: { gt: 0 } },
-            ],
+            AND: [{ mrp: { not: null } }, { retailPrice: { gt: 0 } }],
           },
         ],
       },
@@ -442,7 +458,8 @@ export class ProductService {
         const hasBulk =
           p.showBulkPricing === true ||
           p.bulkPrice != null ||
-          (Array.isArray(p.bulkPricing) && (p.bulkPricing as unknown[]).length > 0);
+          (Array.isArray(p.bulkPricing) &&
+            (p.bulkPricing as unknown[]).length > 0);
         const score =
           (hasDiscount ? 3 : 0) +
           (hasBulk ? 2 : 0) +
@@ -457,16 +474,20 @@ export class ProductService {
 
     // If discount/bulk filter is thin, keep top-ranked candidates (incl. campaign links)
     const finalProducts =
-      ranked.length >= Math.min(4, limit)
-        ? ranked
-        : products.slice(0, limit);
+      ranked.length >= Math.min(4, limit) ? ranked : products.slice(0, limit);
 
     const ids = finalProducts.map((p) => p.id);
     const stockMap = await this.getStockMap(ids, hubId);
     const hubInvMap = await this.getHubInventoryMap(ids, hubId);
     const etaMap = await this.catalogEtaMap(finalProducts, distanceKm);
     return finalProducts.map((p) =>
-      this.mapProduct(p, true, stockMap.get(p.id), hubInvMap.get(p.id), etaMap.get(p.id)),
+      this.mapProduct(
+        p,
+        true,
+        stockMap.get(p.id),
+        hubInvMap.get(p.id),
+        etaMap.get(p.id),
+      ),
     );
   }
 
@@ -588,7 +609,11 @@ export class ProductService {
   ): void {
     if (where.OR) {
       where.AND = [
-        ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+        ...(Array.isArray(where.AND)
+          ? where.AND
+          : where.AND
+            ? [where.AND]
+            : []),
         { OR: where.OR },
         { OR: orFilter },
       ];
@@ -736,11 +761,24 @@ export class ProductService {
     productIds: string[],
     hubId?: string,
   ): Promise<
-    Map<string, Array<{ hubId: string; availableQty: number; variantId: string | null; hubName?: string }>>
+    Map<
+      string,
+      Array<{
+        hubId: string;
+        availableQty: number;
+        variantId: string | null;
+        hubName?: string;
+      }>
+    >
   > {
     const map = new Map<
       string,
-      Array<{ hubId: string; availableQty: number; variantId: string | null; hubName?: string }>
+      Array<{
+        hubId: string;
+        availableQty: number;
+        variantId: string | null;
+        hubName?: string;
+      }>
     >();
     if (productIds.length === 0) return map;
 
@@ -787,7 +825,10 @@ export class ProductService {
   }): BulkPricingTierDto[] {
     if (Array.isArray(product.bulkPricing) && product.bulkPricing.length > 0) {
       return (product.bulkPricing as BulkTierRaw[])
-        .filter((t) => t && typeof t.minQty === 'number' && typeof t.price === 'number')
+        .filter(
+          (t) =>
+            t && typeof t.minQty === 'number' && typeof t.price === 'number',
+        )
         .map((t) => ({
           minQty: t.minQty!,
           price: Number(t.price),
@@ -809,16 +850,18 @@ export class ProductService {
   }
 
   private mapVariants(
-    variants: Array<{
-      id: string;
-      label: string;
-      displayUnit: string | null;
-      size: unknown;
-      sizeUnit: string | null;
-      price: unknown;
-      bulkPrice: unknown;
-      inStock: boolean;
-    }> | undefined,
+    variants:
+      | Array<{
+          id: string;
+          label: string;
+          displayUnit: string | null;
+          size: unknown;
+          sizeUnit: string | null;
+          price: unknown;
+          bulkPrice: unknown;
+          inStock: boolean;
+        }>
+      | undefined,
     productMrp: number | null,
   ): ProductVariantResponseDto[] {
     return (variants ?? []).map((v) => {
@@ -901,7 +944,9 @@ export class ProductService {
       isTransportable: product.isTransportable !== false,
       allowDecimalQuantity: product.allowDecimalQuantity === true,
       preferredVehicleType: product.preferredVehicleType ?? null,
-      allowedVehicleTypes: parseAllowedVehicleTypes(product.allowedVehicleTypes),
+      allowedVehicleTypes: parseAllowedVehicleTypes(
+        product.allowedVehicleTypes,
+      ),
     };
   }
 
@@ -991,8 +1036,7 @@ export class ProductService {
     etaPreview: DeliveryEtaCalculationResult | null = null,
   ): ProductResponseDto {
     const retailPrice = Number(product.retailPrice);
-    const mrp =
-      product.mrp != null ? Number(product.mrp) : null;
+    const mrp = product.mrp != null ? Number(product.mrp) : null;
     const bulkPrice = product.bulkPrice ? Number(product.bulkPrice) : null;
     const membershipPrice = null;
     const preferredUrl = pickPreferredMediaUrl(
@@ -1014,7 +1058,8 @@ export class ProductService {
     );
     const bulkPricing = this.resolveBulkPricing(product);
     const isBulkAvailable = bulkPricing.length > 0;
-    const averageRating = product.averageRating != null ? Number(product.averageRating) : 0;
+    const averageRating =
+      product.averageRating != null ? Number(product.averageRating) : 0;
     const reviewCount = product.reviewCount ?? 0;
     const isNewArrival = product.listingType === 'NEW_ARRIVAL';
     const variants = includeVariants
@@ -1052,7 +1097,9 @@ export class ProductService {
       gradeLabel: displayBrickGrade(product.grade) ?? product.grade,
       productType: product.productType ?? null,
       productTypeLabel:
-        displayBrickProductType(product.productType) ?? product.productType ?? null,
+        displayBrickProductType(product.productType) ??
+        product.productType ??
+        null,
       badge: product.badge,
       badgeColor: product.badgeColor,
       status: product.status,
@@ -1100,18 +1147,20 @@ export class ProductService {
       deliveryMessage: etaPreview?.deliveryMessage ?? undefined,
       membershipPrice,
       isBulkAvailable,
-      images: product.images.map((img) => {
-        const url =
-          normalizeMediaUrl(img.url, { updatedAt: product.updatedAt }) ?? '';
-        return {
-          id: img.id,
-          url,
-          imageUrl: url,
-          altText: img.altText,
-          isPrimary: img.isPrimary,
-          displayOrder: img.displayOrder,
-        };
-      }).filter((img) => Boolean(img.url)),
+      images: product.images
+        .map((img) => {
+          const url =
+            normalizeMediaUrl(img.url, { updatedAt: product.updatedAt }) ?? '';
+          return {
+            id: img.id,
+            url,
+            imageUrl: url,
+            altText: img.altText,
+            isPrimary: img.isPrimary,
+            displayOrder: img.displayOrder,
+          };
+        })
+        .filter((img) => Boolean(img.url)),
     };
 
     if (variants) {

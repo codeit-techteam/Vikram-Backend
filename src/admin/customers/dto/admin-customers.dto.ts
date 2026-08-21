@@ -1,11 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import {
-  IsEnum,
-  IsOptional,
-  IsString,
-  IsInt,
-  Min,
-} from 'class-validator';
+import { IsEnum, IsOptional, IsString, IsInt, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class AdminCustomerQueryDto {
@@ -14,8 +8,18 @@ export class AdminCustomerQueryDto {
   @ApiPropertyOptional() @IsOptional() @IsString() membership?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() hubId?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() executiveId?: string;
-  @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsInt() @Min(1) page?: number = 1;
-  @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsInt() @Min(1) limit?: number = 20;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number = 1;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  limit?: number = 20;
 }
 
 export class AdminUpdateCustomerDto {
@@ -33,7 +37,9 @@ export class AdminAssignCustomerDto {
   @IsString()
   hubId?: string | null;
 
-  @ApiPropertyOptional({ description: 'Customer executive admin user UUID or null to clear' })
+  @ApiPropertyOptional({
+    description: 'Customer executive admin user UUID or null to clear',
+  })
   @IsOptional()
   @IsString()
   executiveId?: string | null;

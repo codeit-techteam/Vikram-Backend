@@ -3,7 +3,10 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { DevicePlatform, NotificationType } from '../../../generated/prisma/client';
+import {
+  DevicePlatform,
+  NotificationType,
+} from '../../../generated/prisma/client';
 import { PrismaService } from '../../common/database/prisma.service';
 import { normalizePhone } from '../../common/utils/phone.util';
 import { JwtTokenService } from '../jwt/jwt-token.service';
@@ -161,12 +164,12 @@ export class CustomerAuthService {
     };
   }
 
-  async refresh(
-    refreshToken: string,
-    deviceId?: string,
-  ): Promise<TokenPair> {
+  async refresh(refreshToken: string, deviceId?: string): Promise<TokenPair> {
     try {
-      return await this.jwtTokenService.rotateRefreshToken(refreshToken, deviceId);
+      return await this.jwtTokenService.rotateRefreshToken(
+        refreshToken,
+        deviceId,
+      );
     } catch {
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
@@ -244,29 +247,27 @@ export class CustomerAuthService {
     }
   }
 
-  private mapCustomerMe(
-    customer: {
-      id: string;
-      phone: string;
-      email: string | null;
-      fullName: string | null;
-      isVerified: boolean;
-      roleSelected: boolean;
-      profileCompleted: boolean;
-      role: { id: string; name: string; slug: string } | null;
-      profile: {
-        companyName: string | null;
-        gstNumber: string | null;
-        panNumber: string | null;
-        businessType: string | null;
-        profileImage: string | null;
-      } | null;
-      activeMembership?: {
-        plan: { name: string };
-      } | null;
-      loyaltyAccount?: { availablePoints?: number } | null;
-    },
-  ): CustomerMeDto {
+  private mapCustomerMe(customer: {
+    id: string;
+    phone: string;
+    email: string | null;
+    fullName: string | null;
+    isVerified: boolean;
+    roleSelected: boolean;
+    profileCompleted: boolean;
+    role: { id: string; name: string; slug: string } | null;
+    profile: {
+      companyName: string | null;
+      gstNumber: string | null;
+      panNumber: string | null;
+      businessType: string | null;
+      profileImage: string | null;
+    } | null;
+    activeMembership?: {
+      plan: { name: string };
+    } | null;
+    loyaltyAccount?: { availablePoints?: number } | null;
+  }): CustomerMeDto {
     return {
       id: customer.id,
       phone: customer.phone,

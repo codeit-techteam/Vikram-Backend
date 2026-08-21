@@ -56,7 +56,11 @@ export class CustomerLoyaltyController {
   async getHistory(
     @CurrentUser() user: AuthenticatedCustomer,
     @Query() query: LoyaltyHistoryQueryDto,
-  ): Promise<{ success: boolean; message: string; data: LoyaltyHistoryResponseDto }> {
+  ): Promise<{
+    success: boolean;
+    message: string;
+    data: LoyaltyHistoryResponseDto;
+  }> {
     const data = await this.loyaltyService.getLoyaltyHistory(
       user.id,
       query.page ?? 1,
@@ -81,7 +85,11 @@ export class CustomerLoyaltyController {
   async redeem(
     @CurrentUser() user: AuthenticatedCustomer,
     @Body() dto: LoyaltyRedeemDto,
-  ): Promise<{ success: boolean; message: string; data: LoyaltyRedeemResponseDto }> {
+  ): Promise<{
+    success: boolean;
+    message: string;
+    data: LoyaltyRedeemResponseDto;
+  }> {
     const data = await this.loyaltyService.redeemPoints(user.id, dto);
     return {
       success: true,
@@ -100,9 +108,11 @@ export class CustomerLoyaltyController {
       'Requires x-internal-api-key. Awards 1% cashback on eligible spend as BajriPro Points + first-order bonus when applicable.',
   })
   @ApiResponse({ status: 201, type: LoyaltyEarnResponseDto })
-  async earn(
-    @Body() dto: LoyaltyEarnDto,
-  ): Promise<{ success: boolean; message: string; data: LoyaltyEarnResponseDto }> {
+  async earn(@Body() dto: LoyaltyEarnDto): Promise<{
+    success: boolean;
+    message: string;
+    data: LoyaltyEarnResponseDto;
+  }> {
     const data = await this.loyaltyService.earnForOrder(dto);
     return {
       success: true,

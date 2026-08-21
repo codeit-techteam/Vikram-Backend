@@ -18,7 +18,10 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { SWAGGER_BEARER_AUTH, SWAGGER_TAGS } from '../../common/constants/swagger.constants';
+import {
+  SWAGGER_BEARER_AUTH,
+  SWAGGER_TAGS,
+} from '../../common/constants/swagger.constants';
 import { ApiErrorResponseDto } from '../../common/dto/api-response.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthenticatedCustomer } from '../../auth/jwt/jwt-payload.interface';
@@ -43,7 +46,11 @@ export class CustomerController {
 
   @Get('roles')
   @ApiOperation({ summary: 'List available customer roles' })
-  @ApiResponse({ status: 200, description: 'Roles fetched', type: [RoleResponseDto] })
+  @ApiResponse({
+    status: 200,
+    description: 'Roles fetched',
+    type: [RoleResponseDto],
+  })
   async getRoles(): Promise<{
     success: boolean;
     message: string;
@@ -60,8 +67,16 @@ export class CustomerController {
   @Post('select-role')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Select customer role after registration' })
-  @ApiResponse({ status: 200, description: 'Role selected', type: ProfileResponseDto })
-  @ApiResponse({ status: 404, description: 'Role not found', type: ApiErrorResponseDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Role selected',
+    type: ProfileResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Role not found',
+    type: ApiErrorResponseDto,
+  })
   async selectRole(
     @CurrentUser() user: AuthenticatedCustomer,
     @Body() dto: SelectRoleDto,
@@ -92,7 +107,11 @@ export class CustomerController {
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create customer profile' })
   @ApiResponse({ status: 201, type: ProfileResponseDto })
-  @ApiResponse({ status: 400, description: 'Profile already exists', type: ApiErrorResponseDto })
+  @ApiResponse({
+    status: 400,
+    description: 'Profile already exists',
+    type: ApiErrorResponseDto,
+  })
   async createProfile(
     @CurrentUser() user: AuthenticatedCustomer,
     @Body() dto: CreateProfileDto,
@@ -139,9 +158,11 @@ export class CustomerController {
   @Get('address')
   @ApiOperation({ summary: 'List customer addresses' })
   @ApiResponse({ status: 200, type: [AddressResponseDto] })
-  async getAddresses(
-    @CurrentUser() user: AuthenticatedCustomer,
-  ): Promise<{ success: boolean; message: string; data: AddressResponseDto[] }> {
+  async getAddresses(@CurrentUser() user: AuthenticatedCustomer): Promise<{
+    success: boolean;
+    message: string;
+    data: AddressResponseDto[];
+  }> {
     const data = await this.customerService.getAddresses(user.id);
     return {
       success: true,
@@ -154,7 +175,11 @@ export class CustomerController {
   @ApiOperation({ summary: 'Update an address' })
   @ApiParam({ name: 'id', description: 'Address UUID' })
   @ApiResponse({ status: 200, type: AddressResponseDto })
-  @ApiResponse({ status: 404, description: 'Address not found', type: ApiErrorResponseDto })
+  @ApiResponse({
+    status: 404,
+    description: 'Address not found',
+    type: ApiErrorResponseDto,
+  })
   async updateAddress(
     @CurrentUser() user: AuthenticatedCustomer,
     @Param('id', ParseUUIDPipe) id: string,

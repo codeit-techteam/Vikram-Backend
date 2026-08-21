@@ -50,7 +50,15 @@ export class AdminHubManagersService {
         take: limit,
         orderBy: { createdAt: 'desc' },
         include: {
-          hub: { select: { id: true, code: true, name: true, city: true, state: true } },
+          hub: {
+            select: {
+              id: true,
+              code: true,
+              name: true,
+              city: true,
+              state: true,
+            },
+          },
         },
       }),
       this.prisma.hubUser.count({ where }),
@@ -103,7 +111,9 @@ export class AdminHubManagersService {
         isActive: dto.isActive ?? true,
       },
       include: {
-        hub: { select: { id: true, code: true, name: true, city: true, state: true } },
+        hub: {
+          select: { id: true, code: true, name: true, city: true, state: true },
+        },
       },
     });
 
@@ -122,7 +132,12 @@ export class AdminHubManagersService {
     };
   }
 
-  async update(id: string, dto: UpdateHubManagerDto, adminId: string, adminEmail: string) {
+  async update(
+    id: string,
+    dto: UpdateHubManagerDto,
+    adminId: string,
+    adminEmail: string,
+  ) {
     await this.getManagerOrThrow(id);
     const updated = await this.prisma.hubUser.update({
       where: { id },
@@ -133,7 +148,9 @@ export class AdminHubManagersService {
         ...(dto.isActive !== undefined && { isActive: dto.isActive }),
       },
       include: {
-        hub: { select: { id: true, code: true, name: true, city: true, state: true } },
+        hub: {
+          select: { id: true, code: true, name: true, city: true, state: true },
+        },
       },
     });
 
@@ -165,7 +182,9 @@ export class AdminHubManagersService {
       where: { id },
       data: { hubId: dto.hubId },
       include: {
-        hub: { select: { id: true, code: true, name: true, city: true, state: true } },
+        hub: {
+          select: { id: true, code: true, name: true, city: true, state: true },
+        },
       },
     });
 
@@ -187,7 +206,9 @@ export class AdminHubManagersService {
       where: { id },
       data: { isActive: false },
       include: {
-        hub: { select: { id: true, code: true, name: true, city: true, state: true } },
+        hub: {
+          select: { id: true, code: true, name: true, city: true, state: true },
+        },
       },
     });
 
@@ -214,7 +235,9 @@ export class AdminHubManagersService {
       where: { id },
       data: { isActive: true },
       include: {
-        hub: { select: { id: true, code: true, name: true, city: true, state: true } },
+        hub: {
+          select: { id: true, code: true, name: true, city: true, state: true },
+        },
       },
     });
 
@@ -283,7 +306,9 @@ export class AdminHubManagersService {
     const manager = await this.prisma.hubUser.findFirst({
       where: { id, deletedAt: null, role: HubRole.HUB_MANAGER },
       include: {
-        hub: { select: { id: true, code: true, name: true, city: true, state: true } },
+        hub: {
+          select: { id: true, code: true, name: true, city: true, state: true },
+        },
       },
     });
     if (!manager) throw new NotFoundException('Hub manager not found');
@@ -302,7 +327,13 @@ export class AdminHubManagersService {
     lastLoginAt: Date | null;
     createdAt: Date;
     updatedAt: Date;
-    hub: { id: string; code: string; name: string; city: string; state: string };
+    hub: {
+      id: string;
+      code: string;
+      name: string;
+      city: string;
+      state: string;
+    };
   }) {
     return {
       id: user.id,

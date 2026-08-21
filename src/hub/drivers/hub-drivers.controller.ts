@@ -10,7 +10,10 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { SWAGGER_BEARER_AUTH, SWAGGER_TAGS } from '../../common/constants/swagger.constants';
+import {
+  SWAGGER_BEARER_AUTH,
+  SWAGGER_TAGS,
+} from '../../common/constants/swagger.constants';
 import { HubJwtAuthGuard } from '../guards/hub-jwt-auth.guard';
 import { HubRolesGuard } from '../guards/hub-roles.guard';
 import { HubPermission } from '../decorators/hub-roles.decorator';
@@ -103,7 +106,11 @@ export class HubDriversController {
     @CurrentHubUser() user: AuthenticatedHubUser,
     @Param('id') id: string,
   ) {
-    const data = await this.driversService.remove(user.hubId, id, user.fullName);
+    const data = await this.driversService.remove(
+      user.hubId,
+      id,
+      user.fullName,
+    );
     return { success: true, message: 'Driver deleted', data };
   }
 }

@@ -1,4 +1,9 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
 import { NotificationType } from '../../generated/prisma/client';
 import {
   getCustomerOrderStatusLabel,
@@ -169,14 +174,14 @@ export class OrderRealtimeService implements OnModuleInit, OnModuleDestroy {
             name: order.assignedDriver.name,
             phone: order.assignedDriver.phone,
           }
-        : payload.driver ?? null,
+        : (payload.driver ?? null),
       vehicle: order.assignedVehicle
         ? {
             id: order.assignedVehicle.id,
             registration: order.assignedVehicle.registration,
             type: String(order.assignedVehicle.vehicleType),
           }
-        : payload.vehicle ?? null,
+        : (payload.vehicle ?? null),
       driverReachedAt: order.driverReachedAt?.toISOString() ?? null,
       deliveryOtpGenerated: Boolean(order.deliveryOtp),
       deliveryOtpVerified: Boolean(order.deliveryOtpVerified),
@@ -200,9 +205,12 @@ export class OrderRealtimeService implements OnModuleInit, OnModuleDestroy {
       !isReached &&
       !isOtpGenerated &&
       !isOtpVerified &&
-      ['PENDING', 'CONFIRMED', 'HUB_ASSIGNED', 'AWAITING_HUB_ALLOCATION'].includes(
-        statusKey,
-      )
+      [
+        'PENDING',
+        'CONFIRMED',
+        'HUB_ASSIGNED',
+        'AWAITING_HUB_ALLOCATION',
+      ].includes(statusKey)
     ) {
       return;
     }

@@ -1,7 +1,11 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/database/prisma.service';
 import { HubInventoryRepository } from '../repositories/hub-inventory.repository';
-import type { HubProductEtaDto, HubProductsQueryDto, HubProductStockDto } from '../dto/hub.dto';
+import type {
+  HubProductEtaDto,
+  HubProductsQueryDto,
+  HubProductStockDto,
+} from '../dto/hub.dto';
 
 @Injectable()
 export class HubProductsService {

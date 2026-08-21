@@ -107,7 +107,12 @@ describe('evaluateHubRouting', () => {
       lat: KALYANI.lat + 0.1,
       lng: KALYANI.lng,
     };
-    const distance = haversineKm(KALYANI.lat, KALYANI.lng, north.lat, north.lng);
+    const distance = haversineKm(
+      KALYANI.lat,
+      KALYANI.lng,
+      north.lat,
+      north.lng,
+    );
     const onBoundary = hub({
       ...kalyani,
       serviceRadiusKm: distance,
@@ -124,7 +129,12 @@ describe('evaluateHubRouting', () => {
       lat: KALYANI.lat + 0.1,
       lng: KALYANI.lng,
     };
-    const distance = haversineKm(KALYANI.lat, KALYANI.lng, north.lat, north.lng);
+    const distance = haversineKm(
+      KALYANI.lat,
+      KALYANI.lng,
+      north.lat,
+      north.lng,
+    );
     const justInside = hub({
       ...kalyani,
       serviceRadiusKm: distance - 0.05,
@@ -138,7 +148,10 @@ describe('evaluateHubRouting', () => {
   });
 
   it('TEST 6: inactive hubs are not in the candidate set', () => {
-    const decision = evaluateHubRouting(destination(KALYANI.lat, KALYANI.lng), []);
+    const decision = evaluateHubRouting(
+      destination(KALYANI.lat, KALYANI.lng),
+      [],
+    );
     expect(decision.assignableHub).toBeNull();
     expect(decision.reason).toBe('HUB_NOT_CONFIGURED');
   });

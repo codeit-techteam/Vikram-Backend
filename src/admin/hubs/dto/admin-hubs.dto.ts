@@ -64,7 +64,8 @@ export class AdminHubQueryDto {
 
   @ApiPropertyOptional({
     enum: [...Object.values(EntityStatus), ...Object.values(HubDisplayStatus)],
-    description: 'Filter by entity status or display status (ENABLED, DISABLED, SUSPENDED)',
+    description:
+      'Filter by entity status or display status (ENABLED, DISABLED, SUSPENDED)',
     example: 'ACTIVE',
   })
   @IsOptional()
@@ -176,7 +177,10 @@ export class CreateAdminHubDto {
   @IsEmail()
   email?: string;
 
-  @ApiPropertyOptional({ example: 500, description: 'Maximum storage capacity in units' })
+  @ApiPropertyOptional({
+    example: 500,
+    description: 'Maximum storage capacity in units',
+  })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -208,7 +212,10 @@ export class UpdateAdminHubDto {
   @MaxLength(200)
   name?: string;
 
-  @ApiPropertyOptional({ example: 15, description: 'Service coverage radius in KM' })
+  @ApiPropertyOptional({
+    example: 15,
+    description: 'Service coverage radius in KM',
+  })
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
@@ -385,7 +392,10 @@ export class ProvisionHubInventoryItemDto {
   @Min(0)
   availableQty: number;
 
-  @ApiPropertyOptional({ example: 50, description: 'Reorder / low-stock threshold' })
+  @ApiPropertyOptional({
+    example: 50,
+    description: 'Reorder / low-stock threshold',
+  })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -419,7 +429,10 @@ export class ProvisionHubDriverDto {
   @MaxLength(15)
   phone: string;
 
-  @ApiPropertyOptional({ example: 'BIKE', enum: ['TRUCK', 'TEMPO', 'BIKE', 'OTHER', 'PICKUP'] })
+  @ApiPropertyOptional({
+    example: 'BIKE',
+    enum: ['TRUCK', 'TEMPO', 'BIKE', 'OTHER', 'PICKUP'],
+  })
   @IsOptional()
   @IsString()
   vehicleType?: string;
@@ -521,7 +534,10 @@ export class ProvisionHubVehicleDto {
   @IsNumber()
   capacity?: number;
 
-  @ApiPropertyOptional({ example: 'TRUCK', enum: ['TRUCK', 'TEMPO', 'BIKE', 'OTHER'] })
+  @ApiPropertyOptional({
+    example: 'TRUCK',
+    enum: ['TRUCK', 'TEMPO', 'BIKE', 'OTHER'],
+  })
   @IsOptional()
   @IsString()
   vehicleType?: string;
@@ -541,7 +557,9 @@ export class ProvisionHubCoverageDto {
   @IsString({ each: true })
   pincodes?: string[];
 
-  @ApiPropertyOptional({ description: 'GeoJSON polygon or coordinate array for map preview' })
+  @ApiPropertyOptional({
+    description: 'GeoJSON polygon or coordinate array for map preview',
+  })
   @IsOptional()
   polygon?: unknown;
 }
@@ -686,7 +704,8 @@ export class UpdateHubStatusDto {
   @ApiProperty({
     enum: HubOperationalAction,
     example: HubOperationalAction.ENABLE,
-    description: 'ENABLE — activate hub | DISABLE — deactivate hub | SUSPEND — temporarily suspend operations',
+    description:
+      'ENABLE — activate hub | DISABLE — deactivate hub | SUSPEND — temporarily suspend operations',
   })
   @IsEnum(HubOperationalAction)
   action: HubOperationalAction;
@@ -739,7 +758,10 @@ export class AdminHubOrdersQueryDto {
   @IsString()
   orderStatus?: string;
 
-  @ApiPropertyOptional({ enum: HubOrderTab, description: 'Order list tab filter' })
+  @ApiPropertyOptional({
+    enum: HubOrderTab,
+    description: 'Order list tab filter',
+  })
   @IsOptional()
   @IsEnum(HubOrderTab)
   tab?: HubOrderTab;
@@ -759,29 +781,39 @@ export class AdminHubOrdersQueryDto {
   @IsString()
   toDate?: string;
 
-  @ApiPropertyOptional({ description: 'Payment method filter (Cash, UPI, Credit, etc.)' })
+  @ApiPropertyOptional({
+    description: 'Payment method filter (Cash, UPI, Credit, etc.)',
+  })
   @IsOptional()
   @IsString()
   paymentMethod?: string;
 
-  @ApiPropertyOptional({ description: 'Payment status: PAID, PENDING, PARTIAL' })
+  @ApiPropertyOptional({
+    description: 'Payment status: PAID, PENDING, PARTIAL',
+  })
   @IsOptional()
   @IsString()
   paymentStatus?: string;
 
   @ApiPropertyOptional({
-    description: 'Customer type: Individual, Contractor, Builder, Dealer, Architect',
+    description:
+      'Customer type: Individual, Contractor, Builder, Dealer, Architect',
   })
   @IsOptional()
   @IsString()
   customerType?: string;
 
-  @ApiPropertyOptional({ description: 'Search by order ID, customer, phone, or invoice' })
+  @ApiPropertyOptional({
+    description: 'Search by order ID, customer, phone, or invoice',
+  })
   @IsOptional()
   @IsString()
   search?: string;
 
-  @ApiPropertyOptional({ enum: HubOrderSortField, default: HubOrderSortField.CREATED_AT })
+  @ApiPropertyOptional({
+    enum: HubOrderSortField,
+    default: HubOrderSortField.CREATED_AT,
+  })
   @IsOptional()
   @IsEnum(HubOrderSortField)
   sortBy?: HubOrderSortField = HubOrderSortField.CREATED_AT;
@@ -813,7 +845,10 @@ export enum HubOrderExportFormat {
 }
 
 export class AdminHubOrdersExportQueryDto extends AdminHubOrdersQueryDto {
-  @ApiPropertyOptional({ enum: HubOrderExportFormat, default: HubOrderExportFormat.CSV })
+  @ApiPropertyOptional({
+    enum: HubOrderExportFormat,
+    default: HubOrderExportFormat.CSV,
+  })
   @IsOptional()
   @IsEnum(HubOrderExportFormat)
   format?: HubOrderExportFormat = HubOrderExportFormat.CSV;

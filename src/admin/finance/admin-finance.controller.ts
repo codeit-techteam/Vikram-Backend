@@ -55,7 +55,7 @@ export class AdminFinanceController {
   @ApiOperation({
     summary: 'Finance dashboard cards',
     description:
-      'Returns today\'s collection, membership revenue, pending refunds, and pending hub/vendor settlements.',
+      "Returns today's collection, membership revenue, pending refunds, and pending hub/vendor settlements.",
   })
   @ApiResponse({ status: 200, type: FinanceDashboardCardsDto })
   async dashboard() {
@@ -69,7 +69,7 @@ export class AdminFinanceController {
   @ApiOperation({
     summary: 'Daily closing report',
     description:
-      'Today\'s revenue, refunds, orders, and pending settlement summary. Optional date range via fromDate/toDate.',
+      "Today's revenue, refunds, orders, and pending settlement summary. Optional date range via fromDate/toDate.",
   })
   @ApiResponse({ status: 200, type: DailyClosingResponseDto })
   async dailyClosing(@Query() query: FinanceDateRangeDto) {
@@ -82,7 +82,8 @@ export class AdminFinanceController {
   @ApiAdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
   @ApiOperation({
     summary: 'Refund ledger',
-    description: 'List refund transactions with pending/approved/rejected summary totals.',
+    description:
+      'List refund transactions with pending/approved/rejected summary totals.',
   })
   @ApiResponse({ status: 200, type: ApiResponseDto })
   async listRefunds(@Query() query: RefundLedgerQueryDto) {
@@ -95,7 +96,8 @@ export class AdminFinanceController {
   @ApiAdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
   @ApiOperation({
     summary: 'Create refund request',
-    description: 'Creates a pending refund entry for a customer (and optionally an order).',
+    description:
+      'Creates a pending refund entry for a customer (and optionally an order).',
   })
   @ApiResponse({ status: 201, type: ApiResponseDto })
   @ApiResponse({ status: 404, description: 'Customer or order not found' })
@@ -121,7 +123,8 @@ export class AdminFinanceController {
   @ApiAdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
   @ApiOperation({
     summary: 'Approve refund',
-    description: 'Approves refund and marks linked order payment as REFUNDED when applicable.',
+    description:
+      'Approves refund and marks linked order payment as REFUNDED when applicable.',
   })
   @ApiParam({ name: 'id', description: 'Refund UUID' })
   @ApiResponse({ status: 200, type: ApiResponseDto })
@@ -170,7 +173,8 @@ export class AdminFinanceController {
   @ApiAdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
   @ApiOperation({
     summary: 'Hub settlement summary',
-    description: 'Paginated hub settlement batches with status-wise summary totals.',
+    description:
+      'Paginated hub settlement batches with status-wise summary totals.',
   })
   @ApiResponse({ status: 200, type: ApiResponseDto })
   async listHubSettlements(@Query() query: HubSettlementQueryDto) {
@@ -183,7 +187,8 @@ export class AdminFinanceController {
   @ApiAdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
   @ApiOperation({
     summary: 'Generate hub settlement',
-    description: 'Creates a pending settlement batch from unsettled delivered orders for a hub and period.',
+    description:
+      'Creates a pending settlement batch from unsettled delivered orders for a hub and period.',
   })
   @ApiResponse({ status: 201, type: ApiResponseDto })
   @ApiResponse({ status: 400, description: 'No eligible orders' })
@@ -267,7 +272,8 @@ export class AdminFinanceController {
   @ApiAdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
   @ApiOperation({
     summary: 'Vendor settlement history',
-    description: 'Paginated vendor settlement batches grouped by product brand.',
+    description:
+      'Paginated vendor settlement batches grouped by product brand.',
   })
   @ApiResponse({ status: 200, type: ApiResponseDto })
   async listVendorSettlements(@Query() query: VendorSettlementQueryDto) {
@@ -280,14 +286,18 @@ export class AdminFinanceController {
   @ApiAdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
   @ApiOperation({
     summary: 'Generate vendor settlement',
-    description: 'Creates a pending settlement batch from delivered order items for a product brand.',
+    description:
+      'Creates a pending settlement batch from delivered order items for a product brand.',
   })
   @ApiResponse({ status: 201, type: ApiResponseDto })
   async generateVendorSettlement(
     @Body() dto: GenerateVendorSettlementDto,
     @CurrentAdmin() admin: AuthenticatedAdmin,
   ) {
-    const data = await this.financeService.generateVendorSettlement(dto, admin.id);
+    const data = await this.financeService.generateVendorSettlement(
+      dto,
+      admin.id,
+    );
     await this.auditService.log({
       adminUserId: admin.id,
       adminEmail: admin.email,
@@ -307,7 +317,11 @@ export class AdminFinanceController {
   @ApiResponse({ status: 200, type: ApiResponseDto })
   async getVendorSettlementDetails(@Param('id') id: string) {
     const data = await this.financeService.getVendorSettlementDetails(id);
-    return { success: true, message: 'Vendor settlement details fetched', data };
+    return {
+      success: true,
+      message: 'Vendor settlement details fetched',
+      data,
+    };
   }
 
   @Post('vendor-settlements/:id/approve')
@@ -320,7 +334,10 @@ export class AdminFinanceController {
     @Param('id') id: string,
     @CurrentAdmin() admin: AuthenticatedAdmin,
   ) {
-    const data = await this.financeService.approveVendorSettlement(id, admin.id);
+    const data = await this.financeService.approveVendorSettlement(
+      id,
+      admin.id,
+    );
     await this.auditService.log({
       adminUserId: admin.id,
       adminEmail: admin.email,

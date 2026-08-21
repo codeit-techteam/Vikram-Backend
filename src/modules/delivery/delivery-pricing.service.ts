@@ -117,7 +117,9 @@ export class DeliveryPricingService {
       }),
     ]);
 
-    const activeRules = rules.filter((r) => r.status === DeliveryPricingStatus.ACTIVE);
+    const activeRules = rules.filter(
+      (r) => r.status === DeliveryPricingStatus.ACTIVE,
+    );
     const activeVehicles = new Set(activeRules.map((r) => r.vehicleType)).size;
 
     return {
@@ -178,7 +180,10 @@ export class DeliveryPricingService {
     actor?: { id?: string; name?: string },
   ) {
     const current = await this.getBenefitConfig();
-    if (input.firstBikeDeliveriesFree != null && input.firstBikeDeliveriesFree < 0) {
+    if (
+      input.firstBikeDeliveriesFree != null &&
+      input.firstBikeDeliveriesFree < 0
+    ) {
       throw new BadRequestException('First bike deliveries free must be >= 0');
     }
     if (input.companyAbsorptionInr != null && input.companyAbsorptionInr < 0) {
@@ -374,12 +379,20 @@ export class DeliveryPricingService {
       },
     };
 
-    if (!resolved.available || !params.applyFreeBikeBenefit || !params.customerId) {
+    if (
+      !resolved.available ||
+      !params.applyFreeBikeBenefit ||
+      !params.customerId
+    ) {
       return base;
     }
 
     // Free bike benefit only when selected vehicle is Bike (not after upgrade)
-    if (vehicleType !== DeliveryVehicleType.BIKE || totalList <= 0 || vehicleCount > 1) {
+    if (
+      vehicleType !== DeliveryVehicleType.BIKE ||
+      totalList <= 0 ||
+      vehicleCount > 1
+    ) {
       return base;
     }
 
@@ -405,7 +418,9 @@ export class DeliveryPricingService {
       base.deliveryCharge = 0;
       base.freeDeliveryApplied = true;
       base.freeDeliveryReason = 'FREE_BIKE_DELIVERY';
-      base.companyAbsorbedDelivery = toMoney(benefitConfig.companyAbsorptionInr);
+      base.companyAbsorbedDelivery = toMoney(
+        benefitConfig.companyAbsorptionInr,
+      );
       if (base.breakdown) {
         base.breakdown.discount = totalList;
         base.breakdown.finalDeliveryCharge = 0;
@@ -449,7 +464,9 @@ export class DeliveryPricingService {
       );
     }
 
-    const load = await this.loadService.calculateFromCartItems(params.cartItems);
+    const load = await this.loadService.calculateFromCartItems(
+      params.cartItems,
+    );
     if (!load.ok) {
       return this.unavailableResult(
         load.message ?? 'Delivery calculation unavailable',
@@ -613,7 +630,8 @@ export class DeliveryPricingService {
     const existing = await this.prisma.deliveryPricingRule.findUnique({
       where: { id },
     });
-    if (!existing) throw new NotFoundException('Delivery pricing rule not found');
+    if (!existing)
+      throw new NotFoundException('Delivery pricing rule not found');
 
     const nextFrom =
       input.distanceFromKm ?? decimalToNumber(existing.distanceFromKm);
@@ -680,7 +698,8 @@ export class DeliveryPricingService {
     const existing = await this.prisma.deliveryPricingRule.findUnique({
       where: { id },
     });
-    if (!existing) throw new NotFoundException('Delivery pricing rule not found');
+    if (!existing)
+      throw new NotFoundException('Delivery pricing rule not found');
 
     // Soft-deactivate instead of hard delete to preserve history references
     return this.updateRule(
@@ -740,7 +759,9 @@ export class DeliveryPricingService {
       throw new BadRequestException('Distance from must be >= 0');
     }
     if (input.distanceToKm <= input.distanceFromKm) {
-      throw new BadRequestException('Distance to must be greater than distance from');
+      throw new BadRequestException(
+        'Distance to must be greater than distance from',
+      );
     }
   }
 
@@ -771,8 +792,7 @@ export class DeliveryPricingService {
         );
       }
 
-      const nested =
-        (fromKm >= a && toKm <= b) || (a >= fromKm && b <= toKm);
+      const nested = (fromKm >= a && toKm <= b) || (a >= fromKm && b <= toKm);
       const crosses = fromKm < b && toKm > a;
 
       if (crosses && !nested) {

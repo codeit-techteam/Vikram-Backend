@@ -91,7 +91,9 @@ export class AdminTestimonialsService {
   }
 
   async update(id: string, dto: UpdateTestimonialDto) {
-    const existing = await this.prisma.testimonial.findUnique({ where: { id } });
+    const existing = await this.prisma.testimonial.findUnique({
+      where: { id },
+    });
     if (!existing) throw new NotFoundException('Testimonial not found');
 
     const data: Prisma.TestimonialUpdateInput = {};
@@ -102,7 +104,8 @@ export class AdminTestimonialsService {
     if (dto.location !== undefined) data.location = dto.location;
     if (dto.city !== undefined) data.city = dto.city;
     if (dto.videoUrl !== undefined) data.videoUrl = dto.videoUrl;
-    if (dto.thumbnail !== undefined) data.thumbnail = dto.thumbnail?.trim() || null;
+    if (dto.thumbnail !== undefined)
+      data.thumbnail = dto.thumbnail?.trim() || null;
     if (dto.imageUrl !== undefined) data.imageUrl = dto.imageUrl;
     if (dto.profileImage !== undefined) data.profileImage = dto.profileImage;
     if (dto.review !== undefined) data.review = dto.review;
@@ -124,7 +127,9 @@ export class AdminTestimonialsService {
   }
 
   async remove(id: string) {
-    const existing = await this.prisma.testimonial.findUnique({ where: { id } });
+    const existing = await this.prisma.testimonial.findUnique({
+      where: { id },
+    });
     if (!existing) throw new NotFoundException('Testimonial not found');
 
     const row = await this.prisma.testimonial.delete({ where: { id } });

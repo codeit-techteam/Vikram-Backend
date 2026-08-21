@@ -1,6 +1,9 @@
 import { Body, Controller, Get, Patch, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { SWAGGER_BEARER_AUTH, SWAGGER_TAGS } from '../../common/constants/swagger.constants';
+import {
+  SWAGGER_BEARER_AUTH,
+  SWAGGER_TAGS,
+} from '../../common/constants/swagger.constants';
 import { HubJwtAuthGuard } from '../guards/hub-jwt-auth.guard';
 import { HubRolesGuard } from '../guards/hub-roles.guard';
 import { HubPermission } from '../decorators/hub-roles.decorator';
@@ -31,7 +34,11 @@ export class HubProfileController {
     @CurrentHubUser() user: AuthenticatedHubUser,
     @Body() dto: HubProfileUpdateDto,
   ) {
-    const data = await this.profileService.updateProfile(user.hubId, dto, user.id);
+    const data = await this.profileService.updateProfile(
+      user.hubId,
+      dto,
+      user.id,
+    );
     return { success: true, message: 'Hub profile updated', data };
   }
 }

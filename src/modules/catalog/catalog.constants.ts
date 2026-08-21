@@ -85,15 +85,17 @@ export function normalizeBrickProductType(
 export function normalizeBrickGrade(value?: string | null): BrickGrade | null {
   if (!value) return null;
   const key = value.trim();
-  return BRICK_GRADE_ALIASES[key] ?? BRICK_GRADE_ALIASES[key.toUpperCase()] ?? null;
+  return (
+    BRICK_GRADE_ALIASES[key] ?? BRICK_GRADE_ALIASES[key.toUpperCase()] ?? null
+  );
 }
 
 export function displayBrickProductType(code?: string | null): string | null {
   const normalized = normalizeBrickProductType(code);
-  return normalized ? BRICK_PRODUCT_TYPE_LABELS[normalized] : code ?? null;
+  return normalized ? BRICK_PRODUCT_TYPE_LABELS[normalized] : (code ?? null);
 }
 
 export function displayBrickGrade(code?: string | null): string | null {
   const normalized = normalizeBrickGrade(code);
-  return normalized ? BRICK_GRADE_LABELS[normalized] : code ?? null;
+  return normalized ? BRICK_GRADE_LABELS[normalized] : (code ?? null);
 }

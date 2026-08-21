@@ -17,10 +17,7 @@ const CONSUMPTION_COLORS = [
   '#CC5500',
 ];
 
-const STOCK_IN_TYPES = [
-  'REQUISITION_RECEIVE',
-  'TRANSFER',
-] as const;
+const STOCK_IN_TYPES = ['REQUISITION_RECEIVE', 'TRANSFER'] as const;
 
 const CONSUME_TYPES = ['ORDER_CONSUME'] as const;
 
@@ -424,7 +421,9 @@ export class HubReportsService {
         quantity: true,
         category: true,
         name: true,
-        product: { select: { name: true, category: { select: { name: true } } } },
+        product: {
+          select: { name: true, category: { select: { name: true } } },
+        },
       },
     });
 
@@ -449,7 +448,9 @@ export class HubReportsService {
         },
         select: {
           quantity: true,
-          product: { select: { name: true, category: { select: { name: true } } } },
+          product: {
+            select: { name: true, category: { select: { name: true } } },
+          },
         },
       });
       for (const e of ledger) {
@@ -565,8 +566,7 @@ export class HubReportsService {
 
       if (o.dispatchedAt) {
         const hours =
-          (deliveredAt.getTime() - o.dispatchedAt.getTime()) /
-          (1000 * 60 * 60);
+          (deliveredAt.getTime() - o.dispatchedAt.getTime()) / (1000 * 60 * 60);
         if (hours >= 0) {
           lagSumHours += hours;
           lagCount += 1;
@@ -752,8 +752,7 @@ export class HubReportsService {
       return {
         id: o.id,
         shipmentId: o.orderNumber,
-        material:
-          material.length > 48 ? `${material.slice(0, 45)}…` : material,
+        material: material.length > 48 ? `${material.slice(0, 45)}…` : material,
         destination:
           destination.length > 48
             ? `${destination.slice(0, 45)}…`
@@ -803,12 +802,7 @@ export class HubReportsService {
   ): string {
     if (deliveryAddress && typeof deliveryAddress === 'object') {
       const a = deliveryAddress as Record<string, unknown>;
-      const parts = [
-        a.siteName,
-        a.line1 ?? a.addressLine1,
-        a.landmark,
-        a.city,
-      ]
+      const parts = [a.siteName, a.line1 ?? a.addressLine1, a.landmark, a.city]
         .filter((x) => typeof x === 'string' && x.trim())
         .map(String);
       if (parts.length) return parts.join(', ');

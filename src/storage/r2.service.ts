@@ -42,7 +42,8 @@ export class R2StorageService {
       accessKeyId: this.configService.get<string>('r2.accessKeyId', ''),
       secretAccessKey: this.configService.get<string>('r2.secretAccessKey', ''),
       bucketName: this.configService.get<string>('r2.bucketName', 'bajriwala'),
-      publicUrl: this.configService.get<string>('r2.publicUrl', '') || undefined,
+      publicUrl:
+        this.configService.get<string>('r2.publicUrl', '') || undefined,
       endpoint: this.configService.get<string>('r2.endpoint', '') || undefined,
     };
   }
@@ -50,9 +51,9 @@ export class R2StorageService {
   isConfigured(): boolean {
     return Boolean(
       this.config.accessKeyId &&
-        this.config.secretAccessKey &&
-        this.config.bucketName &&
-        (this.config.endpoint || this.config.accountId),
+      this.config.secretAccessKey &&
+      this.config.bucketName &&
+      (this.config.endpoint || this.config.accountId),
     );
   }
 
@@ -168,7 +169,12 @@ export class R2StorageService {
       contentType?: string;
     } = {},
   ): Promise<UploadResult> {
-    const result = await uploadBuffer(this.getClient(), this.config, body, options);
+    const result = await uploadBuffer(
+      this.getClient(),
+      this.config,
+      body,
+      options,
+    );
     return this.withReadableUrl(result);
   }
 
@@ -181,7 +187,12 @@ export class R2StorageService {
       size?: number;
     } = {},
   ): Promise<UploadResult> {
-    const result = await uploadFile(this.getClient(), this.config, filePath, options);
+    const result = await uploadFile(
+      this.getClient(),
+      this.config,
+      filePath,
+      options,
+    );
     return this.withReadableUrl(result);
   }
 
@@ -194,7 +205,12 @@ export class R2StorageService {
       size?: number;
     } = {},
   ): Promise<UploadResult> {
-    const result = await uploadStream(this.getClient(), this.config, body, options);
+    const result = await uploadStream(
+      this.getClient(),
+      this.config,
+      body,
+      options,
+    );
     return this.withReadableUrl(result);
   }
 
@@ -222,7 +238,12 @@ export class R2StorageService {
       contentType?: string;
     } = {},
   ): Promise<UploadResult> {
-    const result = await uploadImage(this.getClient(), this.config, body, options);
+    const result = await uploadImage(
+      this.getClient(),
+      this.config,
+      body,
+      options,
+    );
     return this.withReadableUrl(result);
   }
 
@@ -278,7 +299,9 @@ export class R2StorageService {
       });
     }
 
-    throw new ServiceUnavailableException('Uploaded file has no buffer or path');
+    throw new ServiceUnavailableException(
+      'Uploaded file has no buffer or path',
+    );
   }
 
   async deleteFile(key: string): Promise<void> {

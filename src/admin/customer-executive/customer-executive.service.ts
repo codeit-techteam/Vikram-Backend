@@ -132,9 +132,7 @@ export class CustomerExecutiveService {
     return admin.role === AdminRole.SUPER_ADMIN;
   }
 
-  private assignedWhere(
-    admin: AuthenticatedAdmin,
-  ): Prisma.CustomerWhereInput {
+  private assignedWhere(admin: AuthenticatedAdmin): Prisma.CustomerWhereInput {
     if (this.isSuperAdmin(admin)) return {};
     return { assignedExecutiveId: admin.id };
   }
@@ -433,7 +431,8 @@ export class CustomerExecutiveService {
           (t.resolvedAt.getTime() - t.createdAt.getTime()) / (1000 * 60 * 60)
         );
       }, 0);
-      avgResolutionHours = Math.round((totalHours / resolvedTickets.length) * 10) / 10;
+      avgResolutionHours =
+        Math.round((totalHours / resolvedTickets.length) * 10) / 10;
     }
 
     const recentActivities: RecentActivity[] = [
@@ -497,11 +496,7 @@ export class CustomerExecutiveService {
     const customer = await this.prisma.customer.findFirst({
       where: {
         deletedAt: null,
-        OR: [
-          { phone },
-          { phone: last10 },
-          { phone: { endsWith: last10 } },
-        ],
+        OR: [{ phone }, { phone: last10 }, { phone: { endsWith: last10 } }],
       },
       include: {
         profile: true,
@@ -561,8 +556,7 @@ export class CustomerExecutiveService {
     }
 
     const result = await this.otpService.sendOtp(phone);
-    const isProd =
-      this.configService.get<string>('app.env') === 'production';
+    const isProd = this.configService.get<string>('app.env') === 'production';
 
     return {
       expiresIn: result.expiresIn,
@@ -594,9 +588,7 @@ export class CustomerExecutiveService {
           phone,
           otpHash: tokenHash,
           purpose: CE_REG_VERIFIED_PURPOSE,
-          expiresAt: new Date(
-            Date.now() + CE_REG_VERIFIED_TTL_SECONDS * 1000,
-          ),
+          expiresAt: new Date(Date.now() + CE_REG_VERIFIED_TTL_SECONDS * 1000),
         },
       });
     }
@@ -604,7 +596,10 @@ export class CustomerExecutiveService {
     return { verified: true, verificationToken };
   }
 
-  async registerCustomer(dto: CeRegisterCustomerDto, admin: AuthenticatedAdmin) {
+  async registerCustomer(
+    dto: CeRegisterCustomerDto,
+    admin: AuthenticatedAdmin,
+  ) {
     if (!isValidIndianMobile(dto.phone)) {
       throw new BadRequestException('Invalid Indian mobile number');
     }
@@ -852,11 +847,12 @@ export class CustomerExecutiveService {
     return this.findCustomer(id, admin);
   }
 
-  async findCustomers(query: CeCustomerSearchQueryDto, admin: AuthenticatedAdmin) {
+  async findCustomers(
+    query: CeCustomerSearchQueryDto,
+    admin: AuthenticatedAdmin,
+  ) {
     const searchTerm = query.q ?? query.search;
-    const executiveId = this.isSuperAdmin(admin)
-      ? query.executiveId
-      : admin.id;
+    const executiveId = this.isSuperAdmin(admin) ? query.executiveId : admin.id;
 
     if (query.city || query.customerType) {
       return this.searchCustomersScoped(query, admin);
@@ -1356,9 +1352,7 @@ export class CustomerExecutiveService {
       type: NotificationType.PAYMENT,
       label: 'Payment Link',
       title: `Payment pending for order ${order.orderNumber}`,
-      body:
-        dto.message ??
-        'Please complete your payment using the link below.',
+      body: dto.message ?? 'Please complete your payment using the link below.',
       actionLabel: 'Pay Now',
       actionRoute: paymentUrl,
       actionVariant: 'primary',
@@ -1397,7 +1391,8 @@ export class CustomerExecutiveService {
     });
 
     const paymentUrl =
-      latestLink?.paymentUrl ?? this.buildPaymentUrl(randomBytes(32).toString('hex'));
+      latestLink?.paymentUrl ??
+      this.buildPaymentUrl(randomBytes(32).toString('hex'));
 
     await this.notificationService.createForCustomer({
       customerId: order.customerId,
@@ -1707,10 +1702,7 @@ export class CustomerExecutiveService {
     }
 
     if (query.assignedExecutiveId) {
-      if (
-        !this.isSuperAdmin(admin) &&
-        query.assignedExecutiveId !== admin.id
-      ) {
+      if (!this.isSuperAdmin(admin) && query.assignedExecutiveId !== admin.id) {
         throw new ForbiddenException(
           'You can only filter bulk enquiries assigned to yourself',
         );
@@ -1930,7 +1922,8 @@ export class CustomerExecutiveService {
   ) {
     await this.findBulkEnquiry(id, admin);
     const payload = {
-      executiveId: dto.executiveId ?? (this.isSuperAdmin(admin) ? undefined : admin.id),
+      executiveId:
+        dto.executiveId ?? (this.isSuperAdmin(admin) ? undefined : admin.id),
       assignedExecutive: dto.assignedExecutive,
     };
     if (!payload.executiveId && !payload.assignedExecutive) {
@@ -2045,7 +2038,9 @@ export class CustomerExecutiveService {
     const status = dto.status.toUpperCase();
     if (status === 'APPROVED') return this.emergencyService.approve(id);
     if (status === 'REJECTED') return this.emergencyService.reject(id);
-    throw new BadRequestException(`Unsupported emergency status: ${dto.status}`);
+    throw new BadRequestException(
+      `Unsupported emergency status: ${dto.status}`,
+    );
   }
 
   async createTicket(dto: CeCreateTicketDto, admin: AuthenticatedAdmin) {
@@ -2162,10 +2157,7 @@ export class CustomerExecutiveService {
     const ticket = await this.findTicket(id, admin);
 
     const status = dto.status ?? ticket.status;
-    if (
-      status === SupportTicketStatus.RESOLVED &&
-      !dto.resolution?.trim()
-    ) {
+    if (status === SupportTicketStatus.RESOLVED && !dto.resolution?.trim()) {
       throw new BadRequestException(
         'Resolution is required when resolving a ticket',
       );
@@ -2210,7 +2202,10 @@ export class CustomerExecutiveService {
     return updated;
   }
 
-  async findExpertCallbacks(query: CeExpertCallbackQueryDto, admin: AuthenticatedAdmin) {
+  async findExpertCallbacks(
+    query: CeExpertCallbackQueryDto,
+    admin: AuthenticatedAdmin,
+  ) {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
     const skip = (page - 1) * limit;
@@ -2235,28 +2230,29 @@ export class CustomerExecutiveService {
       ];
     }
 
-    const [data, total, newCount, contactedCount, closedCount] = await Promise.all([
-      this.prisma.expertCallbackRequest.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: { createdAt: 'desc' },
-        include: {
-          customer: { select: { id: true, phone: true, fullName: true } },
-          assignedExecutive: { select: { id: true, fullName: true } },
-        },
-      }),
-      this.prisma.expertCallbackRequest.count({ where }),
-      this.prisma.expertCallbackRequest.count({
-        where: { ...where, status: ExpertCallbackStatus.NEW },
-      }),
-      this.prisma.expertCallbackRequest.count({
-        where: { ...where, status: ExpertCallbackStatus.CONTACTED },
-      }),
-      this.prisma.expertCallbackRequest.count({
-        where: { ...where, status: ExpertCallbackStatus.CLOSED },
-      }),
-    ]);
+    const [data, total, newCount, contactedCount, closedCount] =
+      await Promise.all([
+        this.prisma.expertCallbackRequest.findMany({
+          where,
+          skip,
+          take: limit,
+          orderBy: { createdAt: 'desc' },
+          include: {
+            customer: { select: { id: true, phone: true, fullName: true } },
+            assignedExecutive: { select: { id: true, fullName: true } },
+          },
+        }),
+        this.prisma.expertCallbackRequest.count({ where }),
+        this.prisma.expertCallbackRequest.count({
+          where: { ...where, status: ExpertCallbackStatus.NEW },
+        }),
+        this.prisma.expertCallbackRequest.count({
+          where: { ...where, status: ExpertCallbackStatus.CONTACTED },
+        }),
+        this.prisma.expertCallbackRequest.count({
+          where: { ...where, status: ExpertCallbackStatus.CLOSED },
+        }),
+      ]);
 
     return {
       data,
@@ -2280,7 +2276,10 @@ export class CustomerExecutiveService {
       },
     });
     if (!row) throw new NotFoundException('Expert callback request not found');
-    if (scopedCustomerIds !== null && !scopedCustomerIds.includes(row.customerId)) {
+    if (
+      scopedCustomerIds !== null &&
+      !scopedCustomerIds.includes(row.customerId)
+    ) {
       throw new ForbiddenException('You do not have access to this request');
     }
     return row;
@@ -2310,7 +2309,7 @@ export class CustomerExecutiveService {
             : existing.contactedAt,
         closedAt:
           nextStatus === ExpertCallbackStatus.CLOSED
-            ? existing.closedAt ?? now
+            ? (existing.closedAt ?? now)
             : nextStatus === ExpertCallbackStatus.NEW
               ? null
               : existing.closedAt,

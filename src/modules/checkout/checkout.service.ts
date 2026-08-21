@@ -62,7 +62,9 @@ export class CheckoutService {
     }
 
     for (const item of cart.items) {
-      const available = await this.cartService.getAvailableStock(item.productId);
+      const available = await this.cartService.getAvailableStock(
+        item.productId,
+      );
       if (item.quantity > available) {
         throw new BadRequestException(
           `Insufficient stock for "${item.product.name}". Available: ${available}, requested: ${item.quantity}`,
@@ -100,20 +102,19 @@ export class CheckoutService {
         ? Number(nearestHub.distanceKm)
         : 0;
 
-    const [loyaltySummary, redeemablePoints, priced] =
-      await Promise.all([
-        this.loyaltyService.getLoyaltySummary(customerId),
-        this.loyaltyService.getRedeemablePoints(customerId),
-        this.deliveryPricingService.calculateFromCart({
-          cartItems: cart.items.map((i) => ({
-            productId: i.productId,
-            quantity: i.quantity,
-          })),
-          distanceKm,
-          customerId,
-          applyFreeBikeBenefit: true,
-        }),
-      ]);
+    const [loyaltySummary, redeemablePoints, priced] = await Promise.all([
+      this.loyaltyService.getLoyaltySummary(customerId),
+      this.loyaltyService.getRedeemablePoints(customerId),
+      this.deliveryPricingService.calculateFromCart({
+        cartItems: cart.items.map((i) => ({
+          productId: i.productId,
+          quantity: i.quantity,
+        })),
+        distanceKm,
+        customerId,
+        applyFreeBikeBenefit: true,
+      }),
+    ]);
 
     if (priced.requiresBulkQuote) {
       throw new BadRequestException(
@@ -139,16 +140,13 @@ export class CheckoutService {
     const thresholdFree = cart.subtotal >= FREE_DELIVERY_THRESHOLD;
 
     // Server-calculated — never trust client-supplied deliveryCharge
-    let deliveryCharge = thresholdFree ? 0 : priced.deliveryCharge;
-    let bikeDeliveryFree =
-      thresholdFree || priced.freeDeliveryApplied;
-    let companyAbsorbedDelivery = thresholdFree
+    const deliveryCharge = thresholdFree ? 0 : priced.deliveryCharge;
+    const bikeDeliveryFree = thresholdFree || priced.freeDeliveryApplied;
+    const companyAbsorbedDelivery = thresholdFree
       ? 0
       : priced.companyAbsorbedDelivery;
-    const freeBikeDeliveriesRemaining =
-      priced.freeBikeDeliveriesRemaining ?? 0;
-    const freeDeliveryApplied =
-      !thresholdFree && priced.freeDeliveryApplied;
+    const freeBikeDeliveriesRemaining = priced.freeBikeDeliveriesRemaining ?? 0;
+    const freeDeliveryApplied = !thresholdFree && priced.freeDeliveryApplied;
 
     const orderValueBeforeLoyalty =
       cart.subtotal +
@@ -214,8 +212,11 @@ export class CheckoutService {
         deliveryPreview?.deliveryVehicleImageUrl ??
         null,
       logisticsType: deliveryPreview?.deliveryLogisticsType ?? null,
-      splitDelivery: Boolean(priced.multiVehicle || (priced.vehicleCount ?? 1) > 1),
-      etaMinMinutes: deliveryPreview?.etaMinMinutes ?? deliveryPreview?.deliveryETA ?? null,
+      splitDelivery: Boolean(
+        priced.multiVehicle || (priced.vehicleCount ?? 1) > 1,
+      ),
+      etaMinMinutes:
+        deliveryPreview?.etaMinMinutes ?? deliveryPreview?.deliveryETA ?? null,
       etaMaxMinutes: deliveryPreview?.etaMaxMinutes ?? null,
       etaLabel: deliveryPreview?.deliveryMessage ?? null,
     });
@@ -233,16 +234,18 @@ export class CheckoutService {
       deliveryEtaMinMinutes: deliveryPreview?.etaMinMinutes,
       deliveryEtaMaxMinutes: deliveryPreview?.etaMaxMinutes,
       deliveryLogisticsType: deliveryPreview?.deliveryLogisticsType ?? null,
-      deliveryPreparationMinutes: deliveryPreview?.timing?.preparationMinutes ?? null,
+      deliveryPreparationMinutes:
+        deliveryPreview?.timing?.preparationMinutes ?? null,
       deliveryLoadingMinutes: deliveryPreview?.timing?.loadingMinutes ?? null,
       deliveryTravelMinutes: deliveryPreview?.timing?.travelMinutes ?? null,
-      deliveryUnloadingMinutes: deliveryPreview?.timing?.unloadingMinutes ?? null,
+      deliveryUnloadingMinutes:
+        deliveryPreview?.timing?.unloadingMinutes ?? null,
       deliveryMessage:
         deliveryPreview?.deliveryMessage ?? 'Delivery details unavailable',
       deliveringBy: deliveryPreview?.deliveringBy ?? null,
-      fulfillmentHubName: inCoverage ? nearestHub?.name ?? null : null,
+      fulfillmentHubName: inCoverage ? (nearestHub?.name ?? null) : null,
       readinessMessage: !inCoverage
-        ? "Delivery is currently unavailable at this location."
+        ? 'Delivery is currently unavailable at this location.'
         : hubAvailable
           ? 'Ready for order placement'
           : 'Some items may need extra time — you can still place your order',

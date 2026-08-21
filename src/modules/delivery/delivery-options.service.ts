@@ -10,7 +10,10 @@ import {
   DEFAULT_DELIVERY_TIMEZONE,
   DELIVERY_PREFERENCE_LABELS,
 } from './delivery-preference.constants';
-import type { DeliveryOptionsResponseDto, DeliverySlotViewDto } from './dto/delivery-options.dto';
+import type {
+  DeliveryOptionsResponseDto,
+  DeliverySlotViewDto,
+} from './dto/delivery-options.dto';
 import { DeliverySlotService } from './delivery-slot.service';
 import {
   addDateKeyDays,
@@ -105,7 +108,7 @@ export class DeliveryOptionsService {
       serviceable: Boolean(eta?.serviceable ?? routing.nearestEligibleHub),
       unavailableReason: eta?.serviceable
         ? null
-        : eta?.message ?? "We currently don't deliver to this location.",
+        : (eta?.message ?? "We currently don't deliver to this location."),
       hubId: hub?.id ?? null,
       hubName: hub?.name ?? null,
       workingHours: hub?.workingHours ?? null,
@@ -151,7 +154,10 @@ export class DeliveryOptionsService {
       clock.minutesFromMidnight,
     );
     const etaMin = Math.max(0, Math.round(context.etaMinMinutes ?? 0));
-    const etaMax = Math.max(etaMin, Math.round(context.etaMaxMinutes ?? etaMin));
+    const etaMax = Math.max(
+      etaMin,
+      Math.round(context.etaMaxMinutes ?? etaMin),
+    );
     const leadMinutes = resolveLeadMinutes({ isRmc, etaMinMinutes: etaMin });
     const capacity = await this.slotService.countHubVehicleCapacity({
       hubId: context.hubId,
@@ -183,14 +189,19 @@ export class DeliveryOptionsService {
     const slotByKey = new Map(
       persisted.map((slot, index) => {
         const window = allWindows[index];
-        return [`${window.dateKey}:${window.startMinutes}:${window.endMinutes}`, slot];
+        return [
+          `${window.dateKey}:${window.startMinutes}:${window.endMinutes}`,
+          slot,
+        ];
       }),
     );
     const reservationCounts = await this.slotService.loadReservationCounts(
       persisted.map((slot) => slot.id),
     );
 
-    const toView = (window: GeneratedSlotWindow): DeliverySlotViewDto | null => {
+    const toView = (
+      window: GeneratedSlotWindow,
+    ): DeliverySlotViewDto | null => {
       const row = slotByKey.get(
         `${window.dateKey}:${window.startMinutes}:${window.endMinutes}`,
       );
@@ -207,8 +218,14 @@ export class DeliveryOptionsService {
         startMinutes: window.startMinutes,
         endMinutes: window.endMinutes,
         label: window.label,
-        startAt: istWallTimeToUtc(window.dateKey, window.startMinutes).toISOString(),
-        endAt: istWallTimeToUtc(window.dateKey, window.endMinutes).toISOString(),
+        startAt: istWallTimeToUtc(
+          window.dateKey,
+          window.startMinutes,
+        ).toISOString(),
+        endAt: istWallTimeToUtc(
+          window.dateKey,
+          window.endMinutes,
+        ).toISOString(),
         available: availableCapacity > 0,
         capacity: row.capacity,
         reservedCapacity: reserved,
@@ -218,15 +235,21 @@ export class DeliveryOptionsService {
 
     const todaySlots = windows.today
       .map(toView)
-      .filter((slot): slot is DeliverySlotViewDto => Boolean(slot && slot.available));
+      .filter((slot): slot is DeliverySlotViewDto =>
+        Boolean(slot && slot.available),
+      );
     const tomorrowSlots = windows.tomorrow
       .map(toView)
-      .filter((slot): slot is DeliverySlotViewDto => Boolean(slot && slot.available));
+      .filter((slot): slot is DeliverySlotViewDto =>
+        Boolean(slot && slot.available),
+      );
     const scheduled = windows.scheduled
       .map((day) => {
         const slots = day.slots
           .map(toView)
-          .filter((slot): slot is DeliverySlotViewDto => Boolean(slot && slot.available));
+          .filter((slot): slot is DeliverySlotViewDto =>
+            Boolean(slot && slot.available),
+          );
         return {
           date: day.dateKey,
           dateLabel: day.dateLabel,
@@ -244,7 +267,8 @@ export class DeliveryOptionsService {
     const asapFitsToday = remainingToday > etaMax;
     const asapAvailable = isRmc
       ? hubOpen && asapFitsToday && Boolean(context.vehicleType)
-      : Boolean(context.vehicleType) && (hubOpen ? asapFitsToday || todaySlots.length > 0 : true);
+      : Boolean(context.vehicleType) &&
+        (hubOpen ? asapFitsToday || todaySlots.length > 0 : true);
 
     const asapReason = !asapAvailable
       ? isRmc
@@ -254,29 +278,28 @@ export class DeliveryOptionsService {
           : 'Fastest delivery is not available right now.'
       : null;
 
-    const nextAvailable =
-      todaySlots[0]
+    const nextAvailable = todaySlots[0]
+      ? {
+          date: todaySlots[0].date,
+          dateLabel: todaySlots[0].dateLabel,
+          slotId: todaySlots[0].slotId,
+          slotLabel: todaySlots[0].label,
+        }
+      : tomorrowSlots[0]
         ? {
-            date: todaySlots[0].date,
-            dateLabel: todaySlots[0].dateLabel,
-            slotId: todaySlots[0].slotId,
-            slotLabel: todaySlots[0].label,
+            date: tomorrowSlots[0].date,
+            dateLabel: tomorrowSlots[0].dateLabel,
+            slotId: tomorrowSlots[0].slotId,
+            slotLabel: tomorrowSlots[0].label,
           }
-        : tomorrowSlots[0]
+        : scheduled[0]?.slots[0]
           ? {
-              date: tomorrowSlots[0].date,
-              dateLabel: tomorrowSlots[0].dateLabel,
-              slotId: tomorrowSlots[0].slotId,
-              slotLabel: tomorrowSlots[0].label,
+              date: scheduled[0].date,
+              dateLabel: scheduled[0].dateLabel,
+              slotId: scheduled[0].slots[0].slotId,
+              slotLabel: scheduled[0].slots[0].label,
             }
-          : scheduled[0]?.slots[0]
-            ? {
-                date: scheduled[0].date,
-                dateLabel: scheduled[0].dateLabel,
-                slotId: scheduled[0].slots[0].slotId,
-                slotLabel: scheduled[0].slots[0].label,
-              }
-            : null;
+          : null;
 
     const defaultPreference = asapAvailable
       ? 'ASAP'
@@ -350,7 +373,9 @@ export class DeliveryOptionsService {
     options: DeliveryOptionsResponseDto,
     slotId: string,
   ): DeliverySlotViewDto | null {
-    const fromToday = options.today.slots.find((slot) => slot.slotId === slotId);
+    const fromToday = options.today.slots.find(
+      (slot) => slot.slotId === slotId,
+    );
     if (fromToday) return fromToday;
     const fromTomorrow = options.tomorrow.slots.find(
       (slot) => slot.slotId === slotId,
@@ -389,7 +414,13 @@ export class DeliveryOptionsService {
       splitDelivery: Boolean(context.splitDelivery),
       splitDeliveryMessage: null,
       timezone: DEFAULT_DELIVERY_TIMEZONE,
-      asap: { available: false, etaMinMinutes: null, etaMaxMinutes: null, etaLabel: null, reason: null },
+      asap: {
+        available: false,
+        etaMinMinutes: null,
+        etaMaxMinutes: null,
+        etaLabel: null,
+        reason: null,
+      },
       today: {
         available: false,
         date: todayKey,

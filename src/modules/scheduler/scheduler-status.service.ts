@@ -3,10 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SchedulerRegistry } from '@nestjs/schedule';
 import { Queue } from 'bullmq';
-import {
-  SCHEDULER_JOB_NAMES,
-  SCHEDULER_QUEUES,
-} from './scheduler.constants';
+import { SCHEDULER_JOB_NAMES, SCHEDULER_QUEUES } from './scheduler.constants';
 import { SchedulerLogService } from './services/scheduler-log.service';
 
 export interface QueueStatusDto {

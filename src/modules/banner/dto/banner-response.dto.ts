@@ -92,7 +92,8 @@ export class BannerResponseDto {
   endDate?: Date | null;
 
   @ApiPropertyOptional({
-    description: 'ALL | NEW_CUSTOMERS | FREE_BIKE_REMAINING | FREE_BIKE_EXHAUSTED',
+    description:
+      'ALL | NEW_CUSTOMERS | FREE_BIKE_REMAINING | FREE_BIKE_EXHAUSTED',
   })
   targetAudience?: string;
 }

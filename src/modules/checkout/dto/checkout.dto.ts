@@ -1,6 +1,14 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsUUID, IsString, MaxLength, Min, IsEnum } from 'class-validator';
+import {
+  IsInt,
+  IsOptional,
+  IsUUID,
+  IsString,
+  MaxLength,
+  Min,
+  IsEnum,
+} from 'class-validator';
 import { CartItemResponseDto } from '../../cart/dto/cart.dto';
 import { DeliveryOptionsResponseDto } from '../../delivery/dto/delivery-options.dto';
 import { DELIVERY_PREFERENCE_TYPES } from '../../delivery/delivery-preference.constants';
@@ -46,7 +54,8 @@ export class PrepareCheckoutDto {
 
   @ApiPropertyOptional({
     example: 'Please call before delivery',
-    description: 'Optional order notes (preview only — not persisted until POST /orders)',
+    description:
+      'Optional order notes (preview only — not persisted until POST /orders)',
   })
   @IsOptional()
   @IsString()
@@ -128,12 +137,16 @@ export class CheckoutHubDto {
   @ApiProperty()
   pincode!: string;
 
-  @ApiProperty({ example: 4.2, description: 'Distance from delivery address in km' })
+  @ApiProperty({
+    example: 4.2,
+    description: 'Distance from delivery address in km',
+  })
   distanceKm!: number;
 
   @ApiProperty({
     example: true,
-    description: 'Whether this hub can fulfill all cart items from available stock',
+    description:
+      'Whether this hub can fulfill all cart items from available stock',
   })
   canFulfill!: boolean;
 }
@@ -214,7 +227,10 @@ export class CheckoutResponseDto {
   @ApiPropertyOptional()
   notes?: string | null;
 
-  @ApiProperty({ example: 42.5, description: 'Membership discount applied (preview)' })
+  @ApiProperty({
+    example: 42.5,
+    description: 'Membership discount applied (preview)',
+  })
   membershipDiscount!: number;
 
   @ApiProperty({ example: 2257, description: 'Available loyalty points' })
@@ -223,13 +239,19 @@ export class CheckoutResponseDto {
   @ApiProperty({ example: 2257, description: 'Points redeemable at checkout' })
   redeemablePoints!: number;
 
-  @ApiProperty({ example: 2257, description: 'Maximum points redeemable for this order' })
+  @ApiProperty({
+    example: 2257,
+    description: 'Maximum points redeemable for this order',
+  })
   maxRedeemablePoints!: number;
 
   @ApiProperty({ example: 0, description: 'Loyalty points applied in preview' })
   loyaltyUsed!: number;
 
-  @ApiProperty({ example: 0, description: 'Loyalty discount in INR (1 point = ₹0.01)' })
+  @ApiProperty({
+    example: 0,
+    description: 'Loyalty discount in INR (1 point = ₹0.01)',
+  })
   loyaltyDiscount!: number;
 
   @ApiProperty({ example: 22.57 })
@@ -249,7 +271,8 @@ export class CheckoutResponseDto {
 
   @ApiProperty({
     example: 850,
-    description: '1% cashback points that will be earned after successful delivery',
+    description:
+      '1% cashback points that will be earned after successful delivery',
   })
   estimatedEarnPoints!: number;
 
@@ -259,7 +282,10 @@ export class CheckoutResponseDto {
   })
   estimatedEarnValue!: number;
 
-  @ApiProperty({ example: 0, description: 'Total discount (membership + loyalty)' })
+  @ApiProperty({
+    example: 0,
+    description: 'Total discount (membership + loyalty)',
+  })
   discount!: number;
 
   @ApiProperty({ example: 0, description: 'Loading/unloading charges' })
@@ -271,7 +297,10 @@ export class CheckoutResponseDto {
   @ApiProperty({ example: true, description: 'Free bike delivery eligibility' })
   bikeDeliveryFree!: boolean;
 
-  @ApiProperty({ example: 99, description: 'Company-absorbed bike delivery cost when free benefit used' })
+  @ApiProperty({
+    example: 99,
+    description: 'Company-absorbed bike delivery cost when free benefit used',
+  })
   companyAbsorbedDelivery!: number;
 
   @ApiProperty({ example: 2, description: 'Remaining free bike deliveries' })

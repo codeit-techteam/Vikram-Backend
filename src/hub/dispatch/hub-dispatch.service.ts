@@ -5,7 +5,11 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import type { HubOperationStatus, OrderStatus, Prisma } from '../../../generated/prisma/client';
+import type {
+  HubOperationStatus,
+  OrderStatus,
+  Prisma,
+} from '../../../generated/prisma/client';
 import { PrismaService } from '../../common/database/prisma.service';
 import { getOrderStatusLabel } from '../../modules/orders/order-lifecycle.constants';
 import { OrderEventsService } from '../../modules/orders/order-events.service';
@@ -35,7 +39,12 @@ function estimateOrderWeightTons(
   for (const item of items) {
     const unit = (item.unit || '').toLowerCase().trim();
     const qty = Number(item.quantity) || 0;
-    if (unit === 'kg' || unit === 'kgs' || unit === 'kilogram' || unit === 'kilograms') {
+    if (
+      unit === 'kg' ||
+      unit === 'kgs' ||
+      unit === 'kilogram' ||
+      unit === 'kilograms'
+    ) {
       tons += qty / 1000;
       hasWeight = true;
     } else if (
@@ -88,10 +97,14 @@ function mapQueueUiStatus(
   dispatchStatus: string,
   orderStatus: OrderStatus,
 ): 'pending' | 'loading' | 'dispatch' | 'delivered' | 'cancelled' | 'delay' {
-  if (dispatchStatus === 'CANCELLED' || orderStatus === 'CANCELLED') return 'cancelled';
-  if (dispatchStatus === 'COMPLETED' || orderStatus === 'DELIVERED') return 'delivered';
-  if (orderStatus === 'OUT_FOR_DELIVERY' || orderStatus === 'DISPATCHED') return 'dispatch';
-  if (orderStatus === 'DRIVER_ASSIGNED' || dispatchStatus === 'IN_PROGRESS') return 'loading';
+  if (dispatchStatus === 'CANCELLED' || orderStatus === 'CANCELLED')
+    return 'cancelled';
+  if (dispatchStatus === 'COMPLETED' || orderStatus === 'DELIVERED')
+    return 'delivered';
+  if (orderStatus === 'OUT_FOR_DELIVERY' || orderStatus === 'DISPATCHED')
+    return 'dispatch';
+  if (orderStatus === 'DRIVER_ASSIGNED' || dispatchStatus === 'IN_PROGRESS')
+    return 'loading';
   return 'pending';
 }
 
@@ -151,7 +164,10 @@ export class HubDispatchService {
       this.prisma.hubDispatch.count({ where }),
     ]);
 
-    return { data, meta: { page, limit, total, totalPages: Math.ceil(total / limit) } };
+    return {
+      data,
+      meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    };
   }
 
   /** Orders assigned to hub, ready for dispatch, not already dispatched. */
@@ -166,7 +182,9 @@ export class HubDispatchService {
           { dispatch: { status: { in: ['PENDING', 'CANCELLED'] } } },
         ],
         NOT: {
-          orderStatus: { in: ['OUT_FOR_DELIVERY', 'DISPATCHED', 'DELIVERED', 'CANCELLED'] },
+          orderStatus: {
+            in: ['OUT_FOR_DELIVERY', 'DISPATCHED', 'DELIVERED', 'CANCELLED'],
+          },
         },
       },
       orderBy: [
@@ -202,7 +220,9 @@ export class HubDispatchService {
         ? formatEtaMinutes(
             Math.max(
               15,
-              Math.round((order.expectedDeliveryAt.getTime() - Date.now()) / 60000),
+              Math.round(
+                (order.expectedDeliveryAt.getTime() - Date.now()) / 60000,
+              ),
             ),
           )
         : '45 min';
@@ -231,7 +251,9 @@ export class HubDispatchService {
         })),
         itemCount: order.items.length,
         totalQuantity: totalQty,
-        materials: order.items.map((i) => `${i.name} ×${i.quantity}`).join(', '),
+        materials: order.items
+          .map((i) => `${i.name} ×${i.quantity}`)
+          .join(', '),
         isEmergency: order.isEmergency,
         priorityOrder: order.priorityOrder,
         hubId: order.hubId,
@@ -277,7 +299,9 @@ export class HubDispatchService {
       },
       select: { vehicleId: true },
     });
-    const busy = new Set(busyVehicleIds.map((d) => d.vehicleId).filter(Boolean));
+    const busy = new Set(
+      busyVehicleIds.map((d) => d.vehicleId).filter(Boolean),
+    );
 
     return vehicles
       .filter((v) => !busy.has(v.id))
@@ -414,45 +438,57 @@ export class HubDispatchService {
   }
 
   async getFleetStats(hubId: string) {
-    const [total, available, inUse, maintenance, idle, activeDispatches, pendingOrders] =
-      await Promise.all([
-        this.prisma.vehicle.count({
-          where: { hubId, isActive: true, deletedAt: null },
-        }),
-        this.prisma.vehicle.count({
-          where: { hubId, isActive: true, deletedAt: null, status: 'AVAILABLE' },
-        }),
-        this.prisma.vehicle.count({
-          where: {
-            hubId,
-            isActive: true,
-            deletedAt: null,
-            status: { in: [...RUNNING_VEHICLE_STATUSES] },
-          },
-        }),
-        this.prisma.vehicle.count({
-          where: { hubId, isActive: true, deletedAt: null, status: 'MAINTENANCE' },
-        }),
-        this.prisma.vehicle.count({
-          where: {
-            hubId,
-            isActive: true,
-            deletedAt: null,
-            status: 'AVAILABLE',
-            driver: null,
-          },
-        }),
-        this.prisma.hubDispatch.count({
-          where: { hubId, status: 'IN_PROGRESS' },
-        }),
-        this.prisma.order.count({
-          where: {
-            hubId,
-            deletedAt: null,
-            orderStatus: { in: PENDING_DISPATCH_STATUSES },
-          },
-        }),
-      ]);
+    const [
+      total,
+      available,
+      inUse,
+      maintenance,
+      idle,
+      activeDispatches,
+      pendingOrders,
+    ] = await Promise.all([
+      this.prisma.vehicle.count({
+        where: { hubId, isActive: true, deletedAt: null },
+      }),
+      this.prisma.vehicle.count({
+        where: { hubId, isActive: true, deletedAt: null, status: 'AVAILABLE' },
+      }),
+      this.prisma.vehicle.count({
+        where: {
+          hubId,
+          isActive: true,
+          deletedAt: null,
+          status: { in: [...RUNNING_VEHICLE_STATUSES] },
+        },
+      }),
+      this.prisma.vehicle.count({
+        where: {
+          hubId,
+          isActive: true,
+          deletedAt: null,
+          status: 'MAINTENANCE',
+        },
+      }),
+      this.prisma.vehicle.count({
+        where: {
+          hubId,
+          isActive: true,
+          deletedAt: null,
+          status: 'AVAILABLE',
+          driver: null,
+        },
+      }),
+      this.prisma.hubDispatch.count({
+        where: { hubId, status: 'IN_PROGRESS' },
+      }),
+      this.prisma.order.count({
+        where: {
+          hubId,
+          deletedAt: null,
+          orderStatus: { in: PENDING_DISPATCH_STATUSES },
+        },
+      }),
+    ]);
 
     const capacityAgg = await this.prisma.vehicle.aggregate({
       where: { hubId, isActive: true, deletedAt: null },
@@ -470,7 +506,8 @@ export class HubDispatchService {
 
     const totalCap = Number(capacityAgg._sum.capacity ?? 0);
     const usedCap = Number(usedCapacityAgg._sum.capacity ?? 0);
-    const utilization = totalCap > 0 ? Math.round((usedCap / totalCap) * 100) : 0;
+    const utilization =
+      totalCap > 0 ? Math.round((usedCap / totalCap) * 100) : 0;
 
     // Average delivery time from completed dispatches (last 50)
     const completed = await this.prisma.hubDispatch.findMany({
@@ -489,7 +526,9 @@ export class HubDispatchService {
     if (completed.length > 0) {
       const totalMin = completed.reduce((sum, d) => {
         if (!d.dispatchedAt || !d.completedAt) return sum;
-        return sum + (d.completedAt.getTime() - d.dispatchedAt.getTime()) / 60_000;
+        return (
+          sum + (d.completedAt.getTime() - d.dispatchedAt.getTime()) / 60_000
+        );
       }, 0);
       avgMinutes = Math.round(totalMin / completed.length);
     }
@@ -528,7 +567,9 @@ export class HubDispatchService {
       take: 200,
       include: {
         driver: { select: { id: true, name: true, phone: true } },
-        vehicle: { select: { id: true, registration: true, vehicleType: true } },
+        vehicle: {
+          select: { id: true, registration: true, vehicleType: true },
+        },
         order: {
           include: {
             customer: { select: { id: true, fullName: true, phone: true } },
@@ -552,11 +593,16 @@ export class HubDispatchService {
     let mapped = dispatches.map((d) => {
       const uiStatus = mapQueueUiStatus(d.status, d.order.orderStatus);
       const etaMinutes = d.estimatedEtaAt
-        ? Math.max(5, Math.round((d.estimatedEtaAt.getTime() - Date.now()) / 60_000))
+        ? Math.max(
+            5,
+            Math.round((d.estimatedEtaAt.getTime() - Date.now()) / 60_000),
+          )
         : d.order.expectedDeliveryAt
           ? Math.max(
               5,
-              Math.round((d.order.expectedDeliveryAt.getTime() - Date.now()) / 60_000),
+              Math.round(
+                (d.order.expectedDeliveryAt.getTime() - Date.now()) / 60_000,
+              ),
             )
           : 45;
       const priority = d.order.isEmergency
@@ -565,7 +611,9 @@ export class HubDispatchService {
           ? ('high' as const)
           : ('normal' as const);
       const location = addressLine(d.order.deliveryAddress);
-      const slot = d.deliverySlot ?? (d.dispatchedAt ? formatSlotLabel(d.dispatchedAt) : '—');
+      const slot =
+        d.deliverySlot ??
+        (d.dispatchedAt ? formatSlotLabel(d.dispatchedAt) : '—');
       const customerName = d.order.customer?.fullName ?? 'Customer';
       const customerPhone = d.order.customer?.phone ?? undefined;
 
@@ -575,9 +623,7 @@ export class HubDispatchService {
           id: t.id,
           title: t.message ?? t.remarks ?? getOrderStatusLabel(t.status),
           timestamp: t.createdAt.toISOString(),
-          status: isLast
-            ? ('active' as const)
-            : ('completed' as const),
+          status: isLast ? ('active' as const) : ('completed' as const),
           description: t.remarks ?? undefined,
         };
       });
@@ -613,8 +659,12 @@ export class HubDispatchService {
         paymentStatus: d.order.paymentStatus,
         address: location,
         timeline,
-        documents: [{ id: `doc-${d.id}`, name: 'Delivery Challan', type: 'PDF' }],
-        dispatchDate: (d.dispatchedAt ?? d.createdAt).toISOString().split('T')[0],
+        documents: [
+          { id: `doc-${d.id}`, name: 'Delivery Challan', type: 'PDF' },
+        ],
+        dispatchDate: (d.dispatchedAt ?? d.createdAt)
+          .toISOString()
+          .split('T')[0],
         dispatchedAt: d.dispatchedAt,
         estimatedEtaAt: d.estimatedEtaAt,
         trackingProgress: uiStatus,
@@ -623,7 +673,8 @@ export class HubDispatchService {
 
     if (tab && tab !== 'all') {
       mapped = mapped.filter((d) => {
-        if (tab === 'dispatched' || tab === 'out_for_delivery') return d.status === 'dispatch';
+        if (tab === 'dispatched' || tab === 'out_for_delivery')
+          return d.status === 'dispatch';
         if (tab === 'delay') {
           return d.status === 'dispatch' && d.etaMinutes > 90;
         }
@@ -753,7 +804,8 @@ export class HubDispatchService {
           deletedAt: null,
         },
       });
-      if (!driver) throw new BadRequestException('Driver not found at this hub');
+      if (!driver)
+        throw new BadRequestException('Driver not found at this hub');
       if (driver.availability !== 'AVAILABLE') {
         throw new ConflictException('Driver is not available');
       }
@@ -766,7 +818,8 @@ export class HubDispatchService {
           deletedAt: null,
         },
       });
-      if (!vehicle) throw new BadRequestException('Vehicle not found at this hub');
+      if (!vehicle)
+        throw new BadRequestException('Vehicle not found at this hub');
       if (vehicle.status !== 'AVAILABLE') {
         throw new ConflictException(
           vehicle.status === 'OUT_FOR_DELIVERY'
@@ -945,7 +998,13 @@ export class HubDispatchService {
         `Dispatch planned dispatchNo=${dispatch.dispatchNo} order=${order.orderNumber} driver=${driver.name} vehicle=${vehicle.registration}`,
       );
 
-      return { dispatch, order: updatedOrder, driver, vehicle, customer: order.customer };
+      return {
+        dispatch,
+        order: updatedOrder,
+        driver,
+        vehicle,
+        customer: order.customer,
+      };
     });
 
     this.orderEvents.emitOrderUpdated({
@@ -968,7 +1027,8 @@ export class HubDispatchService {
         registration: result.vehicle.registration,
       },
       eta: result.order.expectedDeliveryAt?.toISOString() ?? null,
-      expectedDeliveryAt: result.order.expectedDeliveryAt?.toISOString() ?? null,
+      expectedDeliveryAt:
+        result.order.expectedDeliveryAt?.toISOString() ?? null,
     });
 
     const detail = await this.getById(hubId, result.dispatch.id);
@@ -976,7 +1036,11 @@ export class HubDispatchService {
   }
 
   /** Legacy create — delegates to planAndDispatch when driver+vehicle provided. */
-  async create(hubId: string, dto: HubDispatchCreateDto, updatedBy = 'HUB_SYSTEM') {
+  async create(
+    hubId: string,
+    dto: HubDispatchCreateDto,
+    updatedBy = 'HUB_SYSTEM',
+  ) {
     if (dto.driverId && dto.vehicleId) {
       return this.planAndDispatch(hubId, dto, updatedBy);
     }
@@ -1023,11 +1087,19 @@ export class HubDispatchService {
     });
   }
 
-  async start(hubId: string, id: string, updatedBy: string, dto?: HubOrderActionDto) {
+  async start(
+    hubId: string,
+    id: string,
+    updatedBy: string,
+    dto?: HubOrderActionDto,
+  ) {
     const dispatch = await this.requireDispatch(hubId, id);
     await this.prisma.hubDispatch.update({
       where: { id: dispatch.id },
-      data: { status: 'IN_PROGRESS', dispatchedAt: dispatch.dispatchedAt ?? new Date() },
+      data: {
+        status: 'IN_PROGRESS',
+        dispatchedAt: dispatch.dispatchedAt ?? new Date(),
+      },
     });
     return this.ordersService.dispatch(
       hubId,
@@ -1037,7 +1109,12 @@ export class HubDispatchService {
     );
   }
 
-  async markReached(hubId: string, id: string, updatedBy: string, dto?: HubOrderActionDto) {
+  async markReached(
+    hubId: string,
+    id: string,
+    updatedBy: string,
+    dto?: HubOrderActionDto,
+  ) {
     const dispatch = await this.requireDispatch(hubId, id);
     if (dispatch.vehicleId) {
       await this.prisma.vehicle.update({
@@ -1064,12 +1141,27 @@ export class HubDispatchService {
     );
   }
 
-  async verifyOtp(hubId: string, id: string, dto: HubVerifyDeliveryOtpDto, updatedBy: string) {
+  async verifyOtp(
+    hubId: string,
+    id: string,
+    dto: HubVerifyDeliveryOtpDto,
+    updatedBy: string,
+  ) {
     const dispatch = await this.requireDispatch(hubId, id);
-    return this.ordersService.verifyDeliveryOtp(hubId, dispatch.orderId, dto, updatedBy);
+    return this.ordersService.verifyDeliveryOtp(
+      hubId,
+      dispatch.orderId,
+      dto,
+      updatedBy,
+    );
   }
 
-  async markDelivered(hubId: string, id: string, updatedBy: string, dto?: HubOrderActionDto) {
+  async markDelivered(
+    hubId: string,
+    id: string,
+    updatedBy: string,
+    dto?: HubOrderActionDto,
+  ) {
     const dispatch = await this.requireDispatch(hubId, id);
     return this.ordersService.deliver(
       hubId,
@@ -1079,7 +1171,12 @@ export class HubDispatchService {
     );
   }
 
-  async complete(hubId: string, id: string, updatedBy = 'HUB_SYSTEM', dto?: HubOrderActionDto) {
+  async complete(
+    hubId: string,
+    id: string,
+    updatedBy = 'HUB_SYSTEM',
+    dto?: HubOrderActionDto,
+  ) {
     const dispatch = await this.requireDispatch(hubId, id);
     const order = await this.ordersService.completeDelivery(
       hubId,

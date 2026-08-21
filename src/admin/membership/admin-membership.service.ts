@@ -14,7 +14,9 @@ export class AdminMembershipService {
   // ── Plans ─────────────────────────────────────────────────────────────────
 
   async findAllPlans() {
-    return this.prisma.membershipPlan.findMany({ orderBy: { createdAt: 'desc' } });
+    return this.prisma.membershipPlan.findMany({
+      orderBy: { createdAt: 'desc' },
+    });
   }
 
   async findPlan(id: string) {
@@ -43,7 +45,9 @@ export class AdminMembershipService {
       data: {
         ...(dto.name !== undefined && { name: dto.name }),
         ...(dto.price !== undefined && { price: dto.price }),
-        ...(dto.durationDays !== undefined && { durationDays: dto.durationDays }),
+        ...(dto.durationDays !== undefined && {
+          durationDays: dto.durationDays,
+        }),
         ...(dto.description !== undefined && { description: dto.description }),
         ...(dto.benefits !== undefined && { benefits: dto.benefits }),
         ...(dto.status !== undefined && { status: dto.status as EntityStatus }),
@@ -123,7 +127,9 @@ export class AdminMembershipService {
               },
             },
           },
-          plan: { select: { id: true, name: true, price: true, benefits: true } },
+          plan: {
+            select: { id: true, name: true, price: true, benefits: true },
+          },
         },
       }),
       this.prisma.customerMembership.count({ where }),
@@ -241,7 +247,15 @@ export class AdminMembershipService {
   async getStats() {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+    const endOfMonth = new Date(
+      now.getFullYear(),
+      now.getMonth() + 1,
+      0,
+      23,
+      59,
+      59,
+      999,
+    );
 
     const [totalMembers, activeMemberships, expiringThisMonth, revenueAgg] =
       await Promise.all([

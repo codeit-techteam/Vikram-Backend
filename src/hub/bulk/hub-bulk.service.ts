@@ -26,13 +26,18 @@ export class HubBulkService {
         orderBy: { createdAt: 'desc' },
         include: {
           customer: { select: { id: true, fullName: true, phone: true } },
-          items: { include: { product: { select: { name: true, unit: true } } } },
+          items: {
+            include: { product: { select: { name: true, unit: true } } },
+          },
         },
       }),
       this.prisma.order.count({ where }),
     ]);
 
-    return { data, meta: { page, limit, total, totalPages: Math.ceil(total / limit) } };
+    return {
+      data,
+      meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    };
   }
 
   async findOne(hubId: string, orderId: string) {
@@ -44,7 +49,8 @@ export class HubBulkService {
         timeline: { orderBy: { createdAt: 'asc' } },
       },
     });
-    if (!order) throw new NotFoundException('Bulk order not found for this hub');
+    if (!order)
+      throw new NotFoundException('Bulk order not found for this hub');
     return order;
   }
 

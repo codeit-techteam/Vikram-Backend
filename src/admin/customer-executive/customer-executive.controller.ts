@@ -84,7 +84,10 @@ export class CustomerExecutiveController {
     @CurrentAdmin() admin: AuthenticatedAdmin,
     @Query('limit') limit?: number,
   ) {
-    const data = await this.ceService.getActivity(admin, limit ? Number(limit) : 20);
+    const data = await this.ceService.getActivity(
+      admin,
+      limit ? Number(limit) : 20,
+    );
     return { success: true, message: 'Activity fetched', data };
   }
 
@@ -213,7 +216,11 @@ export class CustomerExecutiveController {
     @Query() query: CePaginationQueryDto,
     @CurrentAdmin() admin: AuthenticatedAdmin,
   ) {
-    const data = await this.ceService.getCustomerLoyaltyHistory(id, query, admin);
+    const data = await this.ceService.getCustomerLoyaltyHistory(
+      id,
+      query,
+      admin,
+    );
     return { success: true, message: 'Loyalty history fetched', data };
   }
 
@@ -301,7 +308,9 @@ export class CustomerExecutiveController {
   }
 
   @Get('tracking/search')
-  @ApiOperation({ summary: 'Search order tracking by order ID, number, or customer' })
+  @ApiOperation({
+    summary: 'Search order tracking by order ID, number, or customer',
+  })
   async searchTracking(
     @Query() query: CeTrackingSearchQueryDto,
     @CurrentAdmin() admin: AuthenticatedAdmin,
@@ -548,7 +557,9 @@ export class CustomerExecutiveController {
   }
 
   @Get('expert-callbacks')
-  @ApiOperation({ summary: 'List material expert callback requests from the app' })
+  @ApiOperation({
+    summary: 'List material expert callback requests from the app',
+  })
   async getExpertCallbacks(
     @Query() query: CeExpertCallbackQueryDto,
     @CurrentAdmin() admin: AuthenticatedAdmin,

@@ -206,7 +206,9 @@ export class AdminCustomersService {
         },
       });
       if (existing) {
-        throw new BadRequestException('Email already in use by another customer');
+        throw new BadRequestException(
+          'Email already in use by another customer',
+        );
       }
     }
 
@@ -250,11 +252,7 @@ export class AdminCustomersService {
     return this.findOne(id);
   }
 
-  async assign(
-    id: string,
-    dto: AdminAssignCustomerDto,
-    actorId?: string,
-  ) {
+  async assign(id: string, dto: AdminAssignCustomerDto, actorId?: string) {
     const customer = await this.prisma.customer.findFirst({
       where: { id, deletedAt: null },
     });
@@ -452,7 +450,12 @@ export class AdminCustomersService {
     language: string;
     assignedHubId?: string | null;
     assignedExecutiveId?: string | null;
-    assignedHub?: { id: string; name: string; city?: string; state?: string } | null;
+    assignedHub?: {
+      id: string;
+      name: string;
+      city?: string;
+      state?: string;
+    } | null;
     assignedExecutive?: {
       id: string;
       fullName: string;

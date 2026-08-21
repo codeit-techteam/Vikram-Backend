@@ -18,7 +18,10 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { SWAGGER_BEARER_AUTH, SWAGGER_TAGS } from '../../common/constants/swagger.constants';
+import {
+  SWAGGER_BEARER_AUTH,
+  SWAGGER_TAGS,
+} from '../../common/constants/swagger.constants';
 import { ApiErrorResponseDto } from '../../common/dto/api-response.dto';
 import { CurrentCustomer } from '../../common/decorators/current-customer.decorator';
 import type { AuthenticatedCustomer } from '../../auth/jwt/jwt-payload.interface';
@@ -70,9 +73,21 @@ Does **not** charge online payment, apply coupons, EMI, or credit. Supports loya
       },
     },
   })
-  @ApiResponse({ status: 201, description: 'Order placed', type: OrderResponseDto })
-  @ApiResponse({ status: 400, description: 'Empty cart / stock / validation', type: ApiErrorResponseDto })
-  @ApiResponse({ status: 404, description: 'Address not found', type: ApiErrorResponseDto })
+  @ApiResponse({
+    status: 201,
+    description: 'Order placed',
+    type: OrderResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Empty cart / stock / validation',
+    type: ApiErrorResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Address not found',
+    type: ApiErrorResponseDto,
+  })
   async placeOrder(
     @CurrentCustomer() customer: AuthenticatedCustomer,
     @Body() dto: PlaceOrderDto,
@@ -91,12 +106,24 @@ Does **not** charge online payment, apply coupons, EMI, or credit. Supports loya
     description:
       'Returns paginated order history for the authenticated customer. Supports status and date-range filters. Sorted newest first.',
   })
-  @ApiResponse({ status: 200, description: 'Orders fetched', type: OrderListResponseDto })
-  @ApiResponse({ status: 401, description: 'Unauthorized', type: ApiErrorResponseDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Orders fetched',
+    type: OrderListResponseDto,
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized',
+    type: ApiErrorResponseDto,
+  })
   async findAll(
     @CurrentCustomer() customer: AuthenticatedCustomer,
     @Query() query: OrderListQueryDto,
-  ): Promise<{ success: boolean; message: string; data: OrderListResponseDto }> {
+  ): Promise<{
+    success: boolean;
+    message: string;
+    data: OrderListResponseDto;
+  }> {
     const data = await this.ordersService.findAll(customer.id, query);
     return {
       success: true,
@@ -113,11 +140,19 @@ Does **not** charge online payment, apply coupons, EMI, or credit. Supports loya
   })
   @ApiParam({ name: 'orderId', description: 'Order UUID' })
   @ApiResponse({ status: 200, type: OrderDetailResponseDto })
-  @ApiResponse({ status: 404, description: 'Order not found', type: ApiErrorResponseDto })
+  @ApiResponse({
+    status: 404,
+    description: 'Order not found',
+    type: ApiErrorResponseDto,
+  })
   async findOne(
     @CurrentCustomer() customer: AuthenticatedCustomer,
     @Param('orderId', ParseUUIDPipe) orderId: string,
-  ): Promise<{ success: boolean; message: string; data: OrderDetailResponseDto }> {
+  ): Promise<{
+    success: boolean;
+    message: string;
+    data: OrderDetailResponseDto;
+  }> {
     const data = await this.ordersService.findOne(customer.id, orderId);
     return {
       success: true,
@@ -135,7 +170,11 @@ Does **not** charge online payment, apply coupons, EMI, or credit. Supports loya
   })
   @ApiParam({ name: 'orderId', description: 'Order UUID' })
   @ApiResponse({ status: 200, description: 'Reorder products returned' })
-  @ApiResponse({ status: 404, description: 'Order not found', type: ApiErrorResponseDto })
+  @ApiResponse({
+    status: 404,
+    description: 'Order not found',
+    type: ApiErrorResponseDto,
+  })
   async reorder(
     @CurrentCustomer() customer: AuthenticatedCustomer,
     @Param('orderId', ParseUUIDPipe) orderId: string,
@@ -156,13 +195,25 @@ Does **not** charge online payment, apply coupons, EMI, or credit. Supports loya
   })
   @ApiParam({ name: 'orderId', description: 'Order UUID' })
   @ApiResponse({ status: 200, type: OrderDetailResponseDto })
-  @ApiResponse({ status: 400, description: 'Not eligible for cancellation', type: ApiErrorResponseDto })
-  @ApiResponse({ status: 404, description: 'Order not found', type: ApiErrorResponseDto })
+  @ApiResponse({
+    status: 400,
+    description: 'Not eligible for cancellation',
+    type: ApiErrorResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Order not found',
+    type: ApiErrorResponseDto,
+  })
   async cancel(
     @CurrentCustomer() customer: AuthenticatedCustomer,
     @Param('orderId', ParseUUIDPipe) orderId: string,
     @Body() dto: CancelOrderDto,
-  ): Promise<{ success: boolean; message: string; data: OrderDetailResponseDto }> {
+  ): Promise<{
+    success: boolean;
+    message: string;
+    data: OrderDetailResponseDto;
+  }> {
     const data = await this.ordersService.cancel(customer.id, orderId, dto);
     return {
       success: true,

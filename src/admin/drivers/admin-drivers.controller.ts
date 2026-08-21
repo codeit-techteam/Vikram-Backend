@@ -9,11 +9,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import {
-  ApiBearerAuth,
-  ApiOperation,
-  ApiTags,
-} from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { SWAGGER_BEARER_AUTH } from '../../common/constants/swagger.constants';
 import { AdminJwtAuthGuard } from '../guards/admin-jwt-auth.guard';
 import { AdminRolesGuard } from '../guards/admin-roles.guard';
@@ -140,7 +136,11 @@ export class AdminDriversController {
       resourceId: id,
       newValue: { type: 'vehicle_assignment', vehicleId: dto.vehicleId },
     });
-    return { success: true, message: 'Driver vehicle assignment updated', data };
+    return {
+      success: true,
+      message: 'Driver vehicle assignment updated',
+      data,
+    };
   }
 
   @Delete(':id')

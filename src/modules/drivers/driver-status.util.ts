@@ -9,7 +9,9 @@ export type OperationalDriverStatus =
   | 'SUSPENDED'
   | 'BLOCKED';
 
-export function isLicenseExpired(licenseExpiry?: Date | string | null): boolean {
+export function isLicenseExpired(
+  licenseExpiry?: Date | string | null,
+): boolean {
   if (!licenseExpiry) return false;
   const expiry = new Date(licenseExpiry);
   if (Number.isNaN(expiry.getTime())) return false;
@@ -38,10 +40,17 @@ export function deriveDriverOperationalStatus(input: {
   if (input.availability === 'SUSPENDED') {
     return 'SUSPENDED';
   }
-  if (input.onLeave || input.availability === 'ON_LEAVE' || input.availability === 'OFF_DUTY') {
+  if (
+    input.onLeave ||
+    input.availability === 'ON_LEAVE' ||
+    input.availability === 'OFF_DUTY'
+  ) {
     return 'ON_LEAVE';
   }
-  if (isLicenseExpired(input.licenseExpiry) || input.availability === 'BLOCKED') {
+  if (
+    isLicenseExpired(input.licenseExpiry) ||
+    input.availability === 'BLOCKED'
+  ) {
     return 'BLOCKED';
   }
   if (input.hasActiveTrip || input.availability === 'ON_DELIVERY') {

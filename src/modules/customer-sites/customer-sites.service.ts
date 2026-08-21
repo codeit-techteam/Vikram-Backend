@@ -7,11 +7,7 @@ import { AddressType, SiteType } from '../../../generated/prisma/client';
 import { CACHE_KEYS, CACHE_TTL } from '../../common/cache/cache.constants';
 import { CacheService } from '../../common/cache/cache.service';
 import { PrismaService } from '../../common/database/prisma.service';
-import {
-  CreateSiteDto,
-  SiteResponseDto,
-  UpdateSiteDto,
-} from './dto/site.dto';
+import { CreateSiteDto, SiteResponseDto, UpdateSiteDto } from './dto/site.dto';
 
 type AddressRow = {
   id: string;

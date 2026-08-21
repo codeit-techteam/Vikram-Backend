@@ -139,9 +139,7 @@ export class AdminVideosController {
       {
         ...body,
         priority: body.priority ? Number(body.priority) : undefined,
-        displayOrder: body.displayOrder
-          ? Number(body.displayOrder)
-          : undefined,
+        displayOrder: body.displayOrder ? Number(body.displayOrder) : undefined,
         duration: body.duration ? Number(body.duration) : undefined,
       },
       admin.id,
@@ -160,7 +158,9 @@ export class AdminVideosController {
 
   @Post(':id/replace')
   @AdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
-  @ApiOperation({ summary: 'Replace the video file for an existing CMS record' })
+  @ApiOperation({
+    summary: 'Replace the video file for an existing CMS record',
+  })
   @ApiConsumes('multipart/form-data')
   @UseInterceptors(
     FileInterceptor('file', {

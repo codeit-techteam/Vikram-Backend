@@ -12,13 +12,15 @@ export const DELIVERY_PREFERENCE_TYPES = [
 
 export type DeliveryPreferenceType = (typeof DELIVERY_PREFERENCE_TYPES)[number];
 
-export const DELIVERY_PREFERENCE_LABELS: Record<DeliveryPreferenceType, string> =
-  {
-    ASAP: 'As soon as possible',
-    TODAY: 'Deliver today',
-    TOMORROW: 'Deliver tomorrow',
-    SCHEDULED: 'Scheduled delivery',
-  };
+export const DELIVERY_PREFERENCE_LABELS: Record<
+  DeliveryPreferenceType,
+  string
+> = {
+  ASAP: 'As soon as possible',
+  TODAY: 'Deliver today',
+  TOMORROW: 'Deliver tomorrow',
+  SCHEDULED: 'Scheduled delivery',
+};
 
 /** Default customer-facing windows. Intersected with hub working hours. */
 export const DEFAULT_SLOT_WINDOWS: ReadonlyArray<{

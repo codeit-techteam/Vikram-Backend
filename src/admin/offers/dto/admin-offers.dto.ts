@@ -41,10 +41,26 @@ export class CreateOfferDto {
   @IsNumber()
   bundlePrice?: number | null;
   @ApiPropertyOptional() @IsOptional() @IsNumber() originalPrice?: number;
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) badge?: string;
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) ctaLabel?: string;
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(40) ctaAction?: string;
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200) ctaValue?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  badge?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  ctaLabel?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  ctaAction?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  ctaValue?: string;
   @ApiPropertyOptional({ enum: OfferTargetAudience })
   @IsOptional()
   @IsEnum(OfferTargetAudience)
@@ -53,7 +69,12 @@ export class CreateOfferDto {
   @ApiPropertyOptional() @IsOptional() @IsDateString() endsAt?: string;
   @ApiPropertyOptional() @IsOptional() @IsBoolean() isFeatured?: boolean;
   @ApiPropertyOptional() @IsOptional() @IsInt() displayOrder?: number;
-  @ApiPropertyOptional() @IsOptional() @IsInt() @Min(0) @Max(10) priority?: number;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(10)
+  priority?: number;
 }
 
 export class UpdateOfferDto {
@@ -88,7 +109,12 @@ export class UpdateOfferDto {
   targetAudience?: OfferTargetAudience;
   @ApiPropertyOptional() @IsOptional() @IsBoolean() isFeatured?: boolean;
   @ApiPropertyOptional() @IsOptional() @IsInt() displayOrder?: number;
-  @ApiPropertyOptional() @IsOptional() @IsInt() @Min(0) @Max(10) priority?: number;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(10)
+  priority?: number;
   @ApiPropertyOptional() @IsOptional() @IsDateString() startsAt?: string;
   @ApiPropertyOptional() @IsOptional() @IsDateString() endsAt?: string;
 }
@@ -97,9 +123,21 @@ export class OfferQueryDto {
   @ApiPropertyOptional() @IsOptional() @IsString() status?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() search?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() placement?: string;
-  @ApiPropertyOptional() @IsOptional() @IsBoolean() @Type(() => Boolean) isFeatured?: boolean;
-  @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsInt() page?: number = 1;
-  @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsInt() limit?: number = 20;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  @Type(() => Boolean)
+  isFeatured?: boolean;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  page?: number = 1;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  limit?: number = 20;
 }
 
 export class SetOfferProductsDto {

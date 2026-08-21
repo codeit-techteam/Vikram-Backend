@@ -58,7 +58,9 @@ export class RequisitionPaginationQueryDto {
   @IsDateString()
   dateTo?: string;
 
-  @ApiPropertyOptional({ enum: ['createdAt', 'expectedDate', 'totalValue', 'requestNo'] })
+  @ApiPropertyOptional({
+    enum: ['createdAt', 'expectedDate', 'totalValue', 'requestNo'],
+  })
   @IsOptional()
   @IsString()
   sortBy?: string;
@@ -117,7 +119,9 @@ export class CreateRequisitionDto {
   @Type(() => RequisitionItemInputDto)
   items?: RequisitionItemInputDto[];
 
-  @ApiPropertyOptional({ description: 'If true, submit immediately after create' })
+  @ApiPropertyOptional({
+    description: 'If true, submit immediately after create',
+  })
   @IsOptional()
   @Transform(({ value }) => value === true || value === 'true')
   @IsBoolean()

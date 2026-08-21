@@ -47,7 +47,9 @@ export class CePaginationQueryDto {
 }
 
 export class CeCustomerSearchQueryDto extends CePaginationQueryDto {
-  @ApiPropertyOptional({ description: 'Search by mobile, name, company, or customer ID' })
+  @ApiPropertyOptional({
+    description: 'Search by mobile, name, company, or customer ID',
+  })
   @IsOptional()
   @IsString()
   q?: string;
@@ -129,7 +131,9 @@ export class CeRegisterCustomerDto {
   })
   phone: string;
 
-  @ApiProperty({ description: 'OTP verification session token from verify-otp' })
+  @ApiProperty({
+    description: 'OTP verification session token from verify-otp',
+  })
   @IsString()
   @MinLength(16)
   verificationToken: string;
@@ -300,7 +304,9 @@ export class CeCreateOrderDto {
   @Min(0)
   loyaltyPointsToRedeem?: number;
 
-  @ApiPropertyOptional({ description: 'Inline delivery address when addressId is absent' })
+  @ApiPropertyOptional({
+    description: 'Inline delivery address when addressId is absent',
+  })
   @IsOptional()
   @IsString()
   deliveryAddress?: string;
@@ -687,7 +693,9 @@ export class CePaymentQueryDto extends CePaginationQueryDto {
 }
 
 export class CeTrackingSearchQueryDto {
-  @ApiProperty({ description: 'Order ID, order number, customer mobile, or name' })
+  @ApiProperty({
+    description: 'Order ID, order number, customer mobile, or name',
+  })
   @IsString()
   @MinLength(2)
   q: string;

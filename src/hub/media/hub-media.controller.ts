@@ -23,13 +23,9 @@ import { HubJwtAuthGuard } from '../guards/hub-jwt-auth.guard';
 import { HubRolesGuard } from '../guards/hub-roles.guard';
 import { HubPermission } from '../decorators/hub-roles.decorator';
 import { R2StorageService } from '../../storage/r2.service';
-import {
-  MEDIA_FOLDERS,
-  resolveMediaFolder,
-} from '../../storage/media-folders';
+import { MEDIA_FOLDERS, resolveMediaFolder } from '../../storage/media-folders';
 
-const IMAGE_MIME =
-  /^(image\/(jpeg|jpg|png|webp|gif|heic|heif))$/i;
+const IMAGE_MIME = /^(image\/(jpeg|jpg|png|webp|gif|heic|heif))$/i;
 const DOC_MIME =
   /^(application\/pdf|application\/msword|application\/vnd\.openxmlformats-officedocument\.wordprocessingml\.document)$/i;
 

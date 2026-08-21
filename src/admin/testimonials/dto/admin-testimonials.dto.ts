@@ -44,7 +44,9 @@ export class CreateTestimonialDto {
   @IsString()
   videoUrl?: string;
 
-  @ApiPropertyOptional({ description: 'Thumbnail image URL (DB field: thumbnail)' })
+  @ApiPropertyOptional({
+    description: 'Thumbnail image URL (DB field: thumbnail)',
+  })
   @IsOptional()
   @IsString()
   thumbnail?: string;

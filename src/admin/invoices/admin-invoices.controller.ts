@@ -18,7 +18,10 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { SWAGGER_BEARER_AUTH, SWAGGER_TAGS } from '../../common/constants/swagger.constants';
+import {
+  SWAGGER_BEARER_AUTH,
+  SWAGGER_TAGS,
+} from '../../common/constants/swagger.constants';
 import { SkipResponseWrap } from '../../common/decorators/skip-response-wrap.decorator';
 import { ApiErrorResponseDto } from '../../common/dto/api-response.dto';
 import type { AuthenticatedAdmin } from '../auth/admin-jwt.strategy';
@@ -73,11 +76,16 @@ export class AdminInvoicesController {
   })
   @ApiParam({ name: 'id', description: 'Invoice UUID' })
   @ApiResponse({ status: 200, description: 'PDF file stream' })
-  @ApiResponse({ status: 404, description: 'Invoice not found', type: ApiErrorResponseDto })
+  @ApiResponse({
+    status: 404,
+    description: 'Invoice not found',
+    type: ApiErrorResponseDto,
+  })
   async getInvoicePdf(
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<StreamableFile> {
-    const { buffer, filename } = await this.invoiceService.getAdminInvoicePdf(id);
+    const { buffer, filename } =
+      await this.invoiceService.getAdminInvoicePdf(id);
     return new StreamableFile(buffer, {
       type: 'application/pdf',
       disposition: `attachment; filename="${filename}"`,
@@ -93,13 +101,24 @@ export class AdminInvoicesController {
       'Deletes cached PDF, regenerates from invoice snapshot, and optionally emails the customer.',
   })
   @ApiResponse({ status: 200, type: RegenerateInvoiceResultDto })
-  @ApiResponse({ status: 400, description: 'Missing invoiceId or orderId', type: ApiErrorResponseDto })
-  @ApiResponse({ status: 404, description: 'Invoice not found', type: ApiErrorResponseDto })
+  @ApiResponse({
+    status: 400,
+    description: 'Missing invoiceId or orderId',
+    type: ApiErrorResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Invoice not found',
+    type: ApiErrorResponseDto,
+  })
   async regenerateInvoice(
     @Body() dto: RegenerateInvoiceDto,
     @CurrentAdmin() admin: AuthenticatedAdmin,
   ) {
-    const data = await this.invoiceService.regenerateInvoice(dto, dto.sendEmail);
+    const data = await this.invoiceService.regenerateInvoice(
+      dto,
+      dto.sendEmail,
+    );
     await this.auditService.log({
       adminUserId: admin.id,
       adminEmail: admin.email,

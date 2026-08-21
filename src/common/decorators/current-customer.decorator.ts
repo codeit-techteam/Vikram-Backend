@@ -6,7 +6,9 @@ import { AuthenticatedCustomer } from '../../auth/jwt/jwt-payload.interface';
  */
 export const CurrentCustomer = createParamDecorator(
   (_data: unknown, ctx: ExecutionContext): AuthenticatedCustomer => {
-    const request = ctx.switchToHttp().getRequest<{ user: AuthenticatedCustomer }>();
+    const request = ctx
+      .switchToHttp()
+      .getRequest<{ user: AuthenticatedCustomer }>();
     return request.user;
   },
 );

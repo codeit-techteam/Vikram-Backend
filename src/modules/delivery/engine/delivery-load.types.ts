@@ -77,7 +77,12 @@ export interface VehicleCapacityView {
 export interface VehicleSelectionResult {
   ok: boolean;
   message?: string;
-  mode: 'CAPACITY' | 'QTY_TIER_FALLBACK' | 'MULTI_VEHICLE' | 'BULK_QUOTE' | 'UNAVAILABLE';
+  mode:
+    | 'CAPACITY'
+    | 'QTY_TIER_FALLBACK'
+    | 'MULTI_VEHICLE'
+    | 'BULK_QUOTE'
+    | 'UNAVAILABLE';
   vehicleType: DeliveryVehicleType | null;
   vehicleDisplayName: string | null;
   vehicleImageUrl: string | null;

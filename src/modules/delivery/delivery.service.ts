@@ -1,8 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { buildDeliverySubtitle } from '../../common/delivery/customer-delivery.util';
 import {
-  buildDeliverySubtitle,
-} from '../../common/delivery/customer-delivery.util';
-import { FREE_DELIVERY_THRESHOLD, toMoney } from '../../common/shopping/pricing.util';
+  FREE_DELIVERY_THRESHOLD,
+  toMoney,
+} from '../../common/shopping/pricing.util';
 import { CoverageService } from '../coverage/coverage.service';
 import type { CoverageStockItem } from '../coverage/coverage.types';
 import {
@@ -54,7 +55,10 @@ export class DeliveryService {
     }
 
     const productIds = query.productIds
-      ? query.productIds.split(',').map((s) => s.trim()).filter(Boolean)
+      ? query.productIds
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean)
       : [];
     const quantities = query.quantities
       ? query.quantities.split(',').map((s) => Number(s.trim()) || 1)
@@ -73,7 +77,9 @@ export class DeliveryService {
     });
   }
 
-  async calculateEta(input: DeliveryEtaBodyDto): Promise<DeliveryEtaResponseDto> {
+  async calculateEta(
+    input: DeliveryEtaBodyDto,
+  ): Promise<DeliveryEtaResponseDto> {
     const items: CoverageStockItem[] = (input.cartItems ?? []).map((i) => ({
       productId: i.productId,
       quantity: i.quantity,
@@ -183,8 +189,7 @@ export class DeliveryService {
             vehicleDisplayName ?? selection.vehicleDisplayName ?? undefined;
         } else {
           deliveryMessage =
-            selection.message ??
-            'No eligible vehicle exists for this order';
+            selection.message ?? 'No eligible vehicle exists for this order';
           modeTitle = 'Delivery vehicle unassigned';
         }
 
@@ -364,9 +369,7 @@ export class DeliveryService {
         this.vehicleSelection.listVehicleConfigs(true),
         this.vehicleSelection.getEngineConfig(),
       ]);
-    const timingByType = new Map(
-      vehicleTimings.map((t) => [t.vehicleType, t]),
-    );
+    const timingByType = new Map(vehicleTimings.map((t) => [t.vehicleType, t]));
 
     for (const product of products) {
       if (!product.isTransportable) continue;

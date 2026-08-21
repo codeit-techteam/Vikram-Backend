@@ -12,7 +12,10 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { SWAGGER_BEARER_AUTH, SWAGGER_TAGS } from '../../common/constants/swagger.constants';
+import {
+  SWAGGER_BEARER_AUTH,
+  SWAGGER_TAGS,
+} from '../../common/constants/swagger.constants';
 import { ApiErrorResponseDto } from '../../common/dto/api-response.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
@@ -45,9 +48,21 @@ export class CustomerAuthController {
     description:
       'Step 1 of auth. Call this first. In development the response includes `otp` (default 123456). Then call login or verify-otp within 5 minutes.',
   })
-  @ApiResponse({ status: 200, description: 'OTP sent successfully', type: SendOtpResponseDto })
-  @ApiResponse({ status: 400, description: 'Validation error', type: ApiErrorResponseDto })
-  @ApiResponse({ status: 429, description: 'Rate limit exceeded', type: ApiErrorResponseDto })
+  @ApiResponse({
+    status: 200,
+    description: 'OTP sent successfully',
+    type: SendOtpResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Validation error',
+    type: ApiErrorResponseDto,
+  })
+  @ApiResponse({
+    status: 429,
+    description: 'Rate limit exceeded',
+    type: ApiErrorResponseDto,
+  })
   async sendOtp(
     @Body() dto: SendOtpDto,
   ): Promise<{ success: boolean; message: string; data: SendOtpResponseDto }> {
@@ -67,8 +82,16 @@ export class CustomerAuthController {
     description:
       'Step 2 of auth. Requires a prior send-otp. Creates the customer on first success and returns JWT + refresh token.',
   })
-  @ApiResponse({ status: 200, description: 'OTP verified, tokens issued', type: AuthResponseDto })
-  @ApiResponse({ status: 400, description: 'Invalid or expired OTP', type: ApiErrorResponseDto })
+  @ApiResponse({
+    status: 200,
+    description: 'OTP verified, tokens issued',
+    type: AuthResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid or expired OTP',
+    type: ApiErrorResponseDto,
+  })
   async verifyOtp(
     @Body() dto: VerifyOtpDto,
   ): Promise<{ success: boolean; message: string; data: AuthResponseDto }> {
@@ -94,8 +117,16 @@ export class CustomerAuthController {
     description:
       'Same as verify-otp: call send-otp first, then login with the OTP. Creates the customer if they do not exist yet.',
   })
-  @ApiResponse({ status: 200, description: 'Login successful', type: AuthResponseDto })
-  @ApiResponse({ status: 400, description: 'OTP expired or invalid — call send-otp first', type: ApiErrorResponseDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Login successful',
+    type: AuthResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'OTP expired or invalid — call send-otp first',
+    type: ApiErrorResponseDto,
+  })
   async login(
     @Body() dto: LoginDto,
   ): Promise<{ success: boolean; message: string; data: AuthResponseDto }> {
@@ -115,8 +146,16 @@ export class CustomerAuthController {
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Refresh access token using refresh token' })
-  @ApiResponse({ status: 200, description: 'Tokens refreshed', type: AuthTokensDto })
-  @ApiResponse({ status: 401, description: 'Invalid refresh token', type: ApiErrorResponseDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Tokens refreshed',
+    type: AuthTokensDto,
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Invalid refresh token',
+    type: ApiErrorResponseDto,
+  })
   async refresh(
     @Body() dto: RefreshTokenDto,
   ): Promise<{ success: boolean; message: string; data: AuthTokensDto }> {
@@ -136,7 +175,11 @@ export class CustomerAuthController {
   @ApiBearerAuth(SWAGGER_BEARER_AUTH)
   @ApiOperation({ summary: 'Logout and invalidate refresh token' })
   @ApiResponse({ status: 200, description: 'Logged out successfully' })
-  @ApiResponse({ status: 401, description: 'Unauthorized', type: ApiErrorResponseDto })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized',
+    type: ApiErrorResponseDto,
+  })
   async logout(
     @CurrentUser() user: AuthenticatedCustomer,
     @Body() dto: LogoutDto,
@@ -152,8 +195,16 @@ export class CustomerAuthController {
   @Get('me')
   @ApiBearerAuth(SWAGGER_BEARER_AUTH)
   @ApiOperation({ summary: 'Get current authenticated customer profile' })
-  @ApiResponse({ status: 200, description: 'Customer profile fetched', type: CustomerMeDto })
-  @ApiResponse({ status: 401, description: 'Unauthorized', type: ApiErrorResponseDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Customer profile fetched',
+    type: CustomerMeDto,
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized',
+    type: ApiErrorResponseDto,
+  })
   async me(
     @CurrentUser() user: AuthenticatedCustomer,
   ): Promise<{ success: boolean; message: string; data: CustomerMeDto }> {

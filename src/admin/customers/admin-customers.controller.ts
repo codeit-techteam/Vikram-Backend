@@ -100,10 +100,7 @@ export class AdminCustomersController {
   @Delete(':id/sites/:siteId')
   @AdminRoles(...ROLE_GROUPS.CUSTOMER_EXECUTIVE)
   @ApiOperation({ summary: 'Delete customer delivery site' })
-  async deleteSite(
-    @Param('id') id: string,
-    @Param('siteId') siteId: string,
-  ) {
+  async deleteSite(@Param('id') id: string, @Param('siteId') siteId: string) {
     await this.sitesService.removeForAdmin(id, siteId);
     return { success: true, message: 'Delivery site deleted', data: null };
   }
@@ -213,7 +210,10 @@ export class AdminCustomersController {
     @Param('id') id: string,
     @CurrentAdmin() admin: AuthenticatedAdmin,
   ) {
-    const data = await this.customersService.setStatus(id, CustomerStatus.ACTIVE);
+    const data = await this.customersService.setStatus(
+      id,
+      CustomerStatus.ACTIVE,
+    );
     await this.auditService.log({
       adminUserId: admin.id,
       adminEmail: admin.email,

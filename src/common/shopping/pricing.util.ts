@@ -30,7 +30,9 @@ export function toMoney(value: number): number {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
-export function decimalToNumber(value: { toNumber?: () => number } | number | string): number {
+export function decimalToNumber(
+  value: { toNumber?: () => number } | number | string,
+): number {
   if (typeof value === 'number') return value;
   if (typeof value === 'string') return Number(value);
   if (value && typeof value.toNumber === 'function') return value.toNumber();

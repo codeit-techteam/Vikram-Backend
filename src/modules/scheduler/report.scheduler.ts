@@ -4,10 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { SchedulerRegistry } from '@nestjs/schedule';
 import { Queue } from 'bullmq';
 import { CronJob } from 'cron';
-import {
-  SCHEDULER_JOB_NAMES,
-  SCHEDULER_QUEUES,
-} from './scheduler.constants';
+import { SCHEDULER_JOB_NAMES, SCHEDULER_QUEUES } from './scheduler.constants';
 import {
   buildSchedulerJobOptions,
   dayKey,

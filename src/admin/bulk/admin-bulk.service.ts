@@ -125,7 +125,12 @@ export class AdminBulkService {
     };
   }
 
-  async getStats(filters?: Pick<BulkQueryDto, 'assignedExecutiveId' | 'dateFrom' | 'dateTo' | 'city'>) {
+  async getStats(
+    filters?: Pick<
+      BulkQueryDto,
+      'assignedExecutiveId' | 'dateFrom' | 'dateTo' | 'city'
+    >,
+  ) {
     const base = this.buildListWhere({
       page: 1,
       limit: 1,
@@ -257,7 +262,7 @@ export class AdminBulkService {
             metadata: {
               executiveId,
               executiveName,
-            } as Prisma.InputJsonValue,
+            },
           },
         },
       },
@@ -293,7 +298,7 @@ export class AdminBulkService {
               from: existing.status,
               to: dto.status,
               remarks: dto.remarks ?? null,
-            } as Prisma.InputJsonValue,
+            },
           },
         },
       },
@@ -372,7 +377,10 @@ export class AdminBulkService {
             message: `Follow-up marked ${dto.status}`,
             performedBy: adminName,
             performedByAdminId: admin?.id ?? null,
-            metadata: { followUpId, status: dto.status } as Prisma.InputJsonValue,
+            metadata: {
+              followUpId,
+              status: dto.status,
+            },
           },
         },
       },
@@ -489,7 +497,7 @@ export class AdminBulkService {
               metadata: {
                 quotationId: created.id,
                 totalAmount,
-              } as Prisma.InputJsonValue,
+              },
             },
           },
         },
@@ -631,26 +639,20 @@ export class AdminBulkService {
       if (!selected) {
         throw new BadRequestException('Quotation not found on this enquiry');
       }
-      if (
-        selected.status !== BulkQuotationStatus.ACCEPTED &&
-        !dto.productId
-      ) {
+      if (selected.status !== BulkQuotationStatus.ACCEPTED && !dto.productId) {
         throw new BadRequestException(
           'Quotation must be ACCEPTED before conversion (or provide productId)',
         );
       }
       quotation =
-        selected.status === BulkQuotationStatus.ACCEPTED
-          ? selected
-          : undefined;
+        selected.status === BulkQuotationStatus.ACCEPTED ? selected : undefined;
     } else {
       quotation = enquiry.quotations.find(
         (q) => q.status === BulkQuotationStatus.ACCEPTED,
       );
     }
 
-    const productId =
-      dto.productId ?? quotation?.productId ?? null;
+    const productId = dto.productId ?? quotation?.productId ?? null;
     if (!productId) {
       throw new BadRequestException(
         'Accepted quotation with productId, or explicit productId, is required',
@@ -670,7 +672,10 @@ export class AdminBulkService {
     });
     if (!product) throw new BadRequestException('Product not found');
 
-    const qtyDecimal = dto.quantity ?? decimalToNumber(quotation?.quantity) ?? decimalToNumber(enquiry.expectedQuantity);
+    const qtyDecimal =
+      dto.quantity ??
+      decimalToNumber(quotation?.quantity) ??
+      decimalToNumber(enquiry.expectedQuantity);
     const quantity = Math.max(1, Math.round(qtyDecimal));
     const unitPrice =
       dto.unitPrice ??
@@ -737,8 +742,7 @@ export class AdminBulkService {
           grandTotal,
           bulkOrder: true,
           notes:
-            dto.notes ??
-            `Converted from bulk enquiry ${enquiry.enquiryNumber}`,
+            dto.notes ?? `Converted from bulk enquiry ${enquiry.enquiryNumber}`,
           orderSource: admin ? 'CUSTOMER_EXECUTIVE' : 'BULK_CONVERSION',
           createdByAdminId: admin?.id ?? null,
           deliveryAddress: {
@@ -758,9 +762,7 @@ export class AdminBulkService {
             create: {
               productId: product.id,
               name: product.name,
-              productImage:
-                product.images[0]?.url ??
-                null,
+              productImage: product.images[0]?.url ?? null,
               sku: product.sku,
               brand: product.brand,
               category: product.category?.name ?? null,
@@ -817,7 +819,7 @@ export class AdminBulkService {
                 orderId: created.id,
                 orderNumber: created.orderNumber,
                 quotationId: quotation?.id ?? null,
-              } as Prisma.InputJsonValue,
+              },
             },
           },
         },
@@ -922,7 +924,11 @@ export class AdminBulkService {
     );
   }
 
-  async sendQuotation(id: string, remarks?: string, admin?: AuthenticatedAdmin) {
+  async sendQuotation(
+    id: string,
+    remarks?: string,
+    admin?: AuthenticatedAdmin,
+  ) {
     return this.updateStatus(
       id,
       { status: BulkEnquiryStatus.QUOTED, remarks },
@@ -1009,9 +1015,7 @@ export class AdminBulkService {
     return enquiry;
   }
 
-  private async nextOrderNumber(
-    tx: Prisma.TransactionClient,
-  ): Promise<string> {
+  private async nextOrderNumber(tx: Prisma.TransactionClient): Promise<string> {
     const year = new Date().getFullYear();
     const seq = await tx.orderNumberSequence.upsert({
       where: { year },
@@ -1100,7 +1104,9 @@ export class AdminBulkService {
     };
   }
 
-  private serializeEnquiry(enquiry: Record<string, unknown>): Record<string, unknown> {
+  private serializeEnquiry(
+    enquiry: Record<string, unknown>,
+  ): Record<string, unknown> {
     const base: Record<string, unknown> = {
       ...enquiry,
       expectedQuantity: decimalToNumber(enquiry.expectedQuantity),

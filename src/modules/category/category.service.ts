@@ -2,7 +2,10 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/database/prisma.service';
 import { CacheService } from '../../common/cache/cache.service';
 import { CACHE_KEYS, CACHE_TTL } from '../../common/cache/cache.constants';
-import { ACTIVE_WHERE, PRODUCT_ACTIVE_WHERE } from '../../common/utils/prisma.util';
+import {
+  ACTIVE_WHERE,
+  PRODUCT_ACTIVE_WHERE,
+} from '../../common/utils/prisma.util';
 import { normalizeMediaUrl } from '../../common/utils/media-url';
 import {
   CategoryDetailResponseDto,

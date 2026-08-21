@@ -19,7 +19,8 @@ export class HubMaterialsController {
   @Get()
   @HubPermission('inventory')
   @ApiOperation({
-    summary: 'List/search materials for requisitions (alias of materials/search)',
+    summary:
+      'List/search materials for requisitions (alias of materials/search)',
   })
   async list(
     @CurrentHubUser() user: AuthenticatedHubUser,

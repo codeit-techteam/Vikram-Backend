@@ -153,12 +153,15 @@ export class OfferService {
       throw new NotFoundException(`Offer "${slug}" not found`);
     }
 
-    const result = this.mapOffer(offer as OfferRow, true);
+    const result = this.mapOffer(offer, true);
     await this.cache.set(cacheKey, result, CACHE_TTL.OFFERS);
     return result;
   }
 
-  private mapOffer(offer: OfferRow, includeProducts: boolean): OfferResponseDto {
+  private mapOffer(
+    offer: OfferRow,
+    includeProducts: boolean,
+  ): OfferResponseDto {
     const availableProducts = (offer.products ?? []).filter((op) =>
       isOfferProductAvailable(op.product),
     );

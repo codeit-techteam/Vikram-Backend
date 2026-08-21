@@ -82,7 +82,9 @@ export class HubRequisitionsController {
 
   @Get('draft')
   @HubPermission('inventory')
-  @ApiOperation({ summary: 'Get latest draft requisition for the current hub user' })
+  @ApiOperation({
+    summary: 'Get latest draft requisition for the current hub user',
+  })
   async getDraft(@CurrentHubUser() user: AuthenticatedHubUser) {
     const data = await this.requisitionsService.findLatestDraft(
       user.hubId,

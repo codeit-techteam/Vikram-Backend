@@ -89,12 +89,20 @@ const ALLOWED_DOC_MIMES = new Set([
 const MAX_DOC_BYTES = 10 * 1024 * 1024;
 
 const vehicleInclude = {
-  hub: { select: { id: true, code: true, name: true, hubType: true, city: true } },
+  hub: {
+    select: { id: true, code: true, name: true, hubType: true, city: true },
+  },
   warehouseHub: {
     select: { id: true, code: true, name: true, hubType: true, city: true },
   },
   driver: {
-    select: { id: true, name: true, phone: true, availability: true, isActive: true },
+    select: {
+      id: true,
+      name: true,
+      phone: true,
+      availability: true,
+      isActive: true,
+    },
   },
   documents: {
     orderBy: { createdAt: 'desc' as const },
@@ -123,8 +131,7 @@ export class VehiclesService {
     return {
       ...vehicle,
       capacity: Number(vehicle.capacity ?? 0),
-      payloadKg:
-        vehicle.payloadKg != null ? Number(vehicle.payloadKg) : null,
+      payloadKg: vehicle.payloadKg != null ? Number(vehicle.payloadKg) : null,
       odometerKm:
         vehicle.odometerKm != null ? Number(vehicle.odometerKm) : null,
       availabilityStatus: deriveAvailabilityStatus(vehicle.status),
@@ -227,42 +234,36 @@ export class VehiclesService {
         : {}),
     };
 
-    const [
-      total,
-      available,
-      running,
-      maintenance,
-      inactive,
-      blocked,
-    ] = await Promise.all([
-      this.prisma.vehicle.count({ where: { ...base, isActive: true } }),
-      this.prisma.vehicle.count({
-        where: { ...base, isActive: true, status: 'AVAILABLE' },
-      }),
-      this.prisma.vehicle.count({
-        where: {
-          ...base,
-          isActive: true,
-          status: { in: RUNNING_VEHICLE_STATUSES },
-        },
-      }),
-      this.prisma.vehicle.count({
-        where: { ...base, isActive: true, status: 'MAINTENANCE' },
-      }),
-      this.prisma.vehicle.count({
-        where: {
-          ...base,
-          OR: [{ isActive: false }, { status: 'INACTIVE' }],
-        },
-      }),
-      this.prisma.vehicle.count({
-        where: {
-          ...base,
-          isActive: true,
-          status: { in: ['BLOCKED', 'DOCUMENT_EXPIRED'] },
-        },
-      }),
-    ]);
+    const [total, available, running, maintenance, inactive, blocked] =
+      await Promise.all([
+        this.prisma.vehicle.count({ where: { ...base, isActive: true } }),
+        this.prisma.vehicle.count({
+          where: { ...base, isActive: true, status: 'AVAILABLE' },
+        }),
+        this.prisma.vehicle.count({
+          where: {
+            ...base,
+            isActive: true,
+            status: { in: RUNNING_VEHICLE_STATUSES },
+          },
+        }),
+        this.prisma.vehicle.count({
+          where: { ...base, isActive: true, status: 'MAINTENANCE' },
+        }),
+        this.prisma.vehicle.count({
+          where: {
+            ...base,
+            OR: [{ isActive: false }, { status: 'INACTIVE' }],
+          },
+        }),
+        this.prisma.vehicle.count({
+          where: {
+            ...base,
+            isActive: true,
+            status: { in: ['BLOCKED', 'DOCUMENT_EXPIRED'] },
+          },
+        }),
+      ]);
 
     return {
       total,
@@ -341,7 +342,7 @@ export class VehiclesService {
     });
     if (!hub) throw new BadRequestException('Hub not found');
 
-    let warehouseHubId = input.warehouseHubId ?? null;
+    const warehouseHubId = input.warehouseHubId ?? null;
     if (warehouseHubId) {
       const wh = await this.prisma.hub.findFirst({
         where: {
@@ -790,7 +791,10 @@ export class VehiclesService {
     return this.findById(id);
   }
 
-  async softDelete(id: string, options?: { hubScope?: string; actor?: string }) {
+  async softDelete(
+    id: string,
+    options?: { hubScope?: string; actor?: string },
+  ) {
     const existing = await this.prisma.vehicle.findFirst({
       where: {
         id,
@@ -870,10 +874,14 @@ export class VehiclesService {
       );
     }
     if (dto.fileSize <= 0 || dto.fileSize > MAX_DOC_BYTES) {
-      throw new BadRequestException('File size must be between 1 byte and 10 MB.');
+      throw new BadRequestException(
+        'File size must be between 1 byte and 10 MB.',
+      );
     }
 
-    const safeName = dto.fileName.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 120);
+    const safeName = dto.fileName
+      .replace(/[^a-zA-Z0-9._-]/g, '_')
+      .slice(0, 120);
     const type = String(dto.documentType).toLowerCase();
     const key = `vehicles/${vehicleId}/documents/${type}/${randomUUID()}-${safeName}`;
 

@@ -17,7 +17,10 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { SWAGGER_BEARER_AUTH, SWAGGER_TAGS } from '../../common/constants/swagger.constants';
+import {
+  SWAGGER_BEARER_AUTH,
+  SWAGGER_TAGS,
+} from '../../common/constants/swagger.constants';
 import { ApiErrorResponseDto } from '../../common/dto/api-response.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthenticatedCustomer } from '../../auth/jwt/jwt-payload.interface';
@@ -89,11 +92,32 @@ export class WishlistController {
     description:
       'Adds a product to the customer wishlist. Duplicate products are rejected. Product must exist.',
   })
-  @ApiBody({ type: AddWishlistDto, examples: { default: { value: { productId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890' } } } })
-  @ApiResponse({ status: 201, description: 'Product added to wishlist', type: WishlistResponseDto })
-  @ApiResponse({ status: 404, description: 'Product not found', type: ApiErrorResponseDto })
-  @ApiResponse({ status: 409, description: 'Product already in wishlist', type: ApiErrorResponseDto })
-  @ApiResponse({ status: 400, description: 'Validation error', type: ApiErrorResponseDto })
+  @ApiBody({
+    type: AddWishlistDto,
+    examples: {
+      default: { value: { productId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890' } },
+    },
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Product added to wishlist',
+    type: WishlistResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Product not found',
+    type: ApiErrorResponseDto,
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'Product already in wishlist',
+    type: ApiErrorResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Validation error',
+    type: ApiErrorResponseDto,
+  })
   async addItem(
     @CurrentUser() user: AuthenticatedCustomer,
     @Body() dto: AddWishlistDto,
@@ -113,8 +137,16 @@ export class WishlistController {
     description: 'Removes a product from the customer wishlist by productId.',
   })
   @ApiParam({ name: 'productId', format: 'uuid' })
-  @ApiResponse({ status: 200, description: 'Product removed from wishlist', type: WishlistResponseDto })
-  @ApiResponse({ status: 404, description: 'Product not in wishlist', type: ApiErrorResponseDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Product removed from wishlist',
+    type: WishlistResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Product not in wishlist',
+    type: ApiErrorResponseDto,
+  })
   async removeItem(
     @CurrentUser() user: AuthenticatedCustomer,
     @Param('productId', ParseUUIDPipe) productId: string,

@@ -77,7 +77,9 @@ export class HubInventoryService {
     const updated = await this.prisma.hubInventory.update({
       where: { id },
       data: {
-        ...(dto.availableQty !== undefined && { availableQty: dto.availableQty }),
+        ...(dto.availableQty !== undefined && {
+          availableQty: dto.availableQty,
+        }),
         ...(dto.lowStockThreshold !== undefined && {
           lowStockThreshold: dto.lowStockThreshold,
         }),
@@ -121,7 +123,9 @@ export class HubInventoryService {
 
     const newQty = existing.availableQty + dto.adjustment;
     if (newQty < 0) {
-      throw new BadRequestException('Adjustment would result in negative stock');
+      throw new BadRequestException(
+        'Adjustment would result in negative stock',
+      );
     }
 
     const updated = await this.prisma.hubInventory.update({
@@ -147,7 +151,9 @@ export class HubInventoryService {
     });
 
     if (!source || source.availableQty < dto.quantity) {
-      throw new BadRequestException('Insufficient available stock for transfer');
+      throw new BadRequestException(
+        'Insufficient available stock for transfer',
+      );
     }
 
     const [transfer] = await this.prisma.$transaction([

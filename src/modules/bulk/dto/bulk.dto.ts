@@ -31,7 +31,10 @@ export class BulkMaterialQuantityDto {
   @MaxLength(120)
   slug!: string;
 
-  @ApiProperty({ example: 50, description: 'Estimated quantity for this material' })
+  @ApiProperty({
+    example: 50,
+    description: 'Estimated quantity for this material',
+  })
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 3 })
   @Min(0.001)
@@ -108,7 +111,10 @@ export class CreateBulkEnquiryDto {
   @Type(() => BulkMaterialQuantityDto)
   materialQuantities?: BulkMaterialQuantityDto[];
 
-  @ApiProperty({ example: 500, description: 'Estimated quantity (> 0, decimals allowed)' })
+  @ApiProperty({
+    example: 500,
+    description: 'Estimated quantity (> 0, decimals allowed)',
+  })
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 3 })
   @Min(0.001)

@@ -1,11 +1,22 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Patch, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Patch,
+  Post,
+} from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOperation,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { SWAGGER_BEARER_AUTH, SWAGGER_TAGS } from '../../common/constants/swagger.constants';
+import {
+  SWAGGER_BEARER_AUTH,
+  SWAGGER_TAGS,
+} from '../../common/constants/swagger.constants';
 import { ApiErrorResponseDto } from '../../common/dto/api-response.dto';
 import { CurrentCustomer } from '../../common/decorators/current-customer.decorator';
 import type { AuthenticatedCustomer } from '../../auth/jwt/jwt-payload.interface';
@@ -24,7 +35,9 @@ import {
 @ApiBearerAuth(SWAGGER_BEARER_AUTH)
 @Controller({ version: '1', path: 'customer' })
 export class CustomerProfileController {
-  constructor(private readonly customerProfileService: CustomerProfileService) {}
+  constructor(
+    private readonly customerProfileService: CustomerProfileService,
+  ) {}
 
   @Patch('profile/image')
   @ApiOperation({ summary: 'Update profile image URL' })
@@ -81,12 +94,19 @@ export class CustomerProfileController {
     description: 'Verifies OTP on the new mobile and updates customer phone.',
   })
   @ApiResponse({ status: 200, type: ProfileResponseDto })
-  @ApiResponse({ status: 400, description: 'Invalid OTP', type: ApiErrorResponseDto })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid OTP',
+    type: ApiErrorResponseDto,
+  })
   async changeMobile(
     @CurrentCustomer() customer: AuthenticatedCustomer,
     @Body() dto: ChangeMobileDto,
   ): Promise<{ success: boolean; message: string; data: ProfileResponseDto }> {
-    const data = await this.customerProfileService.changeMobile(customer.id, dto);
+    const data = await this.customerProfileService.changeMobile(
+      customer.id,
+      dto,
+    );
     return {
       success: true,
       message: 'Mobile number updated successfully',
@@ -106,7 +126,10 @@ export class CustomerProfileController {
     @CurrentCustomer() customer: AuthenticatedCustomer,
     @Body() dto: ChangeEmailDto,
   ): Promise<{ success: boolean; message: string; data: ProfileResponseDto }> {
-    const data = await this.customerProfileService.changeEmail(customer.id, dto);
+    const data = await this.customerProfileService.changeEmail(
+      customer.id,
+      dto,
+    );
     return {
       success: true,
       message: 'Email updated successfully',

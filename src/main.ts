@@ -1,9 +1,5 @@
 import dns from 'node:dns';
-import {
-  RequestMethod,
-  ValidationPipe,
-  VersioningType,
-} from '@nestjs/common';
+import { RequestMethod, ValidationPipe, VersioningType } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory, Reflector } from '@nestjs/core';
 import { IoAdapter } from '@nestjs/platform-socket.io';
@@ -30,8 +26,7 @@ async function bootstrap() {
   const port = configService.get<number>('app.port', 3000);
   const apiPrefix = configService.get<string>('app.apiPrefix', 'api');
   const corsOrigins = configService.get<string[]>('cors.origins', []);
-  const isProduction =
-    configService.get<string>('app.env') === 'production';
+  const isProduction = configService.get<string>('app.env') === 'production';
   const swaggerEnabled = configService.get<boolean>('swagger.enabled', true);
   const swaggerPath = configService.get<string>('swagger.path', 'docs');
 

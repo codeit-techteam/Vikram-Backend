@@ -109,7 +109,9 @@ export class AdminBannersService {
         ...(dto.desktopUrl !== undefined &&
           dto.desktopUrl.trim() !== '' && { desktopUrl: dto.desktopUrl }),
         ...(dto.videoUrl !== undefined && { videoUrl: dto.videoUrl }),
-        ...(dto.thumbnailUrl !== undefined && { thumbnailUrl: dto.thumbnailUrl }),
+        ...(dto.thumbnailUrl !== undefined && {
+          thumbnailUrl: dto.thumbnailUrl,
+        }),
         ...(dto.badge !== undefined && { badge: dto.badge }),
         ...(dto.bannerType !== undefined && { bannerType: dto.bannerType }),
         ...(dto.ctaLabel !== undefined && { ctaLabel: dto.ctaLabel }),
@@ -117,7 +119,9 @@ export class AdminBannersService {
         ...(dto.backgroundColor !== undefined && {
           backgroundColor: dto.backgroundColor,
         }),
-        ...(dto.buttonAction !== undefined && { buttonAction: dto.buttonAction }),
+        ...(dto.buttonAction !== undefined && {
+          buttonAction: dto.buttonAction,
+        }),
         ...(dto.linkUrl !== undefined && { linkUrl: dto.linkUrl }),
         ...(dto.linkType !== undefined && { linkType: dto.linkType }),
         ...(dto.linkTarget !== undefined && { linkTarget: dto.linkTarget }),
@@ -137,7 +141,9 @@ export class AdminBannersService {
         ...(dto.targetAudience !== undefined && {
           targetAudience: dto.targetAudience,
         }),
-        ...(dto.displayOrder !== undefined && { displayOrder: dto.displayOrder }),
+        ...(dto.displayOrder !== undefined && {
+          displayOrder: dto.displayOrder,
+        }),
         ...(dto.priority !== undefined && { priority: dto.priority }),
         ...(dto.startsAt !== undefined && {
           startsAt: dto.startsAt ? new Date(dto.startsAt) : null,
@@ -197,8 +203,8 @@ export class AdminBannersService {
     const existing = await this.findOne(id);
     const hasImage = Boolean(
       existing.imageUrl?.trim() ||
-        existing.mobileUrl?.trim() ||
-        existing.desktopUrl?.trim(),
+      existing.mobileUrl?.trim() ||
+      existing.desktopUrl?.trim(),
     );
     if (!hasImage) {
       const isHero = existing.placement === 'HOME_HERO';

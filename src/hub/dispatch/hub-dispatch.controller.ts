@@ -9,7 +9,10 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { SWAGGER_BEARER_AUTH, SWAGGER_TAGS } from '../../common/constants/swagger.constants';
+import {
+  SWAGGER_BEARER_AUTH,
+  SWAGGER_TAGS,
+} from '../../common/constants/swagger.constants';
 import { HubJwtAuthGuard } from '../guards/hub-jwt-auth.guard';
 import { HubRolesGuard } from '../guards/hub-roles.guard';
 import { HubPermission } from '../decorators/hub-roles.decorator';
@@ -84,7 +87,8 @@ export class HubDispatchController {
   @Post()
   @HubPermission('dispatch')
   @ApiOperation({
-    summary: 'Plan & create dispatch (assign vehicle, driver, slot → OUT_FOR_DELIVERY)',
+    summary:
+      'Plan & create dispatch (assign vehicle, driver, slot → OUT_FOR_DELIVERY)',
   })
   async planAndDispatch(
     @CurrentHubUser() user: AuthenticatedHubUser,
@@ -105,7 +109,11 @@ export class HubDispatchController {
     @CurrentHubUser() user: AuthenticatedHubUser,
     @Body() dto: HubDispatchCreateDto,
   ) {
-    const data = await this.dispatchService.create(user.hubId, dto, user.fullName);
+    const data = await this.dispatchService.create(
+      user.hubId,
+      dto,
+      user.fullName,
+    );
     return { success: true, message: 'Dispatch created', data };
   }
 
@@ -129,7 +137,12 @@ export class HubDispatchController {
     @Param('id') id: string,
     @Body() dto: HubOrderActionDto,
   ) {
-    const data = await this.dispatchService.start(user.hubId, id, user.fullName, dto);
+    const data = await this.dispatchService.start(
+      user.hubId,
+      id,
+      user.fullName,
+      dto,
+    );
     return { success: true, message: 'Dispatch started', data };
   }
 
@@ -208,7 +221,11 @@ export class HubDispatchController {
     @CurrentHubUser() user: AuthenticatedHubUser,
     @Param('id') id: string,
   ) {
-    const data = await this.dispatchService.complete(user.hubId, id, user.fullName);
+    const data = await this.dispatchService.complete(
+      user.hubId,
+      id,
+      user.fullName,
+    );
     return { success: true, message: 'Dispatch completed', data };
   }
 }

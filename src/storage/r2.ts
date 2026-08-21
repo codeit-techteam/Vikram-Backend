@@ -72,7 +72,9 @@ function extensionFromName(filename?: string, mimeType?: string): string {
   return 'bin';
 }
 
-function toUploadResult(partial: Omit<UploadResult, 'storageKey'>): UploadResult {
+function toUploadResult(
+  partial: Omit<UploadResult, 'storageKey'>,
+): UploadResult {
   return { ...partial, storageKey: partial.key };
 }
 
@@ -173,7 +175,8 @@ export async function uploadBuffer(
       Key: key,
       Body: body,
       ContentType: mimeType,
-      CacheControl: options.cacheControl ?? 'public, max-age=31536000, immutable',
+      CacheControl:
+        options.cacheControl ?? 'public, max-age=31536000, immutable',
     }),
   );
 
@@ -203,7 +206,8 @@ export async function uploadFile(
       Key: key,
       Body: stream,
       ContentType: mimeType,
-      CacheControl: options.cacheControl ?? 'public, max-age=31536000, immutable',
+      CacheControl:
+        options.cacheControl ?? 'public, max-age=31536000, immutable',
       ...(options.size ? { ContentLength: options.size } : {}),
     },
     queueSize: 4,
@@ -241,7 +245,8 @@ export async function uploadStream(
       Key: key,
       Body: body,
       ContentType: mimeType,
-      CacheControl: options.cacheControl ?? 'public, max-age=31536000, immutable',
+      CacheControl:
+        options.cacheControl ?? 'public, max-age=31536000, immutable',
       ...(options.size ? { ContentLength: options.size } : {}),
     },
     queueSize: 4,

@@ -22,9 +22,19 @@ export class HealthController {
   @Get()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Application health check' })
-  @ApiResponse({ status: 200, description: 'All services healthy', type: HealthResponseDto })
-  @ApiResponse({ status: 503, description: 'One or more services unavailable', type: HealthResponseDto })
-  async check(@Res({ passthrough: true }) res: Response): Promise<HealthResponseDto> {
+  @ApiResponse({
+    status: 200,
+    description: 'All services healthy',
+    type: HealthResponseDto,
+  })
+  @ApiResponse({
+    status: 503,
+    description: 'One or more services unavailable',
+    type: HealthResponseDto,
+  })
+  async check(
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<HealthResponseDto> {
     const health = await this.healthService.check();
 
     if (!this.healthService.isHealthy(health)) {

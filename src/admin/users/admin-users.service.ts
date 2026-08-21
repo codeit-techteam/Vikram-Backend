@@ -17,7 +17,10 @@ import type {
   UpdateAdminUserDto,
   UpdateAdminUserStatusDto,
 } from './dto/admin-users.dto';
-import { AdminUserDisplayStatus, AdminUserStatusAction } from './dto/admin-users.dto';
+import {
+  AdminUserDisplayStatus,
+  AdminUserStatusAction,
+} from './dto/admin-users.dto';
 
 @Injectable()
 export class AdminUsersService {
@@ -229,7 +232,8 @@ export class AdminUsersService {
     await this.getUserOrThrow(id);
 
     const password =
-      dto.password?.trim() || `Admin@${Math.random().toString(36).slice(2, 8)}1`;
+      dto.password?.trim() ||
+      `Admin@${Math.random().toString(36).slice(2, 8)}1`;
     const passwordHash = await bcrypt.hash(password, 10);
 
     await this.prisma.adminUser.update({
@@ -342,7 +346,9 @@ export class AdminUsersService {
       },
     });
     if (count === 0) {
-      throw new BadRequestException('At least one active SUPER_ADMIN must remain');
+      throw new BadRequestException(
+        'At least one active SUPER_ADMIN must remain',
+      );
     }
   }
 

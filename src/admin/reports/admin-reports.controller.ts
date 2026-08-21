@@ -1,5 +1,10 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiQuery,
+  ApiTags,
+} from '@nestjs/swagger';
 import { SWAGGER_BEARER_AUTH } from '../../common/constants/swagger.constants';
 import { AdminJwtAuthGuard } from '../guards/admin-jwt-auth.guard';
 import { AdminRolesGuard } from '../guards/admin-roles.guard';
@@ -17,8 +22,12 @@ export class AdminReportsController {
   @Get('revenue')
   @AdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
   @ApiOperation({ summary: 'Revenue report' })
-  @ApiQuery({ name: 'fromDate', required: false }) @ApiQuery({ name: 'toDate', required: false })
-  async revenue(@Query('fromDate') fromDate?: string, @Query('toDate') toDate?: string) {
+  @ApiQuery({ name: 'fromDate', required: false })
+  @ApiQuery({ name: 'toDate', required: false })
+  async revenue(
+    @Query('fromDate') fromDate?: string,
+    @Query('toDate') toDate?: string,
+  ) {
     const data = await this.reportsService.revenueReport({ fromDate, toDate });
     return { success: true, message: 'Revenue report', data };
   }
@@ -26,17 +35,28 @@ export class AdminReportsController {
   @Get('membership')
   @AdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
   @ApiOperation({ summary: 'Membership report' })
-  @ApiQuery({ name: 'fromDate', required: false }) @ApiQuery({ name: 'toDate', required: false })
-  async membership(@Query('fromDate') fromDate?: string, @Query('toDate') toDate?: string) {
-    const data = await this.reportsService.membershipReport({ fromDate, toDate });
+  @ApiQuery({ name: 'fromDate', required: false })
+  @ApiQuery({ name: 'toDate', required: false })
+  async membership(
+    @Query('fromDate') fromDate?: string,
+    @Query('toDate') toDate?: string,
+  ) {
+    const data = await this.reportsService.membershipReport({
+      fromDate,
+      toDate,
+    });
     return { success: true, message: 'Membership report', data };
   }
 
   @Get('bulk')
   @AdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
   @ApiOperation({ summary: 'Bulk procurement report' })
-  @ApiQuery({ name: 'fromDate', required: false }) @ApiQuery({ name: 'toDate', required: false })
-  async bulk(@Query('fromDate') fromDate?: string, @Query('toDate') toDate?: string) {
+  @ApiQuery({ name: 'fromDate', required: false })
+  @ApiQuery({ name: 'toDate', required: false })
+  async bulk(
+    @Query('fromDate') fromDate?: string,
+    @Query('toDate') toDate?: string,
+  ) {
     const data = await this.reportsService.bulkReport({ fromDate, toDate });
     return { success: true, message: 'Bulk procurement report', data };
   }
@@ -44,8 +64,12 @@ export class AdminReportsController {
   @Get('orders')
   @AdminRoles(...ROLE_GROUPS.WAREHOUSE)
   @ApiOperation({ summary: 'Orders report' })
-  @ApiQuery({ name: 'fromDate', required: false }) @ApiQuery({ name: 'toDate', required: false })
-  async orders(@Query('fromDate') fromDate?: string, @Query('toDate') toDate?: string) {
+  @ApiQuery({ name: 'fromDate', required: false })
+  @ApiQuery({ name: 'toDate', required: false })
+  async orders(
+    @Query('fromDate') fromDate?: string,
+    @Query('toDate') toDate?: string,
+  ) {
     const data = await this.reportsService.ordersReport({ fromDate, toDate });
     return { success: true, message: 'Orders report', data };
   }
@@ -53,9 +77,16 @@ export class AdminReportsController {
   @Get('customers')
   @AdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
   @ApiOperation({ summary: 'Customers report' })
-  @ApiQuery({ name: 'fromDate', required: false }) @ApiQuery({ name: 'toDate', required: false })
-  async customers(@Query('fromDate') fromDate?: string, @Query('toDate') toDate?: string) {
-    const data = await this.reportsService.customersReport({ fromDate, toDate });
+  @ApiQuery({ name: 'fromDate', required: false })
+  @ApiQuery({ name: 'toDate', required: false })
+  async customers(
+    @Query('fromDate') fromDate?: string,
+    @Query('toDate') toDate?: string,
+  ) {
+    const data = await this.reportsService.customersReport({
+      fromDate,
+      toDate,
+    });
     return { success: true, message: 'Customers report', data };
   }
 }

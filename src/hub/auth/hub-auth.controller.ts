@@ -14,7 +14,10 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { Public } from '../../common/decorators/public.decorator';
-import { SWAGGER_BEARER_AUTH, SWAGGER_TAGS } from '../../common/constants/swagger.constants';
+import {
+  SWAGGER_BEARER_AUTH,
+  SWAGGER_TAGS,
+} from '../../common/constants/swagger.constants';
 import { HubAuthService } from './hub-auth.service';
 import {
   HubLoginDto,
@@ -63,9 +66,11 @@ export class HubAuthController {
   @Post('forgot-password')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Request password reset (admin will process)' })
-  async forgotPassword(
-    @Body() dto: HubForgotPasswordDto,
-  ): Promise<{ success: boolean; message: string; data: { requested: boolean } }> {
+  async forgotPassword(@Body() dto: HubForgotPasswordDto): Promise<{
+    success: boolean;
+    message: string;
+    data: { requested: boolean };
+  }> {
     const data = await this.hubAuthService.requestPasswordReset(dto.employeeId);
     return {
       success: true,
@@ -92,9 +97,11 @@ export class HubAuthController {
   @ApiBearerAuth(SWAGGER_BEARER_AUTH)
   @ApiOperation({ summary: 'Get current hub manager profile' })
   @ApiResponse({ status: 200, type: HubManagerProfileDto })
-  async me(
-    @CurrentHubUser() user: AuthenticatedHubUser,
-  ): Promise<{ success: boolean; message: string; data: HubManagerProfileDto }> {
+  async me(@CurrentHubUser() user: AuthenticatedHubUser): Promise<{
+    success: boolean;
+    message: string;
+    data: HubManagerProfileDto;
+  }> {
     const data = await this.hubAuthService.getMe(user.id);
     return { success: true, message: 'Hub profile fetched', data };
   }

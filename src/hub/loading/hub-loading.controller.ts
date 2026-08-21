@@ -1,6 +1,18 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { SWAGGER_BEARER_AUTH, SWAGGER_TAGS } from '../../common/constants/swagger.constants';
+import {
+  SWAGGER_BEARER_AUTH,
+  SWAGGER_TAGS,
+} from '../../common/constants/swagger.constants';
 import { HubJwtAuthGuard } from '../guards/hub-jwt-auth.guard';
 import { HubRolesGuard } from '../guards/hub-roles.guard';
 import { HubPermission } from '../decorators/hub-roles.decorator';
@@ -49,7 +61,11 @@ export class HubLoadingController {
     @CurrentHubUser() user: AuthenticatedHubUser,
     @Body() dto: HubLoadingStartDto,
   ) {
-    const data = await this.loadingService.start(user.hubId, dto, user.fullName);
+    const data = await this.loadingService.start(
+      user.hubId,
+      dto,
+      user.fullName,
+    );
     return { success: true, message: 'Loading started', data };
   }
 
@@ -60,7 +76,11 @@ export class HubLoadingController {
     @CurrentHubUser() user: AuthenticatedHubUser,
     @Body() dto: HubLoadingCompleteDto,
   ) {
-    const data = await this.loadingService.complete(user.hubId, dto, user.fullName);
+    const data = await this.loadingService.complete(
+      user.hubId,
+      dto,
+      user.fullName,
+    );
     return { success: true, message: 'Loading completed', data };
   }
 }

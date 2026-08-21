@@ -66,7 +66,8 @@ export class AdminMediaController {
         },
         replaceKey: {
           type: 'string',
-          description: 'Optional previous storage key or public URL to delete after upload',
+          description:
+            'Optional previous storage key or public URL to delete after upload',
         },
       },
       required: ['file'],
@@ -127,9 +128,7 @@ export class AdminMediaController {
 
     return {
       success: true,
-      message: replaceKey
-        ? 'File replaced on R2'
-        : 'File uploaded to R2',
+      message: replaceKey ? 'File replaced on R2' : 'File uploaded to R2',
       url: uploaded.publicUrl,
       storageKey: uploaded.storageKey,
       size: uploaded.size,

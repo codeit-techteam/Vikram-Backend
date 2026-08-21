@@ -109,7 +109,9 @@ export class AdminDeliveryPricingController {
 
   @Get('engine-config')
   @AdminRoles(...ROLE_GROUPS.WAREHOUSE)
-  @ApiOperation({ summary: 'Delivery engine rules (multi-vehicle, bulk, fallback)' })
+  @ApiOperation({
+    summary: 'Delivery engine rules (multi-vehicle, bulk, fallback)',
+  })
   async engineConfig() {
     const data = await this.vehicleSelection.getEngineConfig();
     return { success: true, message: 'Delivery engine config', data };
@@ -157,10 +159,7 @@ export class AdminDeliveryPricingController {
     @CurrentAdmin() admin: AuthenticatedAdmin,
   ) {
     const before = await this.etaEngine.getEtaConfig();
-    const data = await this.etaEngine.updateEtaConfig(
-      dto as Parameters<DeliveryEtaEngineService['updateEtaConfig']>[0],
-      this.actor(admin),
-    );
+    const data = await this.etaEngine.updateEtaConfig(dto, this.actor(admin));
     await this.auditService.log({
       adminUserId: admin.id,
       adminEmail: admin.email,

@@ -5,9 +5,7 @@ import {
 } from '../../../../generated/prisma/client';
 import { PrismaService } from '../../../common/database/prisma.service';
 import { decimalToNumber } from '../../../common/shopping/pricing.util';
-import {
-  DELIVERY_VEHICLE_DISPLAY_NAMES,
-} from '../delivery-pricing.constants';
+import { DELIVERY_VEHICLE_DISPLAY_NAMES } from '../delivery-pricing.constants';
 import { selectVehicleForLoad } from './delivery-vehicle-selection.logic';
 import type {
   MultiVehicleMode,
@@ -149,9 +147,12 @@ export class DeliveryVehicleSelectionService {
       maxVolumeCft: maxVolume,
       maxQuantity: maxQty,
       capacityUtilizationLimit: util,
-      usableWeightKg: maxWeight != null ? Number((maxWeight * factor).toFixed(3)) : null,
-      usableVolumeCft: maxVolume != null ? Number((maxVolume * factor).toFixed(3)) : null,
-      usableQuantity: maxQty != null ? Number((maxQty * factor).toFixed(3)) : null,
+      usableWeightKg:
+        maxWeight != null ? Number((maxWeight * factor).toFixed(3)) : null,
+      usableVolumeCft:
+        maxVolume != null ? Number((maxVolume * factor).toFixed(3)) : null,
+      usableQuantity:
+        maxQty != null ? Number((maxQty * factor).toFixed(3)) : null,
       priority: row.priority,
       active: row.active,
       hasConfiguredCapacity:
@@ -245,7 +246,9 @@ export class DeliveryVehicleSelectionService {
     const updated = await this.prisma.deliveryVehicleConfig.update({
       where: { vehicleType },
       data: {
-        ...(input.displayName != null ? { displayName: input.displayName } : {}),
+        ...(input.displayName != null
+          ? { displayName: input.displayName }
+          : {}),
         ...(input.imageUrl !== undefined ? { imageUrl: input.imageUrl } : {}),
         ...(input.maxWeightKg !== undefined
           ? { maxWeightKg: input.maxWeightKg }
@@ -277,8 +280,7 @@ export class DeliveryVehicleSelectionService {
           : {}),
         ...(input.driverPreparationTimeMinutes !== undefined
           ? {
-              driverPreparationTimeMinutes:
-                input.driverPreparationTimeMinutes,
+              driverPreparationTimeMinutes: input.driverPreparationTimeMinutes,
             }
           : {}),
         ...(input.operationalBufferMinutes !== undefined
@@ -287,7 +289,9 @@ export class DeliveryVehicleSelectionService {
         ...(input.avgSpeedKmh !== undefined
           ? { avgSpeedKmh: input.avgSpeedKmh }
           : {}),
-        ...(input.supportsRmc != null ? { supportsRmc: input.supportsRmc } : {}),
+        ...(input.supportsRmc != null
+          ? { supportsRmc: input.supportsRmc }
+          : {}),
         ...(input.supportsBulkMaterial != null
           ? { supportsBulkMaterial: input.supportsBulkMaterial }
           : {}),
@@ -310,9 +314,7 @@ export class DeliveryVehicleSelectionService {
    * Capacities must come from Admin config — never invent kg/CFT.
    * When no capacities are configured, optionally fall back to qty tiers.
    */
-  async selectVehicle(
-    load: OrderLoadResult,
-  ): Promise<VehicleSelectionResult> {
+  async selectVehicle(load: OrderLoadResult): Promise<VehicleSelectionResult> {
     const engine = await this.getEngineConfig();
     const configs = await this.listVehicleConfigs(true);
     return selectVehicleForLoad(load, configs, engine);

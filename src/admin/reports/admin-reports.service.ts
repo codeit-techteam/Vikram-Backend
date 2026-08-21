@@ -21,13 +21,21 @@ export class AdminReportsService {
 
   async revenueReport(params: ReportParams) {
     const dateFilter = this.getDateFilter(params);
-    const where: Record<string, unknown> = { orderStatus: 'DELIVERED', deletedAt: null };
+    const where: Record<string, unknown> = {
+      orderStatus: 'DELIVERED',
+      deletedAt: null,
+    };
     if (dateFilter) where['createdAt'] = dateFilter;
 
     const [summary, orders] = await Promise.all([
       this.prisma.order.aggregate({
         where,
-        _sum: { grandTotal: true, deliveryCharge: true, discountAmount: true, gstAmount: true },
+        _sum: {
+          grandTotal: true,
+          deliveryCharge: true,
+          discountAmount: true,
+          gstAmount: true,
+        },
         _count: { _all: true },
         _avg: { grandTotal: true },
       }),

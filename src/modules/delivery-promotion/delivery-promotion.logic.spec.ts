@@ -95,11 +95,11 @@ describe('delivery promotion eligibility', () => {
   });
 
   it('applies remaining headline pluralization', () => {
-    expect(applyRemainingHeadline('{count} FREE Bike {delivery} remaining', 1)).toBe(
-      '1 FREE Bike delivery remaining',
-    );
-    expect(applyRemainingHeadline('{count} FREE Bike {delivery} remaining', 2)).toBe(
-      '2 FREE Bike deliveries remaining',
-    );
+    expect(
+      applyRemainingHeadline('{count} FREE Bike {delivery} remaining', 1),
+    ).toBe('1 FREE Bike delivery remaining');
+    expect(
+      applyRemainingHeadline('{count} FREE Bike {delivery} remaining', 2),
+    ).toBe('2 FREE Bike deliveries remaining');
   });
 });

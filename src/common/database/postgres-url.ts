@@ -34,7 +34,8 @@ export function parseDatabaseUrlMeta(databaseUrl: string): DatabaseUrlMeta {
     protocol: parsed.protocol.replace(':', ''),
     host: parsed.hostname,
     port: parsed.port || '5432',
-    database: decodeURIComponent(parsed.pathname.replace(/^\//, '')) || 'unknown',
+    database:
+      decodeURIComponent(parsed.pathname.replace(/^\//, '')) || 'unknown',
     user: decodeURIComponent(parsed.username || ''),
     sslmode: parsed.searchParams.get('sslmode'),
     schema: parsed.searchParams.get('schema'),
@@ -46,7 +47,9 @@ export function isLocalDatabaseHost(host: string): boolean {
   return LOCAL_HOSTS.has(host);
 }
 
-export function isManagedDigitalOceanPostgres(meta: Pick<DatabaseUrlMeta, 'host' | 'port'>): boolean {
+export function isManagedDigitalOceanPostgres(
+  meta: Pick<DatabaseUrlMeta, 'host' | 'port'>,
+): boolean {
   return (
     meta.host.endsWith('.ondigitalocean.com') ||
     meta.host.includes('.db.ondigitalocean.com') ||
@@ -76,7 +79,9 @@ export function assertProductionDatabaseUrl(databaseUrl: string): void {
   try {
     meta = parseDatabaseUrlMeta(trimmed);
   } catch {
-    throw new Error('DATABASE_URL is not a valid PostgreSQL connection string.');
+    throw new Error(
+      'DATABASE_URL is not a valid PostgreSQL connection string.',
+    );
   }
 
   if (!meta.host || isLocalDatabaseHost(meta.host)) {
@@ -260,7 +265,8 @@ export function classifyDatabaseError(error: unknown): DatabaseErrorDiagnostic {
   const reason = redactSecrets(
     String(err?.cause?.message || err?.message || error),
   );
-  const combined = `${prismaCode ?? ''} ${pgCode ?? ''} ${reason}`.toLowerCase();
+  const combined =
+    `${prismaCode ?? ''} ${pgCode ?? ''} ${reason}`.toLowerCase();
 
   if (reason.includes('${')) {
     return {
@@ -294,7 +300,9 @@ export function classifyDatabaseError(error: unknown): DatabaseErrorDiagnostic {
       reason,
     };
   }
-  if (/password authentication|28p01|28000|invalid authorization/i.test(combined)) {
+  if (
+    /password authentication|28p01|28000|invalid authorization/i.test(combined)
+  ) {
     return {
       category: 'DATABASE_AUTH_FAILED',
       prismaCode,

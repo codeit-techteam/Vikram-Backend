@@ -41,7 +41,10 @@ export class AdminUserResponseDto {
   @ApiProperty({ enum: AdminRole, example: AdminRole.WAREHOUSE_MANAGER })
   role!: AdminRole;
 
-  @ApiProperty({ enum: AdminUserDisplayStatus, example: AdminUserDisplayStatus.ACTIVE })
+  @ApiProperty({
+    enum: AdminUserDisplayStatus,
+    example: AdminUserDisplayStatus.ACTIVE,
+  })
   status!: AdminUserDisplayStatus;
 
   @ApiProperty({ example: true })
@@ -80,7 +83,10 @@ export class AdminUserListResponseDto {
 }
 
 export class CreateAdminUserDto {
-  @ApiProperty({ example: 'Rajesh Kumar', description: 'Full name of the admin user' })
+  @ApiProperty({
+    example: 'Rajesh Kumar',
+    description: 'Full name of the admin user',
+  })
   @IsString()
   @MinLength(2)
   name: string;
@@ -127,7 +133,8 @@ export class UpdateAdminUserStatusDto {
   @ApiProperty({
     enum: AdminUserStatusAction,
     example: AdminUserStatusAction.ACTIVATE,
-    description: 'ACTIVATE — enable login | DEACTIVATE — disable login and revoke sessions',
+    description:
+      'ACTIVATE — enable login | DEACTIVATE — disable login and revoke sessions',
   })
   @IsEnum(AdminUserStatusAction)
   action: AdminUserStatusAction;

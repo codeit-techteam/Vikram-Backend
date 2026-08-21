@@ -69,7 +69,9 @@ export class AdminCategoriesService {
         ...(dto.imageUrl !== undefined && { imageUrl: dto.imageUrl }),
         ...(dto.iconUrl !== undefined && { iconUrl: dto.iconUrl }),
         ...(dto.isFeatured !== undefined && { isFeatured: dto.isFeatured }),
-        ...(dto.displayOrder !== undefined && { displayOrder: dto.displayOrder }),
+        ...(dto.displayOrder !== undefined && {
+          displayOrder: dto.displayOrder,
+        }),
         ...(dto.isVisible !== undefined && { isVisible: dto.isVisible }),
         ...(dto.status !== undefined && { status: dto.status as EntityStatus }),
       },

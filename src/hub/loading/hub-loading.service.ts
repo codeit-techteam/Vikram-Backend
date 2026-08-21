@@ -42,7 +42,10 @@ export class HubLoadingService {
       this.prisma.hubLoadingRecord.count({ where }),
     ]);
 
-    return { data, meta: { page, limit, total, totalPages: Math.ceil(total / limit) } };
+    return {
+      data,
+      meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    };
   }
 
   async findOne(hubId: string, id: string) {
@@ -83,7 +86,11 @@ export class HubLoadingService {
     });
   }
 
-  async complete(hubId: string, dto: HubLoadingCompleteDto, completedBy: string) {
+  async complete(
+    hubId: string,
+    dto: HubLoadingCompleteDto,
+    completedBy: string,
+  ) {
     const record = await this.prisma.hubLoadingRecord.findFirst({
       where: { orderId: dto.orderId, hubId },
     });
@@ -102,7 +109,8 @@ export class HubLoadingService {
         photos: dto.photos ?? [],
         notes: dto.notes ?? record.notes,
         ...(loadingTimeMinutes !== null && {
-          notes: `${dto.notes ?? record.notes ?? ''}\nLoading time: ${loadingTimeMinutes} min`.trim(),
+          notes:
+            `${dto.notes ?? record.notes ?? ''}\nLoading time: ${loadingTimeMinutes} min`.trim(),
         }),
       },
     });

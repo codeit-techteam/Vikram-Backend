@@ -1,4 +1,12 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Post,
+  Query,
+} from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiBody,
@@ -6,7 +14,10 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { SWAGGER_BEARER_AUTH, SWAGGER_TAGS } from '../../common/constants/swagger.constants';
+import {
+  SWAGGER_BEARER_AUTH,
+  SWAGGER_TAGS,
+} from '../../common/constants/swagger.constants';
 import { ApiErrorResponseDto } from '../../common/dto/api-response.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthenticatedCustomer } from '../../auth/jwt/jwt-payload.interface';
@@ -51,8 +62,16 @@ export class CheckoutController {
       },
     },
   })
-  @ApiResponse({ status: 400, description: 'Empty cart / stock error', type: ApiErrorResponseDto })
-  @ApiResponse({ status: 404, description: 'Address not found', type: ApiErrorResponseDto })
+  @ApiResponse({
+    status: 400,
+    description: 'Empty cart / stock error',
+    type: ApiErrorResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Address not found',
+    type: ApiErrorResponseDto,
+  })
   async getCheckout(
     @CurrentUser() user: AuthenticatedCustomer,
     @Query() query: CheckoutQueryDto,

@@ -9,7 +9,10 @@ import {
   normalizeMediaUrl,
   pickPreferredMediaUrl,
 } from '../../common/utils/media-url';
-import type { Prisma, RequisitionStatus } from '../../../generated/prisma/client';
+import type {
+  Prisma,
+  RequisitionStatus,
+} from '../../../generated/prisma/client';
 
 export interface WarehouseInventoryQuery {
   search?: string;
@@ -167,7 +170,8 @@ export class AdminWarehouseService {
         value: String(pendingRequisitions).padStart(2, '0'),
         subtitle: 'Awaiting warehouse review',
         icon: 'requisitions' as const,
-        variant: pendingRequisitions > 0 ? ('warning' as const) : ('default' as const),
+        variant:
+          pendingRequisitions > 0 ? ('warning' as const) : ('default' as const),
         href: '/central-warehouse/requisitions',
       },
       {
@@ -184,7 +188,10 @@ export class AdminWarehouseService {
         value: String(lowStockItems.length).padStart(2, '0'),
         subtitle: 'Below reorder threshold',
         icon: 'low-stock' as const,
-        variant: lowStockItems.length > 0 ? ('warning' as const) : ('default' as const),
+        variant:
+          lowStockItems.length > 0
+            ? ('warning' as const)
+            : ('default' as const),
         href: '/central-warehouse/inventory?status=LOW_STOCK',
       },
     ];
@@ -372,7 +379,11 @@ export class AdminWarehouseService {
   }
 
   async exportInventoryCsv(query: WarehouseInventoryQuery) {
-    const result = await this.listInventory({ ...query, page: 1, limit: 10000 });
+    const result = await this.listInventory({
+      ...query,
+      page: 1,
+      limit: 10000,
+    });
     const header = [
       'Product Name',
       'SKU',
@@ -595,12 +606,9 @@ export class AdminWarehouseService {
       'COMPLETED',
     ] as const;
 
-    let row = await this.prisma.requisition.findFirst({
+    const row = await this.prisma.requisition.findFirst({
       where: {
-        OR: [
-          { id },
-          ...candidates.map((value) => ({ requestNo: value })),
-        ],
+        OR: [{ id }, ...candidates.map((value) => ({ requestNo: value }))],
         status: { in: [...transferStatuses] },
       },
       include: {
@@ -631,10 +639,7 @@ export class AdminWarehouseService {
     if (!row) {
       const anyStatus = await this.prisma.requisition.findFirst({
         where: {
-          OR: [
-            { id },
-            ...candidates.map((value) => ({ requestNo: value })),
-          ],
+          OR: [{ id }, ...candidates.map((value) => ({ requestNo: value }))],
         },
         select: { id: true, requestNo: true, status: true },
       });
@@ -654,7 +659,10 @@ export class AdminWarehouseService {
   ): RequisitionStatus[] | null {
     if (!status || status === 'all') return null;
     const normalized = status.toUpperCase();
-    if (normalized === 'READY_FOR_DISPATCH' || normalized === 'PENDING_DISPATCH') {
+    if (
+      normalized === 'READY_FOR_DISPATCH' ||
+      normalized === 'PENDING_DISPATCH'
+    ) {
       return ['ALLOCATED'];
     }
     if (normalized === 'IN_TRANSIT') return ['DISPATCHED', 'IN_TRANSIT'];
@@ -884,7 +892,7 @@ export class AdminWarehouseService {
           }
         : {}),
       ...(query.status === 'APPROVED' || query.status === 'ALLOCATED'
-        ? { status: query.status as RequisitionStatus }
+        ? { status: query.status }
         : {}),
     };
 
@@ -932,7 +940,8 @@ export class AdminWarehouseService {
           material: first?.productName ?? `${row.totalItems} items`,
           sku: first?.sku,
           requestedQty: first?.requestedQty ?? row.totalQty,
-          approvedQty: first?.approvedQty ?? first?.requestedQty ?? row.totalQty,
+          approvedQty:
+            first?.approvedQty ?? first?.requestedQty ?? row.totalQty,
           allocatedQty: first?.allocatedQty ?? 0,
           unit: first?.unit ?? 'units',
           warehouseAvailable,

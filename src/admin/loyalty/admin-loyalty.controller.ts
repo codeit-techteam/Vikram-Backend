@@ -1,4 +1,13 @@
-import { Body, Controller, Get, Param, Post, Patch, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Patch,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { SWAGGER_BEARER_AUTH } from '../../common/constants/swagger.constants';
 import { AdminJwtAuthGuard } from '../guards/admin-jwt-auth.guard';
@@ -6,7 +15,12 @@ import { AdminRolesGuard } from '../guards/admin-roles.guard';
 import { AdminRoles } from '../decorators/admin-roles.decorator';
 import { ROLE_GROUPS } from '../constants/admin-rbac.constants';
 import { AdminLoyaltyService } from './admin-loyalty.service';
-import { LoyaltyAdjustDto, LoyaltyRewardDto, LoyaltyRedeemDto, LoyaltyQueryDto } from './dto/admin-loyalty.dto';
+import {
+  LoyaltyAdjustDto,
+  LoyaltyRewardDto,
+  LoyaltyRedeemDto,
+  LoyaltyQueryDto,
+} from './dto/admin-loyalty.dto';
 import { CurrentAdmin } from '../decorators/current-admin.decorator';
 import type { AuthenticatedAdmin } from '../auth/admin-jwt.strategy';
 import { AuditService } from '../audit/audit.service';
@@ -57,27 +71,60 @@ export class AdminLoyaltyController {
   @Patch(':customerId/adjust')
   @AdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
   @ApiOperation({ summary: 'Adjust loyalty points (credit or debit)' })
-  async adjust(@Param('customerId') customerId: string, @Body() dto: LoyaltyAdjustDto, @CurrentAdmin() admin: AuthenticatedAdmin) {
+  async adjust(
+    @Param('customerId') customerId: string,
+    @Body() dto: LoyaltyAdjustDto,
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+  ) {
     const data = await this.loyaltyService.adjustPoints(customerId, dto);
-    await this.auditService.log({ adminUserId: admin.id, adminEmail: admin.email, action: 'UPDATE', resource: 'LoyaltyAccount', resourceId: customerId, newValue: dto });
+    await this.auditService.log({
+      adminUserId: admin.id,
+      adminEmail: admin.email,
+      action: 'UPDATE',
+      resource: 'LoyaltyAccount',
+      resourceId: customerId,
+      newValue: dto,
+    });
     return { success: true, message: 'Points adjusted', data };
   }
 
   @Post(':customerId/reward')
   @AdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
   @ApiOperation({ summary: 'Credit loyalty points to customer' })
-  async reward(@Param('customerId') customerId: string, @Body() dto: LoyaltyRewardDto, @CurrentAdmin() admin: AuthenticatedAdmin) {
+  async reward(
+    @Param('customerId') customerId: string,
+    @Body() dto: LoyaltyRewardDto,
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+  ) {
     const data = await this.loyaltyService.rewardPoints(customerId, dto);
-    await this.auditService.log({ adminUserId: admin.id, adminEmail: admin.email, action: 'CREDIT', resource: 'LoyaltyAccount', resourceId: customerId, newValue: dto });
+    await this.auditService.log({
+      adminUserId: admin.id,
+      adminEmail: admin.email,
+      action: 'CREDIT',
+      resource: 'LoyaltyAccount',
+      resourceId: customerId,
+      newValue: dto,
+    });
     return { success: true, message: 'Points rewarded', data };
   }
 
   @Post(':customerId/redeem')
   @AdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
   @ApiOperation({ summary: 'Debit loyalty points for customer' })
-  async redeem(@Param('customerId') customerId: string, @Body() dto: LoyaltyRedeemDto, @CurrentAdmin() admin: AuthenticatedAdmin) {
+  async redeem(
+    @Param('customerId') customerId: string,
+    @Body() dto: LoyaltyRedeemDto,
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+  ) {
     const data = await this.loyaltyService.redeemPoints(customerId, dto);
-    await this.auditService.log({ adminUserId: admin.id, adminEmail: admin.email, action: 'DEBIT', resource: 'LoyaltyAccount', resourceId: customerId, newValue: dto });
+    await this.auditService.log({
+      adminUserId: admin.id,
+      adminEmail: admin.email,
+      action: 'DEBIT',
+      resource: 'LoyaltyAccount',
+      resourceId: customerId,
+      newValue: dto,
+    });
     return { success: true, message: 'Points redeemed', data };
   }
 }

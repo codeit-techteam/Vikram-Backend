@@ -36,7 +36,9 @@ export class AdminHomeSectionsService {
         ...(dto.title !== undefined && { title: dto.title }),
         ...(dto.subtitle !== undefined && { subtitle: dto.subtitle }),
         ...(dto.enabled !== undefined && { enabled: dto.enabled }),
-        ...(dto.displayOrder !== undefined && { displayOrder: dto.displayOrder }),
+        ...(dto.displayOrder !== undefined && {
+          displayOrder: dto.displayOrder,
+        }),
         ...(dto.apiSource !== undefined && { apiSource: dto.apiSource }),
         ...(dto.layoutType !== undefined && { layoutType: dto.layoutType }),
       },

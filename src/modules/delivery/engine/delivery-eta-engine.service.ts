@@ -1,5 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import { DeliveryVehicleType, Prisma } from '../../../../generated/prisma/client';
+import {
+  DeliveryVehicleType,
+  Prisma,
+} from '../../../../generated/prisma/client';
 import { PrismaService } from '../../../common/database/prisma.service';
 import { decimalToNumber } from '../../../common/shopping/pricing.util';
 import {
@@ -75,7 +78,9 @@ export class DeliveryEtaEngineService {
     return this.getEtaConfig();
   }
 
-  async listLoadingRules(activeOnly = true): Promise<DeliveryLoadingRuleView[]> {
+  async listLoadingRules(
+    activeOnly = true,
+  ): Promise<DeliveryLoadingRuleView[]> {
     try {
       const rows = await this.prisma.deliveryLoadingRule.findMany({
         where: activeOnly ? { active: true } : undefined,
@@ -283,8 +288,7 @@ export class DeliveryEtaEngineService {
         : {}),
       ...(input.confidenceMediumSpreadMinutes != null
         ? {
-            confidenceMediumSpreadMinutes:
-              input.confidenceMediumSpreadMinutes,
+            confidenceMediumSpreadMinutes: input.confidenceMediumSpreadMinutes,
           }
         : {}),
       ...(input.confidenceLowSpreadMinutes != null

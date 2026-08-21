@@ -1,8 +1,4 @@
-import {
-  BadRequestException,
-  Injectable,
-  Logger,
-} from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { OrderStatus, Prisma } from '../../../generated/prisma/client';
 import { PrismaService } from '../../common/database/prisma.service';
@@ -73,7 +69,11 @@ export class HubOrdersService {
     if (query.search) {
       where.OR = [
         { orderNumber: { contains: query.search, mode: 'insensitive' } },
-        { customer: { fullName: { contains: query.search, mode: 'insensitive' } } },
+        {
+          customer: {
+            fullName: { contains: query.search, mode: 'insensitive' },
+          },
+        },
         { customer: { phone: { contains: query.search } } },
       ];
     }
@@ -108,7 +108,10 @@ export class HubOrdersService {
       invoiceNumber: order.invoice?.invoiceNumber ?? null,
     }));
 
-    return { data: mapped, meta: { page, limit, total, totalPages: Math.ceil(total / limit) } };
+    return {
+      data: mapped,
+      meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    };
   }
 
   async findOne(hubId: string, orderId: string) {
@@ -117,7 +120,9 @@ export class HubOrdersService {
       include: {
         ...this.orderRepo.orderDetailInclude(),
         invoice: { select: { id: true, invoiceNumber: true, status: true } },
-        manager: { select: { id: true, fullName: true, phone: true, employeeId: true } },
+        manager: {
+          select: { id: true, fullName: true, phone: true, employeeId: true },
+        },
         dispatch: true,
       },
     });
@@ -166,7 +171,10 @@ export class HubOrdersService {
           ? [
               {
                 dispatchNo: `DSP-${order.orderNumber.slice(-8)}`,
-                status: order.orderStatus === 'DELIVERED' ? 'COMPLETED' : 'IN_PROGRESS',
+                status:
+                  order.orderStatus === 'DELIVERED'
+                    ? 'COMPLETED'
+                    : 'IN_PROGRESS',
                 vehicle: order.assignedVehicle?.registration ?? '—',
                 driver: order.assignedDriver?.name ?? '—',
                 dispatchedAt: order.dispatchedAt,
@@ -179,7 +187,8 @@ export class HubOrdersService {
       timeline: order.timeline.map((entry) => ({
         ...entry,
         statusLabel: getOrderStatusLabel(entry.status),
-        message: entry.message ?? entry.remarks ?? getOrderStatusLabel(entry.status),
+        message:
+          entry.message ?? entry.remarks ?? getOrderStatusLabel(entry.status),
       })),
     };
   }
@@ -200,7 +209,11 @@ export class HubOrdersService {
       oldStatus: OrderStatus | string | null;
       trackingStatus: string;
       driver: { id?: string; name: string; phone?: string | null } | null;
-      vehicle: { id?: string; registration: string; type?: string | null } | null;
+      vehicle: {
+        id?: string;
+        registration: string;
+        type?: string | null;
+      } | null;
     }>,
   ) {
     this.logger.log(
@@ -226,7 +239,11 @@ export class HubOrdersService {
       oldStatus: OrderStatus | string | null;
       trackingStatus: string;
       driver: { id?: string; name: string; phone?: string | null } | null;
-      vehicle: { id?: string; registration: string; type?: string | null } | null;
+      vehicle: {
+        id?: string;
+        registration: string;
+        type?: string | null;
+      } | null;
     }>,
   ) {
     let driver = extras?.driver ?? null;
@@ -369,12 +386,24 @@ export class HubOrdersService {
       case 'ACCEPTED_BY_HUB':
         return this.accept(hubId, orderId, { remarks: dto.remarks }, updatedBy);
       case 'PICKING':
-        return this.markPicking(hubId, orderId, { remarks: dto.remarks }, updatedBy);
+        return this.markPicking(
+          hubId,
+          orderId,
+          { remarks: dto.remarks },
+          updatedBy,
+        );
       case 'PACKED':
-        return this.markPacked(hubId, orderId, { remarks: dto.remarks }, updatedBy);
+        return this.markPacked(
+          hubId,
+          orderId,
+          { remarks: dto.remarks },
+          updatedBy,
+        );
       case 'DRIVER_ASSIGNED':
         if (!dto.driverId) {
-          throw new BadRequestException('driverId is required for DriverAssigned');
+          throw new BadRequestException(
+            'driverId is required for DriverAssigned',
+          );
         }
         return this.assignDriver(
           hubId,
@@ -387,9 +416,19 @@ export class HubOrdersService {
           updatedBy,
         );
       case 'OUT_FOR_DELIVERY':
-        return this.dispatch(hubId, orderId, { remarks: dto.remarks }, updatedBy);
+        return this.dispatch(
+          hubId,
+          orderId,
+          { remarks: dto.remarks },
+          updatedBy,
+        );
       case 'DELIVERED':
-        return this.deliver(hubId, orderId, { remarks: dto.remarks }, updatedBy);
+        return this.deliver(
+          hubId,
+          orderId,
+          { remarks: dto.remarks },
+          updatedBy,
+        );
       case 'CANCELLED':
         return this.cancel(
           hubId,
@@ -410,11 +449,18 @@ export class HubOrdersService {
     }
   }
 
-  async accept(hubId: string, orderId: string, dto: HubOrderActionDto, updatedBy: string) {
+  async accept(
+    hubId: string,
+    orderId: string,
+    dto: HubOrderActionDto,
+    updatedBy: string,
+  ) {
     const order = await this.orderRepo.findHubOrder(orderId, hubId);
     const allowed: OrderStatus[] = ['HUB_ASSIGNED', 'CONFIRMED', 'PENDING'];
     if (!allowed.includes(order.orderStatus)) {
-      throw new BadRequestException('Order cannot be accepted in current status');
+      throw new BadRequestException(
+        'Order cannot be accepted in current status',
+      );
     }
 
     return this.transitionOrder(
@@ -427,7 +473,12 @@ export class HubOrdersService {
     );
   }
 
-  async reject(hubId: string, orderId: string, dto: HubRejectOrderDto, updatedBy: string) {
+  async reject(
+    hubId: string,
+    orderId: string,
+    dto: HubRejectOrderDto,
+    updatedBy: string,
+  ) {
     await this.releaseReservedStock(hubId, orderId);
     return this.transitionOrder(
       hubId,
@@ -444,12 +495,21 @@ export class HubOrdersService {
     );
   }
 
-  async markPicking(hubId: string, orderId: string, dto: HubOrderActionDto, updatedBy: string) {
+  async markPicking(
+    hubId: string,
+    orderId: string,
+    dto: HubOrderActionDto,
+    updatedBy: string,
+  ) {
     const order = await this.orderRepo.findHubOrder(orderId, hubId);
 
     await this.prisma.hubLoadingRecord.upsert({
       where: { orderId },
-      update: { status: 'IN_PROGRESS', startedAt: new Date(), startedBy: updatedBy },
+      update: {
+        status: 'IN_PROGRESS',
+        startedAt: new Date(),
+        startedBy: updatedBy,
+      },
       create: {
         orderId,
         hubId,
@@ -470,18 +530,35 @@ export class HubOrdersService {
     );
   }
 
-  async markLoading(hubId: string, orderId: string, dto: HubOrderActionDto, updatedBy: string) {
+  async markLoading(
+    hubId: string,
+    orderId: string,
+    dto: HubOrderActionDto,
+    updatedBy: string,
+  ) {
     const order = await this.orderRepo.findHubOrder(orderId, hubId);
-    if (order.orderStatus === 'ACCEPTED_BY_HUB' || order.orderStatus === 'PROCESSING') {
+    if (
+      order.orderStatus === 'ACCEPTED_BY_HUB' ||
+      order.orderStatus === 'PROCESSING'
+    ) {
       return this.markPicking(hubId, orderId, dto, updatedBy);
     }
     return this.markPacked(hubId, orderId, dto, updatedBy);
   }
 
-  async markPacked(hubId: string, orderId: string, dto: HubOrderActionDto, updatedBy: string) {
+  async markPacked(
+    hubId: string,
+    orderId: string,
+    dto: HubOrderActionDto,
+    updatedBy: string,
+  ) {
     await this.prisma.hubLoadingRecord.updateMany({
       where: { orderId },
-      data: { status: 'COMPLETED', completedAt: new Date(), completedBy: updatedBy },
+      data: {
+        status: 'COMPLETED',
+        completedAt: new Date(),
+        completedBy: updatedBy,
+      },
     });
 
     return this.transitionOrder(
@@ -494,11 +571,21 @@ export class HubOrdersService {
     );
   }
 
-  async markReady(hubId: string, orderId: string, dto: HubOrderActionDto, updatedBy: string) {
+  async markReady(
+    hubId: string,
+    orderId: string,
+    dto: HubOrderActionDto,
+    updatedBy: string,
+  ) {
     return this.markPacked(hubId, orderId, dto, updatedBy);
   }
 
-  async dispatch(hubId: string, orderId: string, dto: HubOrderActionDto, updatedBy: string) {
+  async dispatch(
+    hubId: string,
+    orderId: string,
+    dto: HubOrderActionDto,
+    updatedBy: string,
+  ) {
     const order = await this.orderRepo.findHubOrder(orderId, hubId);
 
     await this.prisma.hubDispatch.upsert({
@@ -547,7 +634,12 @@ export class HubOrdersService {
     );
   }
 
-  async deliver(hubId: string, orderId: string, dto: HubOrderActionDto, updatedBy: string) {
+  async deliver(
+    hubId: string,
+    orderId: string,
+    dto: HubOrderActionDto,
+    updatedBy: string,
+  ) {
     const order = await this.orderRepo.findHubOrder(orderId, hubId);
 
     if (!order.deliveryOtpVerified) {
@@ -556,7 +648,12 @@ export class HubOrdersService {
       );
     }
 
-    return this.finalizeDelivery(hubId, orderId, dto.remarks ?? 'Order Delivered', updatedBy);
+    return this.finalizeDelivery(
+      hubId,
+      orderId,
+      dto.remarks ?? 'Order Delivered',
+      updatedBy,
+    );
   }
 
   /**
@@ -630,7 +727,9 @@ export class HubOrdersService {
       );
     }
     if (!order.driverReachedAt) {
-      throw new BadRequestException('Mark driver reached before generating delivery OTP');
+      throw new BadRequestException(
+        'Mark driver reached before generating delivery OTP',
+      );
     }
     if (order.deliveryOtpVerified) {
       throw new BadRequestException('Delivery OTP already verified');
@@ -684,7 +783,9 @@ export class HubOrdersService {
     const order = await this.orderRepo.findHubOrder(orderId, hubId);
     const status = String(order.orderStatus);
     if (status !== 'OUT_FOR_DELIVERY' && status !== 'DISPATCHED') {
-      throw new BadRequestException('Order is not awaiting delivery verification');
+      throw new BadRequestException(
+        'Order is not awaiting delivery verification',
+      );
     }
     if (!order.deliveryOtp || !order.deliveryOtpGeneratedAt) {
       throw new BadRequestException('Delivery OTP has not been generated yet');
@@ -837,7 +938,12 @@ export class HubOrdersService {
     return this.findOne(hubId, delivered.id);
   }
 
-  async cancel(hubId: string, orderId: string, dto: HubCancelOrderDto, updatedBy: string) {
+  async cancel(
+    hubId: string,
+    orderId: string,
+    dto: HubCancelOrderDto,
+    updatedBy: string,
+  ) {
     await this.releaseReservedStock(hubId, orderId);
     const cancelled = await this.transitionOrder(
       hubId,
@@ -848,7 +954,9 @@ export class HubOrdersService {
       dto.reason,
     );
 
-    await this.loyaltyTransactionService.refundRedemptionForCancelledOrder(orderId);
+    await this.loyaltyTransactionService.refundRedemptionForCancelledOrder(
+      orderId,
+    );
     await this.deliveryBenefitService.restoreFreeBikeDelivery({ orderId });
     await this.deliverySlotService.releaseOrderReservation(orderId);
 
@@ -864,7 +972,8 @@ export class HubOrdersService {
     return events.map((entry) => ({
       ...entry,
       statusLabel: getOrderStatusLabel(entry.status),
-      message: entry.message ?? entry.remarks ?? getOrderStatusLabel(entry.status),
+      message:
+        entry.message ?? entry.remarks ?? getOrderStatusLabel(entry.status),
     }));
   }
 
@@ -875,24 +984,36 @@ export class HubOrdersService {
     updatedBy: string,
   ) {
     await this.orderRepo.findHubOrder(orderId, hubId);
-    return this.orderRepo.addTimeline(orderId, dto.status, updatedBy, dto.remarks);
+    return this.orderRepo.addTimeline(
+      orderId,
+      dto.status,
+      updatedBy,
+      dto.remarks,
+    );
   }
 
   async assignDriver(
     hubId: string,
     orderId: string,
-    dto: HubAssignDriverDto & { vehicleId?: string; expectedDeliveryAt?: string },
+    dto: HubAssignDriverDto & {
+      vehicleId?: string;
+      expectedDeliveryAt?: string;
+    },
     updatedBy: string,
   ) {
     await this.orderRepo.findHubOrder(orderId, hubId);
-    const driver = await this.driversService.assertAssignable(dto.driverId, hubId);
+    const driver = await this.driversService.assertAssignable(
+      dto.driverId,
+      hubId,
+    );
 
     const vehicleId = dto.vehicleId;
     if (vehicleId) {
       const vehicle = await this.prisma.vehicle.findFirst({
         where: { id: vehicleId, hubId, isActive: true, deletedAt: null },
       });
-      if (!vehicle) throw new BadRequestException('Vehicle not found at this hub');
+      if (!vehicle)
+        throw new BadRequestException('Vehicle not found at this hub');
     }
 
     const expectedDeliveryAt = dto.expectedDeliveryAt
@@ -906,7 +1027,9 @@ export class HubOrdersService {
       updatedBy,
       {
         assignedDriver: { connect: { id: dto.driverId } },
-        ...(vehicleId ? { assignedVehicle: { connect: { id: vehicleId } } } : {}),
+        ...(vehicleId
+          ? { assignedVehicle: { connect: { id: vehicleId } } }
+          : {}),
         ...(expectedDeliveryAt ? { expectedDeliveryAt } : {}),
       },
       `Driver Assigned: ${driver.name}`,
@@ -916,12 +1039,18 @@ export class HubOrdersService {
     return result;
   }
 
-  async assignVehicle(hubId: string, orderId: string, dto: HubAssignVehicleDto, updatedBy: string) {
+  async assignVehicle(
+    hubId: string,
+    orderId: string,
+    dto: HubAssignVehicleDto,
+    updatedBy: string,
+  ) {
     await this.orderRepo.findHubOrder(orderId, hubId);
     const vehicle = await this.prisma.vehicle.findFirst({
       where: { id: dto.vehicleId, hubId, isActive: true, deletedAt: null },
     });
-    if (!vehicle) throw new BadRequestException('Vehicle not found at this hub');
+    if (!vehicle)
+      throw new BadRequestException('Vehicle not found at this hub');
 
     const order = await this.prisma.order.update({
       where: { id: orderId },
@@ -939,7 +1068,12 @@ export class HubOrdersService {
     return order;
   }
 
-  async assignLoader(hubId: string, orderId: string, dto: HubAssignLoaderDto, updatedBy: string) {
+  async assignLoader(
+    hubId: string,
+    orderId: string,
+    dto: HubAssignLoaderDto,
+    updatedBy: string,
+  ) {
     await this.orderRepo.findHubOrder(orderId, hubId);
     const loader = await this.prisma.hubUser.findFirst({
       where: { id: dto.loaderId, hubId, isActive: true, deletedAt: null },
@@ -962,7 +1096,12 @@ export class HubOrdersService {
     return order;
   }
 
-  async assignTeam(hubId: string, orderId: string, dto: HubAssignTeamDto, updatedBy: string) {
+  async assignTeam(
+    hubId: string,
+    orderId: string,
+    dto: HubAssignTeamDto,
+    updatedBy: string,
+  ) {
     await this.orderRepo.findHubOrder(orderId, hubId);
 
     if (dto.driverId) {
@@ -996,7 +1135,12 @@ export class HubOrdersService {
     return order;
   }
 
-  async submitPod(hubId: string, orderId: string, dto: HubPodDto, updatedBy: string) {
+  async submitPod(
+    hubId: string,
+    orderId: string,
+    dto: HubPodDto,
+    updatedBy: string,
+  ) {
     const order = await this.orderRepo.findHubOrder(orderId, hubId);
 
     if (!order.deliveryOtpVerified) {
@@ -1026,7 +1170,12 @@ export class HubOrdersService {
       },
     });
 
-    await this.finalizeDelivery(hubId, orderId, dto.remarks ?? 'Order Delivered', updatedBy);
+    await this.finalizeDelivery(
+      hubId,
+      orderId,
+      dto.remarks ?? 'Order Delivered',
+      updatedBy,
+    );
     return pod;
   }
 

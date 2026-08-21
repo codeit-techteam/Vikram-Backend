@@ -100,7 +100,9 @@ export class AdminSupportService {
     });
 
     if (!executive) {
-      throw new NotFoundException('Executive not found or not eligible for assignment');
+      throw new NotFoundException(
+        'Executive not found or not eligible for assignment',
+      );
     }
 
     const oldExecutiveId = ticket.assignedExecutiveId;
@@ -242,9 +244,7 @@ export class AdminSupportService {
           action: historyAction,
           field: 'status',
           oldValue: ticket.status,
-          newValue: dto.remark
-            ? `${dto.status} — ${dto.remark}`
-            : dto.status,
+          newValue: dto.remark ? `${dto.status} — ${dto.remark}` : dto.status,
           adminId: admin.id,
           adminEmail: admin.email,
         },
@@ -299,22 +299,26 @@ export class AdminSupportService {
     return this.findOne(id, admin);
   }
 
-  async close(id: string, admin: AuthenticatedAdmin): Promise<SupportTicketDetailDto> {
-    return this.updateStatus(
-      id,
-      { status: SupportTicketStatus.CLOSED },
-      admin,
-    );
+  async close(
+    id: string,
+    admin: AuthenticatedAdmin,
+  ): Promise<SupportTicketDetailDto> {
+    return this.updateStatus(id, { status: SupportTicketStatus.CLOSED }, admin);
   }
 
-  async reopen(id: string, admin: AuthenticatedAdmin): Promise<SupportTicketDetailDto> {
+  async reopen(
+    id: string,
+    admin: AuthenticatedAdmin,
+  ): Promise<SupportTicketDetailDto> {
     const ticket = await this.getTicketWithAccessOrThrow(id, admin);
 
     if (
       ticket.status !== SupportTicketStatus.CLOSED &&
       ticket.status !== SupportTicketStatus.RESOLVED
     ) {
-      throw new BadRequestException('Only closed or resolved tickets can be reopened');
+      throw new BadRequestException(
+        'Only closed or resolved tickets can be reopened',
+      );
     }
 
     await this.prisma.$transaction([

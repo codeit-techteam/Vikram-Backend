@@ -63,7 +63,9 @@ export class AdminMeDto {
   @ApiProperty()
   fullName: string;
 
-  @ApiProperty({ enum: ['SUPER_ADMIN', 'WAREHOUSE_MANAGER', 'CUSTOMER_EXECUTIVE'] })
+  @ApiProperty({
+    enum: ['SUPER_ADMIN', 'WAREHOUSE_MANAGER', 'CUSTOMER_EXECUTIVE'],
+  })
   role: string;
 
   @ApiProperty({ type: [String] })

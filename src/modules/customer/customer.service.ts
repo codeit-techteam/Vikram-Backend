@@ -231,8 +231,7 @@ export class CustomerService {
     }
 
     const profileCompleted = Boolean(
-      (dto.fullName ?? customer.fullName) &&
-        (dto.email ?? customer.email),
+      (dto.fullName ?? customer.fullName) && (dto.email ?? customer.email),
     );
 
     const profileCreate = {

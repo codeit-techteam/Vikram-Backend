@@ -10,8 +10,16 @@ import {
   StreamableFile,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiProduces, ApiTags } from '@nestjs/swagger';
-import { SWAGGER_BEARER_AUTH, SWAGGER_TAGS } from '../../common/constants/swagger.constants';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiProduces,
+  ApiTags,
+} from '@nestjs/swagger';
+import {
+  SWAGGER_BEARER_AUTH,
+  SWAGGER_TAGS,
+} from '../../common/constants/swagger.constants';
 import { SkipResponseWrap } from '../../common/decorators/skip-response-wrap.decorator';
 import { HubJwtAuthGuard } from '../guards/hub-jwt-auth.guard';
 import { HubRolesGuard } from '../guards/hub-roles.guard';
@@ -60,7 +68,9 @@ export class HubOrdersController {
 
   @Get('pending-dispatch')
   @HubPermission('orders')
-  @ApiOperation({ summary: 'Orders ready for Dispatch Planning (not yet dispatched)' })
+  @ApiOperation({
+    summary: 'Orders ready for Dispatch Planning (not yet dispatched)',
+  })
   async pendingDispatch(@CurrentHubUser() user: AuthenticatedHubUser) {
     const data = await this.dispatchService.getPendingOrders(user.hubId);
     return { success: true, message: 'Pending dispatch orders fetched', data };
@@ -100,7 +110,8 @@ export class HubOrdersController {
     @Param('id') id: string,
   ): Promise<StreamableFile> {
     await this.ordersService.findOne(user.hubId, id);
-    const { buffer, filename } = await this.invoiceService.getInvoicePdfByOrderId(id);
+    const { buffer, filename } =
+      await this.invoiceService.getInvoicePdfByOrderId(id);
     return new StreamableFile(buffer, {
       type: 'application/pdf',
       disposition: `attachment; filename="${filename}"`,
@@ -137,7 +148,9 @@ export class HubOrdersController {
 
   @Post(':id/generate-delivery-otp')
   @HubPermission('orders')
-  @ApiOperation({ summary: 'Generate delivery OTP (sent to customer, not returned)' })
+  @ApiOperation({
+    summary: 'Generate delivery OTP (sent to customer, not returned)',
+  })
   async generateDeliveryOtp(
     @CurrentHubUser() user: AuthenticatedHubUser,
     @Param('id') id: string,
@@ -195,7 +208,12 @@ export class HubOrdersController {
     @Param('id') id: string,
     @Body() dto: HubOrderActionDto,
   ) {
-    const data = await this.ordersService.accept(user.hubId, id, dto, user.fullName);
+    const data = await this.ordersService.accept(
+      user.hubId,
+      id,
+      dto,
+      user.fullName,
+    );
     return { success: true, message: 'Order accepted', data };
   }
 
@@ -207,7 +225,12 @@ export class HubOrdersController {
     @Param('id') id: string,
     @Body() dto: HubRejectOrderDto,
   ) {
-    const data = await this.ordersService.reject(user.hubId, id, dto, user.fullName);
+    const data = await this.ordersService.reject(
+      user.hubId,
+      id,
+      dto,
+      user.fullName,
+    );
     return { success: true, message: 'Order rejected', data };
   }
 
@@ -219,7 +242,12 @@ export class HubOrdersController {
     @Param('id') id: string,
     @Body() dto: HubOrderActionDto,
   ) {
-    const data = await this.ordersService.markReady(user.hubId, id, dto, user.fullName);
+    const data = await this.ordersService.markReady(
+      user.hubId,
+      id,
+      dto,
+      user.fullName,
+    );
     return { success: true, message: 'Order marked ready', data };
   }
 
@@ -231,7 +259,12 @@ export class HubOrdersController {
     @Param('id') id: string,
     @Body() dto: HubOrderActionDto,
   ) {
-    const data = await this.ordersService.markLoading(user.hubId, id, dto, user.fullName);
+    const data = await this.ordersService.markLoading(
+      user.hubId,
+      id,
+      dto,
+      user.fullName,
+    );
     return { success: true, message: 'Order loading started', data };
   }
 
@@ -243,7 +276,12 @@ export class HubOrdersController {
     @Param('id') id: string,
     @Body() dto: HubOrderActionDto,
   ) {
-    const data = await this.ordersService.dispatch(user.hubId, id, dto, user.fullName);
+    const data = await this.ordersService.dispatch(
+      user.hubId,
+      id,
+      dto,
+      user.fullName,
+    );
     return { success: true, message: 'Order dispatched', data };
   }
 
@@ -291,7 +329,12 @@ export class HubOrdersController {
     @Param('id') id: string,
     @Body() dto: HubOrderActionDto,
   ) {
-    const data = await this.ordersService.deliver(user.hubId, id, dto, user.fullName);
+    const data = await this.ordersService.deliver(
+      user.hubId,
+      id,
+      dto,
+      user.fullName,
+    );
     return { success: true, message: 'Order delivered', data };
   }
 
@@ -303,7 +346,12 @@ export class HubOrdersController {
     @Param('id') id: string,
     @Body() dto: HubCancelOrderDto,
   ) {
-    const data = await this.ordersService.cancel(user.hubId, id, dto, user.fullName);
+    const data = await this.ordersService.cancel(
+      user.hubId,
+      id,
+      dto,
+      user.fullName,
+    );
     return { success: true, message: 'Order cancelled', data };
   }
 
@@ -315,7 +363,12 @@ export class HubOrdersController {
     @Param('id') id: string,
     @Body() dto: HubAssignDriverDto,
   ) {
-    const data = await this.ordersService.assignDriver(user.hubId, id, dto, user.fullName);
+    const data = await this.ordersService.assignDriver(
+      user.hubId,
+      id,
+      dto,
+      user.fullName,
+    );
     return { success: true, message: 'Driver assigned', data };
   }
 
@@ -327,7 +380,12 @@ export class HubOrdersController {
     @Param('id') id: string,
     @Body() dto: HubAssignVehicleDto,
   ) {
-    const data = await this.ordersService.assignVehicle(user.hubId, id, dto, user.fullName);
+    const data = await this.ordersService.assignVehicle(
+      user.hubId,
+      id,
+      dto,
+      user.fullName,
+    );
     return { success: true, message: 'Vehicle assigned', data };
   }
 
@@ -339,7 +397,12 @@ export class HubOrdersController {
     @Param('id') id: string,
     @Body() dto: HubAssignLoaderDto,
   ) {
-    const data = await this.ordersService.assignLoader(user.hubId, id, dto, user.fullName);
+    const data = await this.ordersService.assignLoader(
+      user.hubId,
+      id,
+      dto,
+      user.fullName,
+    );
     return { success: true, message: 'Loader assigned', data };
   }
 
@@ -351,19 +414,31 @@ export class HubOrdersController {
     @Param('id') id: string,
     @Body() dto: HubAssignTeamDto,
   ) {
-    const data = await this.ordersService.assignTeam(user.hubId, id, dto, user.fullName);
+    const data = await this.ordersService.assignTeam(
+      user.hubId,
+      id,
+      dto,
+      user.fullName,
+    );
     return { success: true, message: 'Team assigned', data };
   }
 
   @Post(':id/pod')
   @HubPermission('pod')
-  @ApiOperation({ summary: 'Submit proof of delivery (requires OTP verification)' })
+  @ApiOperation({
+    summary: 'Submit proof of delivery (requires OTP verification)',
+  })
   async pod(
     @CurrentHubUser() user: AuthenticatedHubUser,
     @Param('id') id: string,
     @Body() dto: HubPodDto,
   ) {
-    const data = await this.ordersService.submitPod(user.hubId, id, dto, user.fullName);
+    const data = await this.ordersService.submitPod(
+      user.hubId,
+      id,
+      dto,
+      user.fullName,
+    );
     return { success: true, message: 'Proof of delivery submitted', data };
   }
 }

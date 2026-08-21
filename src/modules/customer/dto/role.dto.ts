@@ -16,7 +16,10 @@ export class RoleResponseDto {
 }
 
 export class SelectRoleDto {
-  @ApiProperty({ example: 'uuid', description: 'Role ID from GET /customer/roles' })
+  @ApiProperty({
+    example: 'uuid',
+    description: 'Role ID from GET /customer/roles',
+  })
   @IsUUID('4', { message: 'roleId must be a valid UUID' })
   @IsNotEmpty()
   roleId!: string;

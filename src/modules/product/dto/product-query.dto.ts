@@ -21,7 +21,8 @@ export class ProductQueryDto extends PaginationQueryDto {
 
   @ApiPropertyOptional({
     example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
-    description: 'Filter by category UUID (includes child subcategory products)',
+    description:
+      'Filter by category UUID (includes child subcategory products)',
   })
   @IsOptional()
   @IsString()
@@ -136,24 +137,32 @@ export class ProductQueryDto extends PaginationQueryDto {
   @IsString()
   hubId?: string;
 
-  @ApiPropertyOptional({ description: 'Customer latitude for catalog ETA preview' })
+  @ApiPropertyOptional({
+    description: 'Customer latitude for catalog ETA preview',
+  })
   @IsOptional()
   @Type(() => Number)
   latitude?: number;
 
-  @ApiPropertyOptional({ description: 'Customer longitude for catalog ETA preview' })
+  @ApiPropertyOptional({
+    description: 'Customer longitude for catalog ETA preview',
+  })
   @IsOptional()
   @Type(() => Number)
   longitude?: number;
 
-  @ApiPropertyOptional({ description: 'Customer pincode for nearest-hub lookup' })
+  @ApiPropertyOptional({
+    description: 'Customer pincode for nearest-hub lookup',
+  })
   @IsOptional()
   @IsString()
   pincode?: string;
 
   @ApiPropertyOptional({
-    example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890,b2c3d4e5-f6a7-8901-bcde-f12345678901',
-    description: 'Comma-separated product UUIDs (max 100). Used by offer detail grids.',
+    example:
+      'a1b2c3d4-e5f6-7890-abcd-ef1234567890,b2c3d4e5-f6a7-8901-bcde-f12345678901',
+    description:
+      'Comma-separated product UUIDs (max 100). Used by offer detail grids.',
   })
   @IsOptional()
   @IsString()

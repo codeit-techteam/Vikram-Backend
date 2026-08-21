@@ -1,7 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/database/prisma.service';
 import { HubOrderRepository } from '../repositories/hub-order.repository';
-import type { HubEmergencyPriorityDto, HubEmergencyQueryDto } from '../dto/hub.dto';
+import type {
+  HubEmergencyPriorityDto,
+  HubEmergencyQueryDto,
+} from '../dto/hub.dto';
 
 @Injectable()
 export class HubEmergencyService {
@@ -37,7 +40,10 @@ export class HubEmergencyService {
       this.prisma.emergencyOrder.count({ where }),
     ]);
 
-    return { data, meta: { page, limit, total, totalPages: Math.ceil(total / limit) } };
+    return {
+      data,
+      meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    };
   }
 
   async accept(hubId: string, id: string, updatedBy: string) {
@@ -118,7 +124,8 @@ export class HubEmergencyService {
         },
       },
     });
-    if (!emergency) throw new NotFoundException('Emergency order not found for this hub');
+    if (!emergency)
+      throw new NotFoundException('Emergency order not found for this hub');
     return emergency;
   }
 }

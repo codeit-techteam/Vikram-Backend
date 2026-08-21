@@ -56,50 +56,58 @@ describe('calculateOrderLoadPure', () => {
 
   it('rejects zero quantity', () => {
     expect(() =>
-      calculateOrderLoadPure([cement], [
-        { productId: 'p-cement', quantity: 0 },
-      ]),
+      calculateOrderLoadPure(
+        [cement],
+        [{ productId: 'p-cement', quantity: 0 }],
+      ),
     ).toThrow(/greater than zero/i);
   });
 
   it('rejects negative quantity', () => {
     expect(() =>
-      calculateOrderLoadPure([cement], [
-        { productId: 'p-cement', quantity: -5 },
-      ]),
+      calculateOrderLoadPure(
+        [cement],
+        [{ productId: 'p-cement', quantity: -5 }],
+      ),
     ).toThrow(/greater than zero/i);
   });
 
   it('rejects decimal quantity when not allowed', () => {
     expect(() =>
-      calculateOrderLoadPure([cement], [
-        { productId: 'p-cement', quantity: 2.5 },
-      ]),
+      calculateOrderLoadPure(
+        [cement],
+        [{ productId: 'p-cement', quantity: 2.5 }],
+      ),
     ).toThrow(/decimal/i);
   });
 
   it('allows decimal CFT for sand', () => {
-    const load = calculateOrderLoadPure([sand], [
-      { productId: 'p-sand', quantity: 10.5 },
-    ]);
+    const load = calculateOrderLoadPure(
+      [sand],
+      [{ productId: 'p-sand', quantity: 10.5 }],
+    );
     expect(load.ok).toBe(true);
     expect(load.totalVolumeCft).toBe(10.5);
   });
 
   it('calculates cement weight from bags', () => {
-    const load = calculateOrderLoadPure([cement], [
-      { productId: 'p-cement', quantity: 50 },
-    ]);
+    const load = calculateOrderLoadPure(
+      [cement],
+      [{ productId: 'p-cement', quantity: 50 }],
+    );
     expect(load.totalWeightKg).toBe(2500);
     expect(load.totalVolumeCft).toBe(0);
   });
 
   it('normalizes mixed units into weight + volume (not raw sum)', () => {
-    const load = calculateOrderLoadPure([cement, sand, bricks], [
-      { productId: 'p-cement', quantity: 20 },
-      { productId: 'p-bricks', quantity: 1000 },
-      { productId: 'p-sand', quantity: 20 },
-    ]);
+    const load = calculateOrderLoadPure(
+      [cement, sand, bricks],
+      [
+        { productId: 'p-cement', quantity: 20 },
+        { productId: 'p-bricks', quantity: 1000 },
+        { productId: 'p-sand', quantity: 20 },
+      ],
+    );
     expect(load.ok).toBe(true);
     expect(load.totalWeightKg).toBe(20 * 50 + 1000 * 2.5 + 20 * 45);
     expect(load.totalVolumeCft).toBe(20);
@@ -120,9 +128,10 @@ describe('calculateOrderLoadPure', () => {
       weightPerUnitKg: null,
       volumePerUnitCft: null,
     };
-    const load = calculateOrderLoadPure([noLogistics], [
-      { productId: 'p-x', quantity: 5 },
-    ]);
+    const load = calculateOrderLoadPure(
+      [noLogistics],
+      [{ productId: 'p-x', quantity: 5 }],
+    );
     expect(load.missingLogisticsProductIds).toContain('p-x');
     expect(load.hasWeightDimension).toBe(false);
     expect(load.hasVolumeDimension).toBe(false);

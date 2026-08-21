@@ -24,7 +24,7 @@ const bullMqImports = REDIS_BULLMQ_ENABLED
           const connection = url
             ? {
                 url,
-                maxRetriesPerRequest: null as null,
+                maxRetriesPerRequest: null,
                 enableReadyCheck: true,
                 connectTimeout: 15_000,
                 family: 0 as const,

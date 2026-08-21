@@ -1,9 +1,15 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsOptional, IsUUID } from 'class-validator';
-import { MembershipStatus, PaymentStatus } from '../../../../generated/prisma/client';
+import {
+  MembershipStatus,
+  PaymentStatus,
+} from '../../../../generated/prisma/client';
 
 export class PurchaseMembershipDto {
-  @ApiProperty({ format: 'uuid', description: 'Membership plan ID to purchase' })
+  @ApiProperty({
+    format: 'uuid',
+    description: 'Membership plan ID to purchase',
+  })
   @IsUUID()
   planId!: string;
 }

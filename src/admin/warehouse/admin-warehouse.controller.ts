@@ -126,11 +126,7 @@ export class AdminWarehouseController {
     const data = await this.warehouseService.listInventory({
       ...query,
       status: query.status as
-        | 'IN_STOCK'
-        | 'LOW_STOCK'
-        | 'OUT_OF_STOCK'
-        | 'all'
-        | undefined,
+        'IN_STOCK' | 'LOW_STOCK' | 'OUT_OF_STOCK' | 'all' | undefined,
     });
     return { success: true, message: 'Warehouse inventory fetched', data };
   }
@@ -143,11 +139,7 @@ export class AdminWarehouseController {
     const csv = await this.warehouseService.exportInventoryCsv({
       ...query,
       status: query.status as
-        | 'IN_STOCK'
-        | 'LOW_STOCK'
-        | 'OUT_OF_STOCK'
-        | 'all'
-        | undefined,
+        'IN_STOCK' | 'LOW_STOCK' | 'OUT_OF_STOCK' | 'all' | undefined,
     });
     return new StreamableFile(Buffer.from(csv, 'utf-8'), {
       type: 'text/csv',
@@ -179,7 +171,9 @@ export class AdminWarehouseController {
 
   @Get('allocations')
   @AdminRoles(...ROLE_GROUPS.WAREHOUSE)
-  @ApiOperation({ summary: 'List approved/allocated requisitions for Allocation Center' })
+  @ApiOperation({
+    summary: 'List approved/allocated requisitions for Allocation Center',
+  })
   async allocations(@Query() query: WarehouseTransferQueryDto) {
     const data = await this.warehouseService.listAllocations(query);
     return { success: true, message: 'Allocations fetched', data };
@@ -188,8 +182,7 @@ export class AdminWarehouseController {
   @Get('transfers')
   @AdminRoles(...ROLE_GROUPS.WAREHOUSE)
   @ApiOperation({
-    summary:
-      'List warehouse→hub transfers (allocated/dispatched requisitions)',
+    summary: 'List warehouse→hub transfers (allocated/dispatched requisitions)',
   })
   async transfers(@Query() query: WarehouseTransferQueryDto) {
     const data = await this.warehouseService.listTransfers(query);

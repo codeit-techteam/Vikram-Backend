@@ -42,7 +42,10 @@ export class NotificationController {
     description:
       'Returns paginated notifications for the authenticated customer (customer-specific + global). Stored in PostgreSQL. Supports type filter and search.',
   })
-  @ApiResponse({ status: 200, description: 'Notifications fetched successfully' })
+  @ApiResponse({
+    status: 200,
+    description: 'Notifications fetched successfully',
+  })
   @ApiResponse({
     status: 401,
     description: 'Authentication required',
@@ -90,9 +93,7 @@ export class NotificationController {
     description: 'Authentication required',
     type: ApiErrorResponseDto,
   })
-  async unreadCount(
-    @CurrentUser() user: AuthenticatedCustomer,
-  ): Promise<{
+  async unreadCount(@CurrentUser() user: AuthenticatedCustomer): Promise<{
     success: boolean;
     message: string;
     data: UnreadCountResponseDto;
@@ -118,9 +119,7 @@ export class NotificationController {
     description: 'Authentication required',
     type: ApiErrorResponseDto,
   })
-  async markAllAsRead(
-    @CurrentUser() user: AuthenticatedCustomer,
-  ): Promise<{
+  async markAllAsRead(@CurrentUser() user: AuthenticatedCustomer): Promise<{
     success: boolean;
     message: string;
     data: { updatedCount: number };

@@ -224,9 +224,7 @@ export function validate(config: Record<string, unknown>) {
     !validatedConfig.DATABASE_URL?.trim() &&
     !validatedConfig.DATABASE_PRIVATE_URL?.trim()
   ) {
-    throw new Error(
-      'DATABASE_URL (or DATABASE_PRIVATE_URL) is required.',
-    );
+    throw new Error('DATABASE_URL (or DATABASE_PRIVATE_URL) is required.');
   }
 
   if (validatedConfig.NODE_ENV === Environment.Production) {
@@ -257,7 +255,12 @@ export function validate(config: Record<string, unknown>) {
     }
     try {
       const host = new URL(databaseUrl).hostname;
-      if (!host || host === 'localhost' || host === '127.0.0.1' || host === '::1') {
+      if (
+        !host ||
+        host === 'localhost' ||
+        host === '127.0.0.1' ||
+        host === '::1'
+      ) {
         throw new Error(
           'Production DATABASE_URL must not use localhost. Use the DigitalOcean Managed PostgreSQL host.',
         );
@@ -270,7 +273,9 @@ export function validate(config: Record<string, unknown>) {
       ) {
         throw error;
       }
-      throw new Error('DATABASE_URL is not a valid PostgreSQL connection string.');
+      throw new Error(
+        'DATABASE_URL is not a valid PostgreSQL connection string.',
+      );
     }
 
     // TEMPORARILY DISABLED — production boot must not require Redis.

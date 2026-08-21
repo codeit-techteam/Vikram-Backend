@@ -70,9 +70,13 @@ export class AdminPromotionalCardsService {
         ...(dto.buttonText !== undefined && { buttonText: dto.buttonText }),
         ...(dto.badge !== undefined && { badge: dto.badge }),
         ...(dto.benefits !== undefined && { benefits: dto.benefits }),
-        ...(dto.redirectType !== undefined && { redirectType: dto.redirectType }),
+        ...(dto.redirectType !== undefined && {
+          redirectType: dto.redirectType,
+        }),
         ...(dto.redirectId !== undefined && { redirectId: dto.redirectId }),
-        ...(dto.displayOrder !== undefined && { displayOrder: dto.displayOrder }),
+        ...(dto.displayOrder !== undefined && {
+          displayOrder: dto.displayOrder,
+        }),
         ...(dto.priority !== undefined && { priority: dto.priority }),
         ...(dto.startsAt !== undefined && {
           startsAt: dto.startsAt ? new Date(dto.startsAt) : null,

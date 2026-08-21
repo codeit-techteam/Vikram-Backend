@@ -14,7 +14,10 @@ import { RedirectType } from '../../../../generated/prisma/client';
 export class CreatePromotionalCardDto {
   @ApiProperty() @IsString() title!: string;
   @ApiProperty() @IsString() slug!: string;
-  @ApiProperty({ description: 'EMERGENCY_DELIVERY | BULK_PROCUREMENT | MEMBERSHIP | PRIORITY_EXPRESS | EMERGENCY_BANNER | OFFER_FOR_YOU | FEATURED_COLLECTION' })
+  @ApiProperty({
+    description:
+      'EMERGENCY_DELIVERY | BULK_PROCUREMENT | MEMBERSHIP | PRIORITY_EXPRESS | EMERGENCY_BANNER | OFFER_FOR_YOU | FEATURED_COLLECTION',
+  })
   @IsString()
   cardType!: string;
   @ApiPropertyOptional() @IsOptional() @IsString() subtitle?: string;
@@ -32,11 +35,21 @@ export class CreatePromotionalCardDto {
   @IsEnum(RedirectType)
   redirectType?: RedirectType;
   @ApiPropertyOptional() @IsOptional() @IsString() redirectId?: string;
-  @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsInt() displayOrder?: number;
-  @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsInt() priority?: number;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  displayOrder?: number;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  priority?: number;
   @ApiPropertyOptional() @IsOptional() @IsDateString() startsAt?: string;
   @ApiPropertyOptional() @IsOptional() @IsDateString() endsAt?: string;
   @ApiPropertyOptional() @IsOptional() @IsBoolean() isActive?: boolean;
 }
 
-export class UpdatePromotionalCardDto extends PartialType(CreatePromotionalCardDto) {}
+export class UpdatePromotionalCardDto extends PartialType(
+  CreatePromotionalCardDto,
+) {}

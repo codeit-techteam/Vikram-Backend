@@ -64,7 +64,9 @@ export class CmsService {
     // Skip Redis cache when R2 uses signed URLs (they must be refreshed).
     const useCache = this.storage.hasPublicBaseUrl();
     if (useCache) {
-      const cached = await this.cache.get<CmsHomeResponseDto>(CACHE_KEYS.CMS_HOME);
+      const cached = await this.cache.get<CmsHomeResponseDto>(
+        CACHE_KEYS.CMS_HOME,
+      );
       if (cached) return cached;
     }
 
@@ -173,7 +175,9 @@ export class CmsService {
   }
 
   async getAds(): Promise<CmsAdvertisementDto[]> {
-    const cached = await this.cache.get<CmsAdvertisementDto[]>(CACHE_KEYS.CMS_ADS);
+    const cached = await this.cache.get<CmsAdvertisementDto[]>(
+      CACHE_KEYS.CMS_ADS,
+    );
     if (cached) return cached;
 
     const now = new Date();
@@ -276,7 +280,11 @@ export class CmsService {
       isActive: c.isActive,
     }));
 
-    await this.cache.set(CACHE_KEYS.CMS_PROMOTIONS, result, CACHE_TTL.PROMOTIONS);
+    await this.cache.set(
+      CACHE_KEYS.CMS_PROMOTIONS,
+      result,
+      CACHE_TTL.PROMOTIONS,
+    );
     return result;
   }
 
@@ -507,7 +515,9 @@ export class CmsService {
     }
 
     if (videos.length > 0) {
-      return Promise.all(videos.map((v, index) => this.mapVideoBanner(v, index)));
+      return Promise.all(
+        videos.map((v, index) => this.mapVideoBanner(v, index)),
+      );
     }
 
     const banners = await this.prisma.banner.findMany({
@@ -538,7 +548,11 @@ export class CmsService {
           { OR: [{ expiresAt: null }, { expiresAt: { gte: now } }] },
         ],
       },
-      orderBy: [{ priority: 'desc' }, { displayOrder: 'asc' }, { updatedAt: 'desc' }],
+      orderBy: [
+        { priority: 'desc' },
+        { displayOrder: 'asc' },
+        { updatedAt: 'desc' },
+      ],
     });
   }
 
@@ -690,7 +704,7 @@ export class CmsService {
       secondaryLinkUrl: b.secondaryLinkUrl,
       secondaryLinkType: b.secondaryLinkType,
       secondaryLinkTarget: b.secondaryLinkTarget,
-      placement: b.placement as string,
+      placement: b.placement,
       targetAudience: b.targetAudience ?? 'ALL',
     };
   }

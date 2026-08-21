@@ -18,16 +18,15 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { SWAGGER_BEARER_AUTH, SWAGGER_TAGS } from '../../common/constants/swagger.constants';
+import {
+  SWAGGER_BEARER_AUTH,
+  SWAGGER_TAGS,
+} from '../../common/constants/swagger.constants';
 import { ApiErrorResponseDto } from '../../common/dto/api-response.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthenticatedCustomer } from '../../auth/jwt/jwt-payload.interface';
 import { CustomerSitesService } from './customer-sites.service';
-import {
-  CreateSiteDto,
-  SiteResponseDto,
-  UpdateSiteDto,
-} from './dto/site.dto';
+import { CreateSiteDto, SiteResponseDto, UpdateSiteDto } from './dto/site.dto';
 
 @ApiTags(SWAGGER_TAGS.CUSTOMER)
 @ApiBearerAuth(SWAGGER_BEARER_AUTH)
@@ -48,9 +47,7 @@ export class CustomerSitesController {
   @Get('current-site')
   @ApiOperation({ summary: 'Get primary delivery site' })
   @ApiResponse({ status: 200, type: SiteResponseDto })
-  async current(
-    @CurrentUser() user: AuthenticatedCustomer,
-  ): Promise<{
+  async current(@CurrentUser() user: AuthenticatedCustomer): Promise<{
     success: boolean;
     message: string;
     data: SiteResponseDto | null;

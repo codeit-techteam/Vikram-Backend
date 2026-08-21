@@ -40,9 +40,7 @@ export class FcmPushService implements OnModuleInit {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const admin = require('firebase-admin') as {
         apps: unknown[];
-        initializeApp: (options: {
-          credential: unknown;
-        }) => void;
+        initializeApp: (options: { credential: unknown }) => void;
         credential: {
           cert: (serviceAccount: {
             projectId: string;

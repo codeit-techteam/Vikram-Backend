@@ -64,7 +64,10 @@ export const MEDIA_FOLDER_ALIASES: Record<string, MediaFolder> = {
 
 export function resolveMediaFolder(folder?: string | null): MediaFolder {
   if (!folder) return MEDIA_FOLDERS.VIDEOS;
-  const key = folder.trim().replace(/^\/+|\/+$/g, '').toLowerCase();
+  const key = folder
+    .trim()
+    .replace(/^\/+|\/+$/g, '')
+    .toLowerCase();
   return MEDIA_FOLDER_ALIASES[key] ?? MEDIA_FOLDERS.VIDEOS;
 }
 

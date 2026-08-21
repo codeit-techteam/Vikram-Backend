@@ -19,12 +19,18 @@ export interface ComplianceResult {
   flags: DocumentCompliance;
 }
 
-function flagForExpiry(expiry: Date | string | null | undefined): ComplianceFlag {
+function flagForExpiry(
+  expiry: Date | string | null | undefined,
+): ComplianceFlag {
   if (!expiry) return 'missing';
   const date = expiry instanceof Date ? expiry : new Date(expiry);
   if (Number.isNaN(date.getTime())) return 'missing';
   const now = new Date();
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startOfToday = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+  );
   if (date.getTime() < startOfToday.getTime()) return 'expired';
   const soon = startOfToday.getTime() + COMPLIANCE_SOON_DAYS * DAY_MS;
   if (date.getTime() <= soon) return 'expiring_soon';
@@ -46,15 +52,18 @@ export function evaluateVehicleCompliance(
     insurance: flagForExpiry(vehicle.insuranceExpiry),
     fitness: flagForExpiry(vehicle.fitnessExpiry),
     puc: flagForExpiry(vehicle.pucExpiry),
-    permit: vehicle.permitNumber || vehicle.permitExpiry
-      ? flagForExpiry(vehicle.permitExpiry)
-      : 'missing',
+    permit:
+      vehicle.permitNumber || vehicle.permitExpiry
+        ? flagForExpiry(vehicle.permitExpiry)
+        : 'missing',
     roadTax: flagForExpiry(vehicle.roadTaxExpiry),
   };
 
   const blockReasons: string[] = [];
   if (flags.insurance === 'expired') {
-    blockReasons.push('Vehicle cannot be dispatched because insurance has expired.');
+    blockReasons.push(
+      'Vehicle cannot be dispatched because insurance has expired.',
+    );
   }
   if (flags.fitness === 'expired') {
     blockReasons.push(
@@ -65,10 +74,10 @@ export function evaluateVehicleCompliance(
   // (avoids blocking legacy Vehicle Master rows that pre-date compliance columns).
   const hasAnyComplianceData = Boolean(
     vehicle.insuranceExpiry ||
-      vehicle.fitnessExpiry ||
-      vehicle.pucExpiry ||
-      vehicle.permitExpiry ||
-      vehicle.permitNumber,
+    vehicle.fitnessExpiry ||
+    vehicle.pucExpiry ||
+    vehicle.permitExpiry ||
+    vehicle.permitNumber,
   );
   if (hasAnyComplianceData) {
     if (flags.insurance === 'missing') {
@@ -87,7 +96,9 @@ export function evaluateVehicleCompliance(
     blockReasons.push('Vehicle cannot be dispatched because PUC has expired.');
   }
   if (vehicle.permitNumber && flags.permit === 'expired') {
-    blockReasons.push('Vehicle cannot be dispatched because permit has expired.');
+    blockReasons.push(
+      'Vehicle cannot be dispatched because permit has expired.',
+    );
   }
 
   return {
@@ -139,9 +150,11 @@ export function normalizeVehicleRegistration(input: string): string {
 export function isPlausibleIndianRegistration(registration: string): boolean {
   const normalized = normalizeVehicleRegistration(registration);
   // Allow flexible Indian formats; do not over-reject
-  return /^[A-Z]{2}-?\d{1,2}-?[A-Z]{0,3}-?\d{1,4}$/.test(
-    normalized.replace(/-/g, '').length >= 6
-      ? normalized
-      : registration.trim().toUpperCase(),
-  ) || /^[A-Z]{2}\d{1,2}[A-Z]{0,3}\d{1,4}$/.test(normalized.replace(/-/g, ''));
+  return (
+    /^[A-Z]{2}-?\d{1,2}-?[A-Z]{0,3}-?\d{1,4}$/.test(
+      normalized.replace(/-/g, '').length >= 6
+        ? normalized
+        : registration.trim().toUpperCase(),
+    ) || /^[A-Z]{2}\d{1,2}[A-Z]{0,3}\d{1,4}$/.test(normalized.replace(/-/g, ''))
+  );
 }

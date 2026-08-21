@@ -108,7 +108,10 @@ export class CreateDeliveryPromotionDto {
   @IsString()
   status?: string;
 
-  @ApiPropertyOptional({ example: 10, description: 'Higher number appears first' })
+  @ApiPropertyOptional({
+    example: 10,
+    description: 'Higher number appears first',
+  })
   @IsOptional()
   @Type(() => Number)
   @IsInt()

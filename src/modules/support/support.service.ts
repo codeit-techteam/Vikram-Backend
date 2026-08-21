@@ -109,8 +109,7 @@ export class SupportService {
     page = 1,
     limit = 20,
   ): Promise<SupportTicketListResponseDto> {
-    const cacheKey =
-      CACHE_KEYS.SUPPORT(customerId) + `:list:${page}:${limit}`;
+    const cacheKey = CACHE_KEYS.SUPPORT(customerId) + `:list:${page}:${limit}`;
     const cached = await this.cache.get<SupportTicketListResponseDto>(cacheKey);
     if (cached) return cached;
 

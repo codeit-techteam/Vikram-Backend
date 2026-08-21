@@ -23,14 +23,24 @@ export class CreateAdvertisementDto {
   @IsEnum(RedirectType)
   redirectType?: RedirectType;
   @ApiPropertyOptional() @IsOptional() @IsString() redirectId?: string;
-  @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsInt() displayOrder?: number;
-  @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsInt() priority?: number;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  displayOrder?: number;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  priority?: number;
   @ApiPropertyOptional() @IsOptional() @IsDateString() startsAt?: string;
   @ApiPropertyOptional() @IsOptional() @IsDateString() endsAt?: string;
   @ApiPropertyOptional() @IsOptional() @IsBoolean() isActive?: boolean;
 }
 
-export class UpdateAdvertisementDto extends PartialType(CreateAdvertisementDto) {}
+export class UpdateAdvertisementDto extends PartialType(
+  CreateAdvertisementDto,
+) {}
 
 export class ReorderItemsDto {
   @ApiProperty({ type: 'array' })

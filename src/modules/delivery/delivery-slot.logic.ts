@@ -54,10 +54,20 @@ export function dateKeyToUtcDate(dateKey: string): Date {
   return new Date(`${dateKey}T00:00:00.000Z`);
 }
 
-export function istWallTimeToUtc(dateKey: string, minutesFromMidnight: number): Date {
+export function istWallTimeToUtc(
+  dateKey: string,
+  minutesFromMidnight: number,
+): Date {
   const [year, month, day] = dateKey.split('-').map(Number);
   return new Date(
-    Date.UTC(year, month - 1, day, 0, minutesFromMidnight - IST_OFFSET_MINUTES, 0),
+    Date.UTC(
+      year,
+      month - 1,
+      day,
+      0,
+      minutesFromMidnight - IST_OFFSET_MINUTES,
+      0,
+    ),
   );
 }
 
@@ -71,13 +81,14 @@ export function formatDateLabel(dateKey: string): string {
   });
 }
 
-export function formatSlotLabel(startMinutes: number, endMinutes: number): string {
+export function formatSlotLabel(
+  startMinutes: number,
+  endMinutes: number,
+): string {
   return `${formatClockFromMinutes(startMinutes)} – ${formatClockFromMinutes(endMinutes)}`;
 }
 
-export function resolveHubHours(
-  parsed: HubHours | null | undefined,
-): HubHours {
+export function resolveHubHours(parsed: HubHours | null | undefined): HubHours {
   if (
     parsed &&
     Number.isFinite(parsed.openMinutes) &&
@@ -172,7 +183,10 @@ export function generateSlotWindowsForDate(input: {
     if (input.isToday) {
       const earliestStart = input.nowMinutes + input.leadMinutes;
       if (clipped.endMinutes <= earliestStart) continue;
-      if (input.nowMinutes >= cutoffMinutes && clipped.startMinutes < earliestStart) {
+      if (
+        input.nowMinutes >= cutoffMinutes &&
+        clipped.startMinutes < earliestStart
+      ) {
         continue;
       }
     }
@@ -197,7 +211,11 @@ export function generateScheduleWindows(input: {
 }): {
   today: GeneratedSlotWindow[];
   tomorrow: GeneratedSlotWindow[];
-  scheduled: Array<{ dateKey: string; dateLabel: string; slots: GeneratedSlotWindow[] }>;
+  scheduled: Array<{
+    dateKey: string;
+    dateLabel: string;
+    slots: GeneratedSlotWindow[];
+  }>;
 } {
   const horizon = input.horizonDays ?? SCHEDULE_HORIZON_DAYS;
   const today = generateSlotWindowsForDate({
@@ -239,9 +257,7 @@ export function generateScheduleWindows(input: {
   return { today, tomorrow, scheduled };
 }
 
-export function sanitizeDeliveryRemark(
-  raw?: string | null,
-): string | null {
+export function sanitizeDeliveryRemark(raw?: string | null): string | null {
   if (raw == null) return null;
   const stripped = raw
     .replace(/<[^>]*>/g, ' ')
@@ -276,7 +292,6 @@ export function isRmcOrder(input: {
   vehicleType?: DeliveryVehicleType | string | null;
 }): boolean {
   return (
-    input.logisticsType === 'RMC' ||
-    input.vehicleType === 'RMC_TRANSIT_MIXER'
+    input.logisticsType === 'RMC' || input.vehicleType === 'RMC_TRANSIT_MIXER'
   );
 }

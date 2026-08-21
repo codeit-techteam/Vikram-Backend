@@ -54,7 +54,11 @@ export class AdminVideosService {
     if (placement) where['placement'] = mapPlacement(placement);
     const rows = await this.prisma.video.findMany({
       where,
-      orderBy: [{ updatedAt: 'desc' }, { priority: 'desc' }, { displayOrder: 'asc' }],
+      orderBy: [
+        { updatedAt: 'desc' },
+        { priority: 'desc' },
+        { displayOrder: 'asc' },
+      ],
     });
 
     if (process.env.NODE_ENV !== 'production') {
@@ -122,7 +126,9 @@ export class AdminVideosService {
 
   async create(dto: CreateVideoDto, createdBy?: string) {
     if (!dto.videoUrl?.trim()) {
-      throw new BadRequestException('videoUrl is required when not uploading a file');
+      throw new BadRequestException(
+        'videoUrl is required when not uploading a file',
+      );
     }
 
     const placement = mapPlacement(dto.placement);
@@ -262,7 +268,8 @@ export class AdminVideosService {
     if (!file) throw new BadRequestException('video file is required');
     const existing = await this.findOne(id);
     const folder =
-      mapPlacement(String(existing.placement ?? '')) === VideoPlacement.TUTORIALS
+      mapPlacement(String(existing.placement ?? '')) ===
+      VideoPlacement.TUTORIALS
         ? MEDIA_FOLDERS.VIDEOS_TUTORIALS
         : MEDIA_FOLDERS.VIDEOS_HOME;
 
@@ -454,7 +461,10 @@ export class AdminVideosService {
       items.map((item) =>
         this.prisma.video.update({
           where: { id: item.id },
-          data: { displayOrder: item.displayOrder, priority: 100 - item.displayOrder },
+          data: {
+            displayOrder: item.displayOrder,
+            priority: 100 - item.displayOrder,
+          },
         }),
       ),
     );

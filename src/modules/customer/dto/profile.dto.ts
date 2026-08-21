@@ -40,7 +40,9 @@ export class UpsertProfileDto {
   @IsDateString()
   establishmentDate?: string;
 
-  @ApiPropertyOptional({ example: 'Level 5, Sky Tower, BKC G-Block, Mumbai 400051' })
+  @ApiPropertyOptional({
+    example: 'Level 5, Sky Tower, BKC G-Block, Mumbai 400051',
+  })
   @IsOptional()
   @IsString()
   @MaxLength(500)

@@ -24,7 +24,11 @@ export class TestimonialsService {
     });
 
     const result = items.map((t) => this.mapTestimonial(t));
-    await this.cache.set(CACHE_KEYS.TESTIMONIALS, result, CACHE_TTL.TESTIMONIALS);
+    await this.cache.set(
+      CACHE_KEYS.TESTIMONIALS,
+      result,
+      CACHE_TTL.TESTIMONIALS,
+    );
     return result;
   }
 

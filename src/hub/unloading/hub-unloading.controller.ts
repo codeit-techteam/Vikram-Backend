@@ -1,6 +1,9 @@
 import { Body, Controller, Get, Patch, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { SWAGGER_BEARER_AUTH, SWAGGER_TAGS } from '../../common/constants/swagger.constants';
+import {
+  SWAGGER_BEARER_AUTH,
+  SWAGGER_TAGS,
+} from '../../common/constants/swagger.constants';
 import { HubJwtAuthGuard } from '../guards/hub-jwt-auth.guard';
 import { HubRolesGuard } from '../guards/hub-roles.guard';
 import { HubPermission } from '../decorators/hub-roles.decorator';
@@ -31,18 +34,28 @@ export class HubUnloadingController {
     @CurrentHubUser() user: AuthenticatedHubUser,
     @Body() dto: HubUnloadingStartDto,
   ) {
-    const data = await this.unloadingService.start(user.hubId, dto, user.fullName);
+    const data = await this.unloadingService.start(
+      user.hubId,
+      dto,
+      user.fullName,
+    );
     return { success: true, message: 'Unloading started', data };
   }
 
   @Patch('complete')
   @HubPermission('unloading')
-  @ApiOperation({ summary: 'Complete unloading with proof photos and signature' })
+  @ApiOperation({
+    summary: 'Complete unloading with proof photos and signature',
+  })
   async complete(
     @CurrentHubUser() user: AuthenticatedHubUser,
     @Body() dto: HubUnloadingCompleteDto,
   ) {
-    const data = await this.unloadingService.complete(user.hubId, dto, user.fullName);
+    const data = await this.unloadingService.complete(
+      user.hubId,
+      dto,
+      user.fullName,
+    );
     return { success: true, message: 'Unloading completed', data };
   }
 }

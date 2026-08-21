@@ -47,7 +47,11 @@ export class OtpService {
 
     if (this.redisService.isEnabled()) {
       const client = this.redisService.getClient();
-      await client.setex(`${OTP_REDIS_PREFIX}${phone}`, OTP_TTL_SECONDS, otpHash);
+      await client.setex(
+        `${OTP_REDIS_PREFIX}${phone}`,
+        OTP_TTL_SECONDS,
+        otpHash,
+      );
       await client.del(`${OTP_ATTEMPTS_PREFIX}${phone}`);
     }
 
@@ -134,7 +138,9 @@ export class OtpService {
 
     const storedHash = await client.get(`${OTP_REDIS_PREFIX}${phone}`);
     if (!storedHash) {
-      throw new BadRequestException('OTP expired or not found. Please request a new OTP.');
+      throw new BadRequestException(
+        'OTP expired or not found. Please request a new OTP.',
+      );
     }
 
     const isValid = await bcrypt.compare(otp, storedHash);
@@ -157,7 +163,10 @@ export class OtpService {
     });
   }
 
-  private async verifyOtpWithDatabase(phone: string, otp: string): Promise<void> {
+  private async verifyOtpWithDatabase(
+    phone: string,
+    otp: string,
+  ): Promise<void> {
     const record = await this.prisma.otpRecord.findFirst({
       where: {
         phone,
@@ -169,7 +178,9 @@ export class OtpService {
     });
 
     if (!record) {
-      throw new BadRequestException('OTP expired or not found. Please request a new OTP.');
+      throw new BadRequestException(
+        'OTP expired or not found. Please request a new OTP.',
+      );
     }
 
     if (record.attempts >= OTP_MAX_VERIFY_ATTEMPTS) {

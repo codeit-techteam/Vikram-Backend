@@ -15,7 +15,9 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
   }
 
   canActivate(context: ExecutionContext) {
-    const request = context.switchToHttp().getRequest<{ url?: string; path?: string }>();
+    const request = context
+      .switchToHttp()
+      .getRequest<{ url?: string; path?: string }>();
     const url = request.url ?? request.path ?? '';
 
     // Hub and admin panels use their own JWT strategies/guards
@@ -37,7 +39,9 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     }
 
     if (isOptionalAuth) {
-      const request = context.switchToHttp().getRequest<{ headers: { authorization?: string } }>();
+      const request = context
+        .switchToHttp()
+        .getRequest<{ headers: { authorization?: string } }>();
       const authHeader = request.headers.authorization;
       if (!authHeader?.startsWith('Bearer ')) {
         return true;

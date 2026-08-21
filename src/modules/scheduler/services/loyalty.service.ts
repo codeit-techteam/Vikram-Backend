@@ -60,7 +60,10 @@ export class LoyaltyExpiryService {
           });
           if (!account) return;
 
-          const nextCurrent = Math.max(0, account.currentPoints - pointsToExpire);
+          const nextCurrent = Math.max(
+            0,
+            account.currentPoints - pointsToExpire,
+          );
           const nextAvailable = Math.max(
             0,
             account.availablePoints - pointsToExpire,

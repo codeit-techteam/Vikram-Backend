@@ -37,7 +37,9 @@ export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
 };
 
 /** Normalize legacy statuses to the canonical lifecycle values. */
-export function normalizeOrderStatus(status: OrderStatus | string): OrderStatus {
+export function normalizeOrderStatus(
+  status: OrderStatus | string,
+): OrderStatus {
   const value = String(status).toUpperCase();
   switch (value) {
     case 'PROCESSING':
@@ -107,7 +109,9 @@ export const NON_CANCELLABLE_STATUSES: OrderStatus[] = [
 ];
 
 /** Allowed next statuses from a given status (canonical + legacy sources). */
-export const ORDER_STATUS_TRANSITIONS: Partial<Record<OrderStatus, OrderStatus[]>> = {
+export const ORDER_STATUS_TRANSITIONS: Partial<
+  Record<OrderStatus, OrderStatus[]>
+> = {
   PENDING: ['CONFIRMED', 'HUB_ASSIGNED', 'CANCELLED'],
   CONFIRMED: ['HUB_ASSIGNED', 'ACCEPTED_BY_HUB', 'CANCELLED'],
   HUB_ASSIGNED: ['ACCEPTED_BY_HUB', 'CANCELLED'],

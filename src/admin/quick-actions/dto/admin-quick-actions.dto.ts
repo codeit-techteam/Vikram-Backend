@@ -20,7 +20,11 @@ export class CreateQuickActionDto {
   @IsEnum(RedirectType)
   redirectType?: RedirectType;
   @ApiPropertyOptional() @IsOptional() @IsString() redirectId?: string;
-  @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsInt() displayOrder?: number;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  displayOrder?: number;
   @ApiPropertyOptional() @IsOptional() @IsBoolean() isVisible?: boolean;
   @ApiPropertyOptional() @IsOptional() @IsDateString() startsAt?: string;
   @ApiPropertyOptional() @IsOptional() @IsDateString() endsAt?: string;

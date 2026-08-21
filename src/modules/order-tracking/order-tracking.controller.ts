@@ -6,7 +6,10 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { SWAGGER_BEARER_AUTH, SWAGGER_TAGS } from '../../common/constants/swagger.constants';
+import {
+  SWAGGER_BEARER_AUTH,
+  SWAGGER_TAGS,
+} from '../../common/constants/swagger.constants';
 import { ApiErrorResponseDto } from '../../common/dto/api-response.dto';
 import { CurrentCustomer } from '../../common/decorators/current-customer.decorator';
 import type { AuthenticatedCustomer } from '../../auth/jwt/jwt-payload.interface';
@@ -30,7 +33,11 @@ export class OrderTrackingController {
   })
   @ApiParam({ name: 'orderId', description: 'Order UUID' })
   @ApiResponse({ status: 200, type: [OrderTimelineEventDto] })
-  @ApiResponse({ status: 404, description: 'Order not found', type: ApiErrorResponseDto })
+  @ApiResponse({
+    status: 404,
+    description: 'Order not found',
+    type: ApiErrorResponseDto,
+  })
   async getTimeline(
     @CurrentCustomer() customer: AuthenticatedCustomer,
     @Param('orderId', ParseUUIDPipe) orderId: string,
@@ -39,7 +46,10 @@ export class OrderTrackingController {
     message: string;
     data: OrderTimelineEventDto[];
   }> {
-    const data = await this.orderTrackingService.getTimeline(customer.id, orderId);
+    const data = await this.orderTrackingService.getTimeline(
+      customer.id,
+      orderId,
+    );
     return {
       success: true,
       message: 'Order timeline fetched successfully',
@@ -55,12 +65,19 @@ export class OrderTrackingController {
   })
   @ApiParam({ name: 'orderId', description: 'Order UUID' })
   @ApiResponse({ status: 200, description: 'Tracking payload' })
-  @ApiResponse({ status: 404, description: 'Order not found', type: ApiErrorResponseDto })
+  @ApiResponse({
+    status: 404,
+    description: 'Order not found',
+    type: ApiErrorResponseDto,
+  })
   async getTracking(
     @CurrentCustomer() customer: AuthenticatedCustomer,
     @Param('orderId', ParseUUIDPipe) orderId: string,
   ) {
-    const data = await this.orderTrackingService.getTracking(customer.id, orderId);
+    const data = await this.orderTrackingService.getTracking(
+      customer.id,
+      orderId,
+    );
     return {
       success: true,
       message: 'Order tracking fetched successfully',
@@ -75,7 +92,11 @@ export class OrderTrackingController {
   })
   @ApiParam({ name: 'orderId', description: 'Order UUID' })
   @ApiResponse({ status: 200, type: OrderStatusResponseDto })
-  @ApiResponse({ status: 404, description: 'Order not found', type: ApiErrorResponseDto })
+  @ApiResponse({
+    status: 404,
+    description: 'Order not found',
+    type: ApiErrorResponseDto,
+  })
   async getStatus(
     @CurrentCustomer() customer: AuthenticatedCustomer,
     @Param('orderId', ParseUUIDPipe) orderId: string,
@@ -84,7 +105,10 @@ export class OrderTrackingController {
     message: string;
     data: OrderStatusResponseDto;
   }> {
-    const data = await this.orderTrackingService.getStatus(customer.id, orderId);
+    const data = await this.orderTrackingService.getStatus(
+      customer.id,
+      orderId,
+    );
     return {
       success: true,
       message: 'Order status fetched successfully',

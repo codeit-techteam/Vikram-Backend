@@ -34,9 +34,7 @@ import {
   DELIVERY_PREFERENCE_LABELS,
 } from '../delivery/delivery-preference.constants';
 import type { DeliveryPreferenceType } from '../delivery/delivery-preference.constants';
-import {
-  mapDeliveryPreferenceView,
-} from '../delivery/delivery-preference.view';
+import { mapDeliveryPreferenceView } from '../delivery/delivery-preference.view';
 import {
   preferenceRequiresSlot,
   sanitizeDeliveryRemark,
@@ -232,7 +230,11 @@ export class OrdersService {
           'Selected slot does not match the delivery preference.',
         );
       }
-    } else if (preferenceType === 'ASAP' && options && !options.asap.available) {
+    } else if (
+      preferenceType === 'ASAP' &&
+      options &&
+      !options.asap.available
+    ) {
       throw new BadRequestException(
         options.asap.reason ||
           'Fastest delivery is not available right now. Please choose another time.',
@@ -248,7 +250,9 @@ export class OrdersService {
     const expectedDeliveryAt = selectedSlot
       ? new Date(selectedSlot.endAt)
       : checkout.deliveryEtaMaxMinutes
-        ? new Date(selectedAt.getTime() + checkout.deliveryEtaMaxMinutes * 60_000)
+        ? new Date(
+            selectedAt.getTime() + checkout.deliveryEtaMaxMinutes * 60_000,
+          )
         : checkout.deliveryETA
           ? new Date(selectedAt.getTime() + checkout.deliveryETA * 60_000)
           : null;
@@ -269,7 +273,7 @@ export class OrdersService {
       etaMaxMinutes: checkout.deliveryEtaMaxMinutes ?? null,
       etaLabel:
         preferenceType === 'ASAP'
-          ? checkout.deliveryMessage ?? options?.asap.etaLabel ?? null
+          ? (checkout.deliveryMessage ?? options?.asap.etaLabel ?? null)
           : selectedSlot
             ? `${selectedSlot.dateLabel}, ${selectedSlot.label}`
             : null,
@@ -296,9 +300,7 @@ export class OrdersService {
         const finalStatus = hubCanFulfill
           ? OrderStatus.HUB_ASSIGNED
           : OrderStatus.AWAITING_HUB_ALLOCATION;
-        const hubAssignmentReason = hubCanFulfill
-          ? 'ASSIGNED'
-          : routing.reason;
+        const hubAssignmentReason = hubCanFulfill ? 'ASSIGNED' : routing.reason;
         const hubRoutingSnapshot = routing.snapshot as Prisma.InputJsonValue;
 
         if (hubCanFulfill && assignedHubId) {
@@ -349,10 +351,9 @@ export class OrdersService {
             bikeDeliveryFree: checkout.bikeDeliveryFree,
             companyAbsorbedDelivery: checkout.companyAbsorbedDelivery ?? 0,
             deliveryPricingRuleId: checkout.deliveryPricingRuleId ?? null,
-            deliveryVehicleType: (checkout.deliveryVehicleType as
-              | DeliveryVehicleType
-              | null
-              | undefined) ?? null,
+            deliveryVehicleType:
+              (checkout.deliveryVehicleType as
+                DeliveryVehicleType | null | undefined) ?? null,
             deliveryDistanceKm: checkout.deliveryDistanceKm ?? null,
             deliveryPricingVersion: checkout.deliveryPricingVersion ?? null,
             freeDeliveryApplied: checkout.freeDeliveryApplied ?? false,
@@ -370,7 +371,8 @@ export class OrdersService {
             deliveryEtaMinMinutes: checkout.deliveryEtaMinMinutes ?? null,
             deliveryEtaMaxMinutes: checkout.deliveryEtaMaxMinutes ?? null,
             deliveryLogisticsType: checkout.deliveryLogisticsType ?? null,
-            deliveryPreparationMinutes: checkout.deliveryPreparationMinutes ?? null,
+            deliveryPreparationMinutes:
+              checkout.deliveryPreparationMinutes ?? null,
             deliveryLoadingMinutes: checkout.deliveryLoadingMinutes ?? null,
             deliveryTravelMinutes: checkout.deliveryTravelMinutes ?? null,
             deliveryUnloadingMinutes: checkout.deliveryUnloadingMinutes ?? null,
@@ -380,13 +382,14 @@ export class OrdersService {
               ? new Date(`${selectedSlot.date}T00:00:00.000Z`)
               : null,
             scheduledSlotId: selectedSlot?.slotId ?? null,
-            scheduledStartAt: selectedSlot ? new Date(selectedSlot.startAt) : null,
+            scheduledStartAt: selectedSlot
+              ? new Date(selectedSlot.startAt)
+              : null,
             scheduledEndAt: selectedSlot ? new Date(selectedSlot.endAt) : null,
             deliveryCustomerRemark: customerRemark,
             deliveryPreferenceSelectedAt: selectedAt,
             deliveryTimezone: DEFAULT_DELIVERY_TIMEZONE,
-            deliveryPreferenceSnapshot:
-              preferenceSnapshot as unknown as Prisma.InputJsonValue,
+            deliveryPreferenceSnapshot: preferenceSnapshot,
             expectedDeliveryAt,
             deliveryAddress: {
               id: checkout.address.id,
@@ -394,32 +397,42 @@ export class OrdersService {
               siteName: checkout.address.label,
               line1: checkout.address.line1,
               line2: checkout.address.line2,
-              landmark: (checkout.address as { landmark?: string | null }).landmark ?? null,
-              gateNumber: (checkout.address as { gateNumber?: string | null }).gateNumber ?? null,
-              floor: (checkout.address as { floor?: string | null }).floor ?? null,
+              landmark:
+                (checkout.address as { landmark?: string | null }).landmark ??
+                null,
+              gateNumber:
+                (checkout.address as { gateNumber?: string | null })
+                  .gateNumber ?? null,
+              floor:
+                (checkout.address as { floor?: string | null }).floor ?? null,
               city: checkout.address.city,
               state: checkout.address.state,
               pincode: checkout.address.pincode,
-              contactPerson: (checkout.address as { contactPerson?: string | null }).contactPerson ?? null,
-              phone: (checkout.address as { phone?: string | null }).phone ?? null,
+              contactPerson:
+                (checkout.address as { contactPerson?: string | null })
+                  .contactPerson ?? null,
+              phone:
+                (checkout.address as { phone?: string | null }).phone ?? null,
               latitude: checkout.address.latitude,
               longitude: checkout.address.longitude,
-              deliveryNotes: (checkout.address as { deliveryNotes?: string | null }).deliveryNotes ?? null,
+              deliveryNotes:
+                (checkout.address as { deliveryNotes?: string | null })
+                  .deliveryNotes ?? null,
             },
             items: {
               create: checkout.items.map((item) => ({
                 productId: item.productId,
                 name: item.product.name,
                 productImage: normalizeMediaUrl(
-                  (item.product as { thumbnailUrl?: string | null }).thumbnailUrl ??
-                    null,
+                  (item.product as { thumbnailUrl?: string | null })
+                    .thumbnailUrl ?? null,
                 ),
                 sku: item.product.sku ?? null,
                 brand: item.product.brand ?? null,
                 category: item.product.category ?? null,
                 productType:
-                  (item.product as { productType?: string | null }).productType ??
-                  null,
+                  (item.product as { productType?: string | null })
+                    .productType ?? null,
                 grade:
                   (item.product as { grade?: string | null }).grade ?? null,
                 variant: item.product.variant ?? null,
@@ -978,7 +991,8 @@ export class OrdersService {
       paymentMethod: order.paymentMethod,
       createdAt: order.createdAt.toISOString(),
       updatedAt,
-      version: Date.parse(updatedAt) || (order.updatedAt ?? order.createdAt).getTime(),
+      version:
+        Date.parse(updatedAt) || (order.updatedAt ?? order.createdAt).getTime(),
       canCancel: CANCELLABLE_STATUSES.includes(order.orderStatus),
       isEmergency: order.isEmergency ?? false,
       priorityOrder: order.priorityOrder ?? false,
@@ -1077,7 +1091,8 @@ export class OrdersService {
         : null,
       driverReachedAt: order.driverReachedAt?.toISOString() ?? null,
       deliveryOtpGenerated: Boolean(order.deliveryOtpGeneratedAt),
-      deliveryOtpGeneratedAt: order.deliveryOtpGeneratedAt?.toISOString() ?? null,
+      deliveryOtpGeneratedAt:
+        order.deliveryOtpGeneratedAt?.toISOString() ?? null,
       deliveryOtpVerified: order.deliveryOtpVerified,
       deliveryCompletedAt: order.deliveryCompletedAt?.toISOString() ?? null,
     };

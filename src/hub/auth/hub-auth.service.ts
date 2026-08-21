@@ -25,7 +25,10 @@ export class HubAuthService {
     private readonly configService: ConfigService,
   ) {}
 
-  async login(employeeId: string, password: string): Promise<HubLoginResponseDto> {
+  async login(
+    employeeId: string,
+    password: string,
+  ): Promise<HubLoginResponseDto> {
     const nodeEnv = this.configService.get<string>('app.env', 'development');
     return runAuthDatabaseOperation(
       'AUTH_LOGIN',
@@ -71,7 +74,7 @@ export class HubAuthService {
       );
     }
 
-    if (!HUB_ACCESS_ROLES.includes(user.role as (typeof HUB_ACCESS_ROLES)[number])) {
+    if (!HUB_ACCESS_ROLES.includes(user.role)) {
       throw new UnauthorizedException('Hub access not permitted for this role');
     }
 
@@ -149,7 +152,12 @@ export class HubAuthService {
       where: { id: hubUserId, deletedAt: null, isActive: true },
       include: {
         hub: {
-          select: { name: true, code: true, warehouseCode: true, isActive: true },
+          select: {
+            name: true,
+            code: true,
+            warehouseCode: true,
+            isActive: true,
+          },
         },
       },
     });
@@ -165,7 +173,9 @@ export class HubAuthService {
     });
   }
 
-  async requestPasswordReset(employeeId: string): Promise<{ requested: boolean }> {
+  async requestPasswordReset(
+    employeeId: string,
+  ): Promise<{ requested: boolean }> {
     const normalizedId = employeeId.trim().toLowerCase();
     const user = await this.prisma.hubUser.findFirst({
       where: { employeeId: normalizedId, deletedAt: null },

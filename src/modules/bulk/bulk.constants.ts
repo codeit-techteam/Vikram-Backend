@@ -110,12 +110,14 @@ export function customerFacingBulkStatus(
   status: BulkEnquiryStatus | string,
 ): string {
   return (
-    BULK_CUSTOMER_FACING_STATUS[status as BulkEnquiryStatus] ??
-    String(status)
+    BULK_CUSTOMER_FACING_STATUS[status as BulkEnquiryStatus] ?? String(status)
   );
 }
 
-export function formatBulkEnquiryNumber(year: number, sequence: number): string {
+export function formatBulkEnquiryNumber(
+  year: number,
+  sequence: number,
+): string {
   return `BULK-${year}-${String(sequence).padStart(6, '0')}`;
 }
 
@@ -141,9 +143,7 @@ export function decimalToNumber(value: unknown): number {
   return Number(value);
 }
 
-export function optionalDecimalToNumber(
-  value: unknown,
-): number | null {
+export function optionalDecimalToNumber(value: unknown): number | null {
   if (value == null) return null;
   const n = decimalToNumber(value);
   return Number.isFinite(n) ? n : null;
@@ -205,12 +205,12 @@ export function brickFormOptions() {
 }
 
 export function deliveryRequirementOptions() {
-  return (Object.keys(BULK_DELIVERY_REQUIREMENT_LABELS) as BulkDeliveryRequirement[]).map(
-    (value) => ({
-      value,
-      label: BULK_DELIVERY_REQUIREMENT_LABELS[value],
-    }),
-  );
+  return (
+    Object.keys(BULK_DELIVERY_REQUIREMENT_LABELS) as BulkDeliveryRequirement[]
+  ).map((value) => ({
+    value,
+    label: BULK_DELIVERY_REQUIREMENT_LABELS[value],
+  }));
 }
 
 export function preferredContactOptions() {

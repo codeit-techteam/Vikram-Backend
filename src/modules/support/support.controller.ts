@@ -21,7 +21,10 @@ import {
 import { Type } from 'class-transformer';
 import { IsInt, IsOptional, Max, Min } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { SWAGGER_BEARER_AUTH, SWAGGER_TAGS } from '../../common/constants/swagger.constants';
+import {
+  SWAGGER_BEARER_AUTH,
+  SWAGGER_TAGS,
+} from '../../common/constants/swagger.constants';
 import { ApiErrorResponseDto } from '../../common/dto/api-response.dto';
 import { CurrentCustomer } from '../../common/decorators/current-customer.decorator';
 import type { AuthenticatedCustomer } from '../../auth/jwt/jwt-payload.interface';
@@ -81,7 +84,11 @@ export class SupportController {
       'Customer can raise a ticket for Late Delivery, Wrong Product, Damaged Material, or Other. Creates the first conversation message from the description.',
   })
   @ApiResponse({ status: 201, type: SupportTicketResponseDto })
-  @ApiResponse({ status: 400, description: 'Validation error', type: ApiErrorResponseDto })
+  @ApiResponse({
+    status: 400,
+    description: 'Validation error',
+    type: ApiErrorResponseDto,
+  })
   async create(
     @CurrentCustomer() customer: AuthenticatedCustomer,
     @Body() dto: CreateSupportTicketDto,
@@ -101,7 +108,8 @@ export class SupportController {
   @Get()
   @ApiOperation({
     summary: 'List my support tickets',
-    description: 'Returns paginated tickets with last message preview and unread counts.',
+    description:
+      'Returns paginated tickets with last message preview and unread counts.',
   })
   @ApiQuery({ name: 'page', required: false })
   @ApiQuery({ name: 'limit', required: false })
@@ -133,12 +141,19 @@ export class SupportController {
   })
   @ApiParam({ name: 'ticketId', description: 'Ticket UUID' })
   @ApiResponse({ status: 200, type: SupportUnreadCountResponseDto })
-  @ApiResponse({ status: 404, description: 'Ticket not found', type: ApiErrorResponseDto })
+  @ApiResponse({
+    status: 404,
+    description: 'Ticket not found',
+    type: ApiErrorResponseDto,
+  })
   async getUnreadCount(
     @CurrentCustomer() customer: AuthenticatedCustomer,
     @Param('ticketId', ParseUUIDPipe) ticketId: string,
   ) {
-    const data = await this.supportService.getUnreadCount(customer.id, ticketId);
+    const data = await this.supportService.getUnreadCount(
+      customer.id,
+      ticketId,
+    );
     return { success: true, message: 'Unread count fetched', data };
   }
 
@@ -152,7 +167,11 @@ export class SupportController {
   @ApiQuery({ name: 'page', required: false })
   @ApiQuery({ name: 'limit', required: false })
   @ApiResponse({ status: 200, type: SupportConversationResponseDto })
-  @ApiResponse({ status: 404, description: 'Ticket not found', type: ApiErrorResponseDto })
+  @ApiResponse({
+    status: 404,
+    description: 'Ticket not found',
+    type: ApiErrorResponseDto,
+  })
   async getMessages(
     @CurrentCustomer() customer: AuthenticatedCustomer,
     @Param('ticketId', ParseUUIDPipe) ticketId: string,
@@ -176,8 +195,16 @@ export class SupportController {
   })
   @ApiParam({ name: 'ticketId', description: 'Ticket UUID' })
   @ApiResponse({ status: 201, type: SupportMessageResponseDto })
-  @ApiResponse({ status: 400, description: 'Ticket is closed', type: ApiErrorResponseDto })
-  @ApiResponse({ status: 404, description: 'Ticket not found', type: ApiErrorResponseDto })
+  @ApiResponse({
+    status: 400,
+    description: 'Ticket is closed',
+    type: ApiErrorResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Ticket not found',
+    type: ApiErrorResponseDto,
+  })
   async sendMessage(
     @CurrentCustomer() customer: AuthenticatedCustomer,
     @Param('ticketId', ParseUUIDPipe) ticketId: string,
@@ -194,27 +221,40 @@ export class SupportController {
   @Patch(':ticketId/messages/read')
   @ApiOperation({
     summary: 'Mark admin messages as read',
-    description: 'Marks all unread admin/executive messages as read when customer opens the ticket.',
+    description:
+      'Marks all unread admin/executive messages as read when customer opens the ticket.',
   })
   @ApiParam({ name: 'ticketId', description: 'Ticket UUID' })
   @ApiResponse({ status: 200, type: MarkMessagesReadResponseDto })
-  @ApiResponse({ status: 404, description: 'Ticket not found', type: ApiErrorResponseDto })
+  @ApiResponse({
+    status: 404,
+    description: 'Ticket not found',
+    type: ApiErrorResponseDto,
+  })
   async markMessagesRead(
     @CurrentCustomer() customer: AuthenticatedCustomer,
     @Param('ticketId', ParseUUIDPipe) ticketId: string,
   ) {
-    const data = await this.supportService.markMessagesRead(customer.id, ticketId);
+    const data = await this.supportService.markMessagesRead(
+      customer.id,
+      ticketId,
+    );
     return { success: true, message: 'Messages marked as read', data };
   }
 
   @Get(':ticketId')
   @ApiOperation({
     summary: 'Get support ticket details',
-    description: 'Returns ticket summary. Marks admin messages as read automatically.',
+    description:
+      'Returns ticket summary. Marks admin messages as read automatically.',
   })
   @ApiParam({ name: 'ticketId', description: 'Ticket UUID' })
   @ApiResponse({ status: 200, type: SupportTicketResponseDto })
-  @ApiResponse({ status: 404, description: 'Ticket not found', type: ApiErrorResponseDto })
+  @ApiResponse({
+    status: 404,
+    description: 'Ticket not found',
+    type: ApiErrorResponseDto,
+  })
   async findOne(
     @CurrentCustomer() customer: AuthenticatedCustomer,
     @Param('ticketId', ParseUUIDPipe) ticketId: string,

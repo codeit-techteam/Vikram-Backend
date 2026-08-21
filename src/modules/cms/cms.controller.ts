@@ -24,8 +24,8 @@ export class CmsController {
   @Get('home')
   @ApiOperation({
     summary: 'Get full Home Screen CMS payload',
-      description:
-        'Returns active home sections and all CMS content (banners, ads, testimonials, promotions). Cached briefly so Super Admin publishes appear on the next Home load.',
+    description:
+      'Returns active home sections and all CMS content (banners, ads, testimonials, promotions). Cached briefly so Super Admin publishes appear on the next Home load.',
   })
   @ApiResponse({ status: 200, description: 'CMS home payload fetched' })
   async getHome(): Promise<{

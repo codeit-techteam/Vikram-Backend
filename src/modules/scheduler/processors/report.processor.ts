@@ -1,10 +1,7 @@
 import { Processor, WorkerHost, OnWorkerEvent } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import type { Job } from 'bullmq';
-import {
-  SCHEDULER_JOB_NAMES,
-  SCHEDULER_QUEUES,
-} from '../scheduler.constants';
+import { SCHEDULER_JOB_NAMES, SCHEDULER_QUEUES } from '../scheduler.constants';
 import { DailyReportService } from '../services/report.service';
 import { SchedulerLogService } from '../services/scheduler-log.service';
 import { previousDay } from '../scheduler.utils';
@@ -42,7 +39,8 @@ export class ReportProcessor extends WorkerHost {
       const reportDate = job.data?.reportDate
         ? new Date(job.data.reportDate)
         : previousDay();
-      const result = await this.dailyReportService.generateDailyReport(reportDate);
+      const result =
+        await this.dailyReportService.generateDailyReport(reportDate);
       await this.schedulerLogService.finish(logId, result);
       this.logger.log(
         `Daily report done — date=${String(result.metadata?.reportDate)}`,

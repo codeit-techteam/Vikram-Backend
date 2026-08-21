@@ -48,19 +48,39 @@ export class CartService {
   ): Promise<CartResponseDto> {
     const quantityToAdd = dto.quantity ?? 1;
     const product = await this.assertProductPurchasable(dto.productId);
-    const variant = await this.resolveVariant(product.id, dto.variantId, product.hasVariants);
-    const availableStock = await this.getAvailableStock(dto.productId, dto.variantId);
+    const variant = await this.resolveVariant(
+      product.id,
+      dto.variantId,
+      product.hasVariants,
+    );
+    const availableStock = await this.getAvailableStock(
+      dto.productId,
+      dto.variantId,
+    );
 
     const cart = await this.ensureCart(customerId);
-    const existing = await this.findCartLine(cart.id, dto.productId, variant?.id ?? null);
+    const existing = await this.findCartLine(
+      cart.id,
+      dto.productId,
+      variant?.id ?? null,
+    );
 
     const newQty = (existing?.quantity ?? 0) + quantityToAdd;
-    this.assertQuantityAllowed(newQty, product.minOrder, product.maxOrder, availableStock);
+    this.assertQuantityAllowed(
+      newQty,
+      product.minOrder,
+      product.maxOrder,
+      availableStock,
+    );
 
     const unitRetail = variant
       ? decimalToNumber(variant.price)
       : decimalToNumber(product.retailPrice);
-    const { unitPrice, bulkDiscount } = this.resolveUnitPrice(product, variant, newQty);
+    const { unitPrice, bulkDiscount } = this.resolveUnitPrice(
+      product,
+      variant,
+      newQty,
+    );
     const gstPercent = decimalToNumber(product.gst);
     const line = calculateLinePricing({
       unitPrice,
@@ -165,7 +185,10 @@ export class CartService {
     return this.getCart(customerId);
   }
 
-  async removeItem(customerId: string, itemId: string): Promise<CartResponseDto> {
+  async removeItem(
+    customerId: string,
+    itemId: string,
+  ): Promise<CartResponseDto> {
     const cart = await this.ensureCart(customerId);
     const item = await this.prisma.cartItem.findFirst({
       where: { id: itemId, cartId: cart.id },
@@ -315,8 +338,15 @@ export class CartService {
   ): BulkTier[] {
     if (Array.isArray(product.bulkPricing) && product.bulkPricing.length > 0) {
       return (product.bulkPricing as BulkTier[])
-        .filter((t) => t && typeof t.minQty === 'number' && typeof t.price === 'number')
-        .map((t) => ({ minQty: t.minQty, price: Number(t.price), label: t.label }))
+        .filter(
+          (t) =>
+            t && typeof t.minQty === 'number' && typeof t.price === 'number',
+        )
+        .map((t) => ({
+          minQty: t.minQty,
+          price: Number(t.price),
+          label: t.label,
+        }))
         .sort((a, b) => a.minQty - b.minQty);
     }
 
@@ -331,7 +361,10 @@ export class CartService {
     return [];
   }
 
-  async getAvailableStock(productId: string, _variantId?: string): Promise<number> {
+  async getAvailableStock(
+    productId: string,
+    _variantId?: string,
+  ): Promise<number> {
     const aggregates = await this.prisma.hubInventory.aggregate({
       where: {
         productId,

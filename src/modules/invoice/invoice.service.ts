@@ -4,7 +4,11 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { InvoiceStatus, PaymentStatus, Prisma } from '../../../generated/prisma/client';
+import {
+  InvoiceStatus,
+  PaymentStatus,
+  Prisma,
+} from '../../../generated/prisma/client';
 import { EmailService } from '../../common/email/email.service';
 import { buildPaginationMeta } from '../../common/dto/pagination.dto';
 import { PrismaService } from '../../common/database/prisma.service';
@@ -122,7 +126,11 @@ export class InvoiceService {
     if (query.search) {
       where.OR = [
         { invoiceNumber: { contains: query.search, mode: 'insensitive' } },
-        { order: { orderNumber: { contains: query.search, mode: 'insensitive' } } },
+        {
+          order: {
+            orderNumber: { contains: query.search, mode: 'insensitive' },
+          },
+        },
       ];
     }
 
@@ -165,10 +173,16 @@ export class InvoiceService {
     if (query.search) {
       where.OR = [
         { invoiceNumber: { contains: query.search, mode: 'insensitive' } },
-        { order: { orderNumber: { contains: query.search, mode: 'insensitive' } } },
         {
           order: {
-            customer: { phone: { contains: query.search, mode: 'insensitive' } },
+            orderNumber: { contains: query.search, mode: 'insensitive' },
+          },
+        },
+        {
+          order: {
+            customer: {
+              phone: { contains: query.search, mode: 'insensitive' },
+            },
           },
         },
       ];
@@ -216,7 +230,9 @@ export class InvoiceService {
     };
   }
 
-  async getAdminInvoicePdf(invoiceId: string): Promise<{ buffer: Buffer; filename: string }> {
+  async getAdminInvoicePdf(
+    invoiceId: string,
+  ): Promise<{ buffer: Buffer; filename: string }> {
     const invoice = await this.prisma.invoice.findFirst({
       where: { id: invoiceId, deletedAt: null },
       include: {
@@ -253,7 +269,9 @@ export class InvoiceService {
     return { ...pdf, invoiceId: invoice.id };
   }
 
-  private async findOrderForInvoice(orderId: string): Promise<OrderWithRelations> {
+  private async findOrderForInvoice(
+    orderId: string,
+  ): Promise<OrderWithRelations> {
     const order = await this.prisma.order.findFirst({
       where: { id: orderId, deletedAt: null },
       include: {
@@ -415,8 +433,14 @@ export class InvoiceService {
     },
     order: OrderForPdf,
   ): GstInvoiceData {
-    const companyState = this.configService.get<string>('company.state', 'Maharashtra');
-    const loyaltyPointValue = this.configService.get<number>('invoice.loyaltyPointValue', 1);
+    const companyState = this.configService.get<string>(
+      'company.state',
+      'Maharashtra',
+    );
+    const loyaltyPointValue = this.configService.get<number>(
+      'invoice.loyaltyPointValue',
+      1,
+    );
 
     const customerSnapshot =
       (invoice.customerSnapshot as Record<string, unknown> | null) ?? {};
@@ -453,8 +477,14 @@ export class InvoiceService {
       company: {
         name: this.configService.get<string>('company.name', 'Bajriwala'),
         gstin: this.configService.get<string>('company.gstin', ''),
-        addressLine1: this.configService.get<string>('company.addressLine1', ''),
-        addressLine2: this.configService.get<string>('company.addressLine2', ''),
+        addressLine1: this.configService.get<string>(
+          'company.addressLine1',
+          '',
+        ),
+        addressLine2: this.configService.get<string>(
+          'company.addressLine2',
+          '',
+        ),
         city: this.configService.get<string>('company.city', ''),
         state: companyState,
         pincode: this.configService.get<string>('company.pincode', ''),
@@ -609,9 +639,7 @@ export class InvoiceService {
     const gstNumber = String(customerSnapshot.gstNumber ?? '').trim();
     const customerName =
       String(
-        customerSnapshot.companyName ??
-          customerSnapshot.fullName ??
-          '',
+        customerSnapshot.companyName ?? customerSnapshot.fullName ?? '',
       ).trim() || null;
     const items = Array.isArray(invoice.itemsSnapshot)
       ? (invoice.itemsSnapshot as Array<{ name?: string }>)
@@ -679,17 +707,16 @@ export class InvoiceService {
           subtotal: decimalToNumber(item.subtotal),
           discount: 0,
         })),
-        addressSnapshot:
-          (order.deliveryAddress as object | null) ?? {
-            id: order.address.id,
-            label: order.address.label,
-            line1: order.address.line1,
-            line2: order.address.line2,
-            city: order.address.city,
-            state: order.address.state,
-            pincode: order.address.pincode,
-            country: order.address.country,
-          },
+        addressSnapshot: (order.deliveryAddress as object | null) ?? {
+          id: order.address.id,
+          label: order.address.label,
+          line1: order.address.line1,
+          line2: order.address.line2,
+          city: order.address.city,
+          state: order.address.state,
+          pincode: order.address.pincode,
+          country: order.address.country,
+        },
         financialSnapshot: buildFinancialSnapshot({
           loyaltyPointsUsed: order.loyaltyPointsUsed,
           membershipDiscount: order.membershipDiscount,

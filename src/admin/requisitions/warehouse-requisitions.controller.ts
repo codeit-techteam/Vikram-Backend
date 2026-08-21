@@ -104,7 +104,9 @@ export class WarehouseRequisitionsController {
 
   @Patch(':id/partial')
   @AdminRoles(...ROLE_GROUPS.WAREHOUSE)
-  @ApiOperation({ summary: 'Partial approve alias (same as approve with lower qty)' })
+  @ApiOperation({
+    summary: 'Partial approve alias (same as approve with lower qty)',
+  })
   async partial(
     @Param('id') id: string,
     @Body() dto: ApproveRequisitionDto,
@@ -161,7 +163,9 @@ export class WarehouseRequisitionsController {
 
   @Post('dispatch')
   @AdminRoles(...ROLE_GROUPS.WAREHOUSE)
-  @ApiOperation({ summary: 'Create dispatch — body must include requisitionId' })
+  @ApiOperation({
+    summary: 'Create dispatch — body must include requisitionId',
+  })
   async createDispatch(
     @Body() body: DispatchRequisitionDto & { requisitionId: string },
     @CurrentAdmin() admin: AuthenticatedAdmin,

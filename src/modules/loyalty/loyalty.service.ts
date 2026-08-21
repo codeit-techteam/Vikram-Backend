@@ -84,7 +84,9 @@ export class LoyaltyService {
       await Promise.all([
         this.loyaltyTransactionService.getNonExpiredBalance(account.id),
         this.loyaltyTransactionService.getNextExpiry(account.id),
-        this.prisma.loyaltyTransaction.count({ where: { accountId: account.id } }),
+        this.prisma.loyaltyTransaction.count({
+          where: { accountId: account.id },
+        }),
         this.prisma.loyaltyTransaction.findMany({
           where: { accountId: account.id },
           orderBy: { createdAt: 'desc' },

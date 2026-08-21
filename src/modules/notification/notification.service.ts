@@ -134,9 +134,7 @@ export class NotificationService {
     return this.mapNotification(updated);
   }
 
-  async markAllAsRead(
-    customerId: string,
-  ): Promise<{ updatedCount: number }> {
+  async markAllAsRead(customerId: string): Promise<{ updatedCount: number }> {
     const result = await this.prisma.notification.updateMany({
       where: {
         deletedAt: null,

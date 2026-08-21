@@ -97,13 +97,13 @@ export default () => ({
       10,
     ),
     welcomeBonus: parseInt(process.env.LOYALTY_WELCOME_BONUS ?? '50', 10),
-    firstOrderBonus: parseInt(process.env.LOYALTY_FIRST_ORDER_BONUS ?? '50', 10),
-  },
-  deliveryBenefit: {
-    freeBikeDeliveries: parseInt(
-      process.env.FREE_BIKE_DELIVERIES ?? '3',
+    firstOrderBonus: parseInt(
+      process.env.LOYALTY_FIRST_ORDER_BONUS ?? '50',
       10,
     ),
+  },
+  deliveryBenefit: {
+    freeBikeDeliveries: parseInt(process.env.FREE_BIKE_DELIVERIES ?? '3', 10),
     companyAbsorbedCost: parseFloat(
       process.env.BIKE_DELIVERY_COMPANY_COST ?? '99',
     ),

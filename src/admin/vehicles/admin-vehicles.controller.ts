@@ -9,11 +9,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import {
-  ApiBearerAuth,
-  ApiOperation,
-  ApiTags,
-} from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { SWAGGER_BEARER_AUTH } from '../../common/constants/swagger.constants';
 import { AdminJwtAuthGuard } from '../guards/admin-jwt-auth.guard';
 import { AdminRolesGuard } from '../guards/admin-roles.guard';
@@ -47,7 +43,9 @@ export class AdminVehiclesController {
 
   @Get('stats')
   @AdminRoles(...ROLE_GROUPS.WAREHOUSE)
-  @ApiOperation({ summary: 'Fleet stats (total/running/available/maintenance/inactive)' })
+  @ApiOperation({
+    summary: 'Fleet stats (total/running/available/maintenance/inactive)',
+  })
   async stats(
     @Query('hubId') hubId?: string,
     @Query('warehouseHubId') warehouseHubId?: string,
@@ -168,7 +166,9 @@ export class AdminVehiclesController {
 
   @Patch(':id/status')
   @AdminRoles(...ROLE_GROUPS.WAREHOUSE)
-  @ApiOperation({ summary: 'Change vehicle status (maintenance/inactive/etc.)' })
+  @ApiOperation({
+    summary: 'Change vehicle status (maintenance/inactive/etc.)',
+  })
   async status(
     @Param('id') id: string,
     @Body() dto: AdminVehicleStatusDto,

@@ -25,7 +25,10 @@ export class LoyaltySummaryDto {
   @ApiProperty()
   availablePoints!: number;
 
-  @ApiProperty({ example: 22.57, description: 'availablePoints × pointValueInr' })
+  @ApiProperty({
+    example: 22.57,
+    description: 'availablePoints × pointValueInr',
+  })
   availableValue!: number;
 
   @ApiProperty({ description: 'Non-expired points redeemable at checkout' })
@@ -60,17 +63,22 @@ export class LoyaltySummaryDto {
 
   @ApiProperty({
     example: 1,
-    description: 'Cashback percent of eligible spend credited as BajriPro Points',
+    description:
+      'Cashback percent of eligible spend credited as BajriPro Points',
   })
   earnCashbackPercent!: number;
 
   @ApiProperty({
     example: 100,
-    description: 'Points credited per ₹100 eligible spend (1% cashback at ₹0.01/pt)',
+    description:
+      'Points credited per ₹100 eligible spend (1% cashback at ₹0.01/pt)',
   })
   earnPointsPer100Inr!: number;
 
-  @ApiProperty({ example: 3, description: 'Total free bike deliveries allowed' })
+  @ApiProperty({
+    example: 3,
+    description: 'Total free bike deliveries allowed',
+  })
   freeBikeDeliveriesAllowed!: number;
 
   @ApiProperty({ example: 1, description: 'Free bike deliveries already used' })

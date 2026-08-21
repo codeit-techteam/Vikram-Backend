@@ -133,7 +133,7 @@ export function calculateOrderLoadPure(
       ? Number((resolvedWeight.kg! * item.quantity).toFixed(3))
       : 0;
     const volumeCft = hasVolume
-      ? Number((resolvedVolume! * item.quantity).toFixed(3))
+      ? Number((resolvedVolume * item.quantity).toFixed(3))
       : 0;
 
     if (hasWeight) hasWeightDimension = true;

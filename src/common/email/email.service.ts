@@ -23,9 +23,14 @@ export class EmailService {
 
   constructor(private readonly configService: ConfigService) {}
 
-  async sendInvoiceEmail(input: SendInvoiceEmailInput): Promise<EmailSendResult> {
+  async sendInvoiceEmail(
+    input: SendInvoiceEmailInput,
+  ): Promise<EmailSendResult> {
     const enabled = this.configService.get<boolean>('email.enabled', false);
-    const from = this.configService.get<string>('email.from', 'noreply@bajriwala.com');
+    const from = this.configService.get<string>(
+      'email.from',
+      'noreply@bajriwala.com',
+    );
 
     if (!enabled) {
       this.logger.log(
@@ -58,7 +63,8 @@ export class EmailService {
     return {
       sent: false,
       mode: 'smtp',
-      error: 'SMTP transport not yet wired — configure nodemailer in EmailService',
+      error:
+        'SMTP transport not yet wired — configure nodemailer in EmailService',
     };
   }
 }

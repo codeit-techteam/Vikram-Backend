@@ -93,7 +93,10 @@ export class RejectRefundDto {
 }
 
 export class HubSettlementQueryDto extends FinancePaginationDto {
-  @ApiPropertyOptional({ enum: SettlementStatus, example: SettlementStatus.PENDING })
+  @ApiPropertyOptional({
+    enum: SettlementStatus,
+    example: SettlementStatus.PENDING,
+  })
   @IsOptional()
   @IsEnum(SettlementStatus)
   status?: SettlementStatus;
@@ -127,7 +130,10 @@ export class GenerateHubSettlementDto {
   @IsDateString()
   periodEnd!: string;
 
-  @ApiPropertyOptional({ example: 5, description: 'Platform commission percentage' })
+  @ApiPropertyOptional({
+    example: 5,
+    description: 'Platform commission percentage',
+  })
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
@@ -141,7 +147,10 @@ export class GenerateHubSettlementDto {
 }
 
 export class VendorSettlementQueryDto extends FinancePaginationDto {
-  @ApiPropertyOptional({ enum: SettlementStatus, example: SettlementStatus.PENDING })
+  @ApiPropertyOptional({
+    enum: SettlementStatus,
+    example: SettlementStatus.PENDING,
+  })
   @IsOptional()
   @IsEnum(SettlementStatus)
   status?: SettlementStatus;
@@ -163,7 +172,10 @@ export class VendorSettlementQueryDto extends FinancePaginationDto {
 }
 
 export class GenerateVendorSettlementDto {
-  @ApiProperty({ example: 'UltraTech', description: 'Product brand used as vendor identifier' })
+  @ApiProperty({
+    example: 'UltraTech',
+    description: 'Product brand used as vendor identifier',
+  })
   @IsString()
   vendorKey!: string;
 
@@ -175,7 +187,10 @@ export class GenerateVendorSettlementDto {
   @IsDateString()
   periodEnd!: string;
 
-  @ApiPropertyOptional({ example: 10, description: 'Marketplace commission percentage' })
+  @ApiPropertyOptional({
+    example: 10,
+    description: 'Marketplace commission percentage',
+  })
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
@@ -189,7 +204,9 @@ export class GenerateVendorSettlementDto {
 }
 
 export class RejectSettlementDto {
-  @ApiProperty({ example: 'Discrepancy in order totals — recalculate required' })
+  @ApiProperty({
+    example: 'Discrepancy in order totals — recalculate required',
+  })
   @IsString()
   reason!: string;
 }

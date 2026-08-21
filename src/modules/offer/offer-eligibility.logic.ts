@@ -1,11 +1,7 @@
 export const HOME_OFFERS_LIMIT = 5;
 
 export type OfferLifecycleStatus =
-  | 'DRAFT'
-  | 'SCHEDULED'
-  | 'ACTIVE'
-  | 'EXPIRED'
-  | 'INACTIVE';
+  'DRAFT' | 'SCHEDULED' | 'ACTIVE' | 'EXPIRED' | 'INACTIVE';
 
 export const CUSTOMER_OFFER_ORDER_BY = [
   { priority: 'desc' as const },
@@ -58,7 +54,10 @@ export function resolveLifecycleStatus(
   return 'ACTIVE';
 }
 
-export function mapCtaAction(label?: string | null, fallback?: string | null): string {
+export function mapCtaAction(
+  label?: string | null,
+  fallback?: string | null,
+): string {
   if (fallback && fallback.trim()) return fallback.trim().toUpperCase();
   const normalized = (label ?? '').trim().toLowerCase();
   if (normalized === 'buy now') return 'BUY_NOW';
@@ -81,12 +80,20 @@ export function parseOfferEndAt(value: string): Date {
   return new Date(value);
 }
 
-export function isOfferProductAvailable(product: {
-  deletedAt?: Date | string | null;
-  entityStatus?: string | null;
-  isVisible?: boolean | null;
-  variants?: Array<{ inStock?: boolean | null; deletedAt?: Date | string | null }>;
-} | null | undefined): boolean {
+export function isOfferProductAvailable(
+  product:
+    | {
+        deletedAt?: Date | string | null;
+        entityStatus?: string | null;
+        isVisible?: boolean | null;
+        variants?: Array<{
+          inStock?: boolean | null;
+          deletedAt?: Date | string | null;
+        }>;
+      }
+    | null
+    | undefined,
+): boolean {
   if (!product) return false;
   if (product.deletedAt) return false;
   if (product.entityStatus && product.entityStatus !== 'ACTIVE') {
@@ -95,7 +102,9 @@ export function isOfferProductAvailable(product: {
   if (product.isVisible === false) return false;
   const variants = product.variants ?? [];
   if (variants.length === 0) return true;
-  return variants.some((variant) => variant.inStock !== false && !variant.deletedAt);
+  return variants.some(
+    (variant) => variant.inStock !== false && !variant.deletedAt,
+  );
 }
 
 export function slugifyOfferTitle(title: string): string {

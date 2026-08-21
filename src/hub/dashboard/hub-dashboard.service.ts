@@ -42,7 +42,12 @@ export class HubDashboardService {
         where: {
           ...hubScope,
           orderStatus: {
-            in: ['PENDING', 'CONFIRMED', 'HUB_ASSIGNED', 'AWAITING_HUB_ALLOCATION'],
+            in: [
+              'PENDING',
+              'CONFIRMED',
+              'HUB_ASSIGNED',
+              'AWAITING_HUB_ALLOCATION',
+            ],
           },
         },
       }),
@@ -65,7 +70,11 @@ export class HubDashboardService {
         },
       }),
       this.prisma.order.count({
-        where: { ...hubScope, bulkOrder: true, orderStatus: { not: 'DELIVERED' } },
+        where: {
+          ...hubScope,
+          bulkOrder: true,
+          orderStatus: { not: 'DELIVERED' },
+        },
       }),
       this.prisma.hubInventory.findMany({
         where: { hubId },
@@ -75,7 +84,12 @@ export class HubDashboardService {
         where: { hubId, status: 'AVAILABLE', isActive: true, deletedAt: null },
       }),
       this.prisma.driver.count({
-        where: { hubId, availability: 'AVAILABLE', isActive: true, deletedAt: null },
+        where: {
+          hubId,
+          availability: 'AVAILABLE',
+          isActive: true,
+          deletedAt: null,
+        },
       }),
       this.prisma.order.aggregate({
         where: {
@@ -178,7 +192,8 @@ export class HubDashboardService {
 
     const incomingDeliveries = incomingTransferRows
       .filter((row) => {
-        if (row.status === 'COMPLETED' || row.status === 'ALLOCATED') return false;
+        if (row.status === 'COMPLETED' || row.status === 'ALLOCATED')
+          return false;
         if (row.status !== 'RECEIVED') return true;
         return row.items.some((item) => {
           const dispatched = Number(
@@ -191,10 +206,12 @@ export class HubDashboardService {
         const first = row.items[0];
         const totalQty = row.items.reduce(
           (sum, item) =>
-            sum + Number(item.allocatedQty ?? item.approvedQty ?? item.requestedQty),
+            sum +
+            Number(item.allocatedQty ?? item.approvedQty ?? item.requestedQty),
           0,
         );
-        const eta = row.estimatedArrival ?? row.expectedDispatchDate ?? row.dispatchedAt;
+        const eta =
+          row.estimatedArrival ?? row.expectedDispatchDate ?? row.dispatchedAt;
         return {
           id: row.id,
           transferId: row.requestNo,
@@ -203,10 +220,9 @@ export class HubDashboardService {
             row.items.length === 1 && first
               ? first.productName
               : `${row.totalItems} materials`,
-          quantity: first
-            ? `${totalQty} ${first.unit}`
-            : `${totalQty} units`,
-          source: row.warehouseHub?.name ?? warehouse?.name ?? 'Central Warehouse',
+          quantity: first ? `${totalQty} ${first.unit}` : `${totalQty} units`,
+          source:
+            row.warehouseHub?.name ?? warehouse?.name ?? 'Central Warehouse',
           status:
             row.status === 'ALLOCATED'
               ? 'pending'
@@ -230,7 +246,8 @@ export class HubDashboardService {
         title:
           first?.productName ??
           `${row.totalItems} material${row.totalItems === 1 ? '' : 's'}`,
-        badge: row.priority === 'URGENT' ? 'Urgent' : row.status.replace(/_/g, ' '),
+        badge:
+          row.priority === 'URGENT' ? 'Urgent' : row.status.replace(/_/g, ' '),
         badgeVariant: row.priority === 'URGENT' ? 'expedited' : 'default',
         progress,
         totalSteps: 9,

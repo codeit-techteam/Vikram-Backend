@@ -153,8 +153,7 @@ export class SearchService {
       term ? term.toLowerCase() : 'empty',
     );
 
-    const cached =
-      await this.cache.get<SearchSuggestionsResponseDto>(cacheKey);
+    const cached = await this.cache.get<SearchSuggestionsResponseDto>(cacheKey);
     if (cached) return cached;
 
     const [popularSearches, recentSearches, matches] = await Promise.all([

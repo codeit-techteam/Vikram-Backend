@@ -20,11 +20,16 @@ import {
   type OrderUpdatedPayload,
 } from '../modules/orders/order-lifecycle.constants';
 
-type AuthenticatedSocket = Socket & {
-  data: {
-    customerId?: string;
-  };
-};
+interface RealtimeSocketData {
+  customerId?: string;
+}
+
+type AuthenticatedSocket = Socket<
+  Record<string, never>,
+  Record<string, never>,
+  Record<string, never>,
+  RealtimeSocketData
+>;
 
 const wsCorsOrigins = parseCorsOrigins(process.env.CORS_ORIGINS);
 const wsIsProduction = process.env.NODE_ENV === 'production';
@@ -50,9 +55,7 @@ const wsIsProduction = process.env.NODE_ENV === 'production';
   },
   transports: ['websocket', 'polling'],
 })
-export class OrdersGateway
-  implements OnGatewayConnection, OnGatewayDisconnect
-{
+export class OrdersGateway implements OnGatewayConnection, OnGatewayDisconnect {
   private readonly logger = new Logger(OrdersGateway.name);
 
   @WebSocketServer()

@@ -8,10 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import Redis, { type RedisOptions } from 'ioredis';
 import { REDIS_BULLMQ_ENABLED } from '../config/redis-bullmq.feature';
 import { createRedisConnectionOptions } from '../config/redis.config';
-import {
-  classifyRedisError,
-  formatRedisDiagnostic,
-} from './redis-errors';
+import { classifyRedisError, formatRedisDiagnostic } from './redis-errors';
 
 @Injectable()
 export class RedisService implements OnModuleInit, OnModuleDestroy {

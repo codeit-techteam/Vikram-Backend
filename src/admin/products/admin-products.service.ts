@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../../common/database/prisma.service';
 import { CacheService } from '../../common/cache/cache.service';
 import { validateAndNormalizeCatalogAttributes } from '../../modules/catalog/catalog-validation';
@@ -112,7 +116,10 @@ export class AdminProductsService {
       where: { id, deletedAt: null },
       include: {
         category: true,
-        images: { where: { deletedAt: null }, orderBy: { displayOrder: 'asc' } },
+        images: {
+          where: { deletedAt: null },
+          orderBy: { displayOrder: 'asc' },
+        },
         variants: { where: { deletedAt: null } },
         hubInventory: {
           include: { hub: { select: { id: true, name: true, code: true } } },
@@ -123,7 +130,9 @@ export class AdminProductsService {
     return product;
   }
 
-  async create(dto: CreateProductDto & { imageUrls?: string[]; isVisible?: boolean }) {
+  async create(
+    dto: CreateProductDto & { imageUrls?: string[]; isVisible?: boolean },
+  ) {
     if (dto.sku) {
       const existingSku = await this.prisma.product.findFirst({
         where: { sku: dto.sku, deletedAt: null },
@@ -286,7 +295,9 @@ export class AdminProductsService {
           membershipPrice: dto.membershipPrice,
         }),
         ...(dto.isFeatured !== undefined && { isFeatured: dto.isFeatured }),
-        ...(dto.displayOrder !== undefined && { displayOrder: dto.displayOrder }),
+        ...(dto.displayOrder !== undefined && {
+          displayOrder: dto.displayOrder,
+        }),
         ...(dto.categoryId !== undefined && { categoryId: dto.categoryId }),
         ...(attrs && {
           productType: attrs.productType,

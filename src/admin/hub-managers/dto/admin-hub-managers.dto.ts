@@ -16,7 +16,10 @@ export class CreateHubManagerDto {
   @MinLength(2)
   fullName: string;
 
-  @ApiPropertyOptional({ example: 'hubmanager01', description: 'Auto-generated if omitted' })
+  @ApiPropertyOptional({
+    example: 'hubmanager01',
+    description: 'Auto-generated if omitted',
+  })
   @IsOptional()
   @IsString()
   employeeId?: string;
@@ -85,7 +88,9 @@ export class TransferHubManagerDto {
 }
 
 export class ResetHubManagerPasswordDto {
-  @ApiPropertyOptional({ description: 'Leave empty to auto-generate a temporary password' })
+  @ApiPropertyOptional({
+    description: 'Leave empty to auto-generate a temporary password',
+  })
   @IsOptional()
   @IsString()
   @MinLength(6)

@@ -17,20 +17,31 @@ import {
   SupportTicketReason,
   SupportTicketStatus,
 } from '../../../../generated/prisma/client';
-import { PaginationMetaDto, PaginationQueryDto } from '../../../common/dto/pagination.dto';
+import {
+  PaginationMetaDto,
+  PaginationQueryDto,
+} from '../../../common/dto/pagination.dto';
 
 export class AdminSupportQueryDto extends PaginationQueryDto {
-  @ApiPropertyOptional({ enum: SupportTicketStatus, description: 'Filter by ticket status' })
+  @ApiPropertyOptional({
+    enum: SupportTicketStatus,
+    description: 'Filter by ticket status',
+  })
   @IsOptional()
   @IsEnum(SupportTicketStatus)
   status?: SupportTicketStatus;
 
-  @ApiPropertyOptional({ enum: SupportTicketPriority, description: 'Filter by priority' })
+  @ApiPropertyOptional({
+    enum: SupportTicketPriority,
+    description: 'Filter by priority',
+  })
   @IsOptional()
   @IsEnum(SupportTicketPriority)
   priority?: SupportTicketPriority;
 
-  @ApiPropertyOptional({ description: 'Filter by assigned executive admin UUID' })
+  @ApiPropertyOptional({
+    description: 'Filter by assigned executive admin UUID',
+  })
   @IsOptional()
   @IsUUID()
   executiveId?: string;
@@ -40,30 +51,40 @@ export class AdminSupportQueryDto extends PaginationQueryDto {
   @IsUUID()
   customerId?: string;
 
-  @ApiPropertyOptional({ description: 'Filter tickets created on or after (ISO date)' })
+  @ApiPropertyOptional({
+    description: 'Filter tickets created on or after (ISO date)',
+  })
   @IsOptional()
   @IsString()
   dateFrom?: string;
 
-  @ApiPropertyOptional({ description: 'Filter tickets created on or before (ISO date)' })
+  @ApiPropertyOptional({
+    description: 'Filter tickets created on or before (ISO date)',
+  })
   @IsOptional()
   @IsString()
   dateTo?: string;
 
-  @ApiPropertyOptional({ description: 'Search ticket number, subject, or customer phone/name' })
+  @ApiPropertyOptional({
+    description: 'Search ticket number, subject, or customer phone/name',
+  })
   @IsOptional()
   @IsString()
   search?: string;
 }
 
 export class AssignSupportExecutiveDto {
-  @ApiProperty({ description: 'Admin user UUID of the customer executive to assign' })
+  @ApiProperty({
+    description: 'Admin user UUID of the customer executive to assign',
+  })
   @IsUUID()
   executiveId!: string;
 }
 
 export class AdminSupportReplyDto {
-  @ApiProperty({ example: 'We have escalated your delivery issue to the hub team.' })
+  @ApiProperty({
+    example: 'We have escalated your delivery issue to the hub team.',
+  })
   @IsString()
   @IsNotEmpty()
   @MinLength(1)
@@ -72,7 +93,9 @@ export class AdminSupportReplyDto {
 }
 
 export class AdminSupportNoteDto {
-  @ApiProperty({ example: 'Customer called twice — follow up after hub confirmation.' })
+  @ApiProperty({
+    example: 'Customer called twice — follow up after hub confirmation.',
+  })
   @IsString()
   @IsNotEmpty()
   @MinLength(1)
@@ -81,11 +104,16 @@ export class AdminSupportNoteDto {
 }
 
 export class UpdateSupportStatusDto {
-  @ApiProperty({ enum: SupportTicketStatus, example: SupportTicketStatus.IN_PROGRESS })
+  @ApiProperty({
+    enum: SupportTicketStatus,
+    example: SupportTicketStatus.IN_PROGRESS,
+  })
   @IsEnum(SupportTicketStatus)
   status!: SupportTicketStatus;
 
-  @ApiPropertyOptional({ description: 'Optional remark recorded in ticket history' })
+  @ApiPropertyOptional({
+    description: 'Optional remark recorded in ticket history',
+  })
   @IsOptional()
   @IsString()
   @MaxLength(500)
@@ -93,7 +121,10 @@ export class UpdateSupportStatusDto {
 }
 
 export class UpdateSupportPriorityDto {
-  @ApiProperty({ enum: SupportTicketPriority, example: SupportTicketPriority.HIGH })
+  @ApiProperty({
+    enum: SupportTicketPriority,
+    example: SupportTicketPriority.HIGH,
+  })
   @IsEnum(SupportTicketPriority)
   priority!: SupportTicketPriority;
 }

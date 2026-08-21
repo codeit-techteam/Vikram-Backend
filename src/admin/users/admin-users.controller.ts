@@ -59,7 +59,10 @@ export class AdminUsersController {
     description: 'Admin users fetched successfully',
     type: ApiResponseDto,
   })
-  @ApiResponse({ status: 401, description: 'Unauthorized — missing or invalid JWT' })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized — missing or invalid JWT',
+  })
   @ApiResponse({ status: 403, description: 'Forbidden — SUPER_ADMIN only' })
   async findAll(@Query() query: AdminUserQueryDto) {
     const data = await this.adminUsersService.findAll(query);
@@ -69,7 +72,8 @@ export class AdminUsersController {
   @Get(':id')
   @ApiOperation({
     summary: 'Get admin user details',
-    description: 'Returns full profile for a single admin user. SUPER_ADMIN only.',
+    description:
+      'Returns full profile for a single admin user. SUPER_ADMIN only.',
   })
   @ApiParam({ name: 'id', description: 'Admin user UUID' })
   @ApiResponse({
@@ -99,7 +103,11 @@ export class AdminUsersController {
     @Body() dto: CreateAdminUserDto,
     @CurrentAdmin() admin: AuthenticatedAdmin,
   ) {
-    const data = await this.adminUsersService.create(dto, admin.id, admin.email);
+    const data = await this.adminUsersService.create(
+      dto,
+      admin.id,
+      admin.email,
+    );
     return { success: true, message: 'Admin user created', data };
   }
 
@@ -121,7 +129,12 @@ export class AdminUsersController {
     @Body() dto: UpdateAdminUserDto,
     @CurrentAdmin() admin: AuthenticatedAdmin,
   ) {
-    const data = await this.adminUsersService.update(id, dto, admin.id, admin.email);
+    const data = await this.adminUsersService.update(
+      id,
+      dto,
+      admin.id,
+      admin.email,
+    );
     return { success: true, message: 'Admin user updated', data };
   }
 
@@ -138,7 +151,10 @@ export class AdminUsersController {
     type: AdminUserResponseDto,
   })
   @ApiNotFoundResponse({ description: 'Admin user not found' })
-  @ApiResponse({ status: 403, description: 'Cannot deactivate your own account' })
+  @ApiResponse({
+    status: 403,
+    description: 'Cannot deactivate your own account',
+  })
   async updateStatus(
     @Param('id') id: string,
     @Body() dto: UpdateAdminUserStatusDto,
@@ -199,7 +215,8 @@ export class AdminUsersController {
   @ApiNotFoundResponse({ description: 'Admin user not found' })
   @ApiResponse({
     status: 400,
-    description: 'User already has this role, or last SUPER_ADMIN protection triggered',
+    description:
+      'User already has this role, or last SUPER_ADMIN protection triggered',
   })
   async changeRole(
     @Param('id') id: string,

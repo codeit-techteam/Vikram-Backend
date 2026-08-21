@@ -48,9 +48,7 @@ export async function enqueueUniqueJob(
   if (existing) {
     const state = await existing.getState();
     if (state === 'waiting' || state === 'active' || state === 'delayed') {
-      logger.debug(
-        `Skip enqueue ${jobName} (${safeJobId}) — already ${state}`,
-      );
+      logger.debug(`Skip enqueue ${jobName} (${safeJobId}) — already ${state}`);
       return;
     }
   }
@@ -74,7 +72,15 @@ export function tenMinuteWindowKey(date = new Date()): string {
 }
 
 export function startOfDay(date = new Date()): Date {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0, 0);
+  return new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate(),
+    0,
+    0,
+    0,
+    0,
+  );
 }
 
 export function endOfDay(date = new Date()): Date {

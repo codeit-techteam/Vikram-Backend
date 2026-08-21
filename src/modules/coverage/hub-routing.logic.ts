@@ -15,15 +15,16 @@ import type {
   HubRoutingSnapshot,
 } from './coverage.types';
 
-export const HUB_ASSIGNMENT_REASON_LABELS: Record<HubAssignmentReason, string> = {
-  ASSIGNED: 'Assigned',
-  NO_SERVICEABLE_HUB: 'Delivery location is outside the service area',
-  LOCATION_MISSING: 'Delivery location required',
-  LOCATION_INVALID: 'Delivery location required',
-  INVENTORY_UNAVAILABLE: 'Items unavailable at hubs serving this location',
-  HUB_NOT_CONFIGURED: 'No hub is configured for routing',
-  HUB_INACTIVE: 'No active hub available',
-};
+export const HUB_ASSIGNMENT_REASON_LABELS: Record<HubAssignmentReason, string> =
+  {
+    ASSIGNED: 'Assigned',
+    NO_SERVICEABLE_HUB: 'Delivery location is outside the service area',
+    LOCATION_MISSING: 'Delivery location required',
+    LOCATION_INVALID: 'Delivery location required',
+    INVENTORY_UNAVAILABLE: 'Items unavailable at hubs serving this location',
+    HUB_NOT_CONFIGURED: 'No hub is configured for routing',
+    HUB_INACTIVE: 'No active hub available',
+  };
 
 function compareMatches(a: CoverageHubMatch, b: CoverageHubMatch): number {
   if (a.inCoverage !== b.inCoverage) return a.inCoverage ? -1 : 1;
@@ -89,9 +90,7 @@ export function evaluateHubRouting(
     }
 
     const inCoverage =
-      locationValid &&
-      routable &&
-      isWithinServiceRadius(distanceKm, radiusKm as number);
+      locationValid && routable && isWithinServiceRadius(distanceKm, radiusKm);
     const stockOk = stockCoversItems(hub.inventory, items);
     const canFulfill = inCoverage && stockOk;
 
@@ -121,12 +120,14 @@ export function evaluateHubRouting(
     .filter((hub) => hub.routable)
     .sort(compareMatches);
 
-  const nearestHub = [...routableMatches].sort((a, b) => {
-    if (a.distanceKm !== b.distanceKm) return a.distanceKm - b.distanceKm;
-    return a.code.localeCompare(b.code) || a.id.localeCompare(b.id);
-  })[0] ?? null;
+  const nearestHub =
+    [...routableMatches].sort((a, b) => {
+      if (a.distanceKm !== b.distanceKm) return a.distanceKm - b.distanceKm;
+      return a.code.localeCompare(b.code) || a.id.localeCompare(b.id);
+    })[0] ?? null;
 
-  const nearestEligibleHub = routableMatches.find((hub) => hub.inCoverage) ?? null;
+  const nearestEligibleHub =
+    routableMatches.find((hub) => hub.inCoverage) ?? null;
   const assignableHub =
     routableMatches.find((hub) => hub.inCoverage && hub.canFulfill) ?? null;
 
@@ -212,9 +213,9 @@ export function mapAdminRoutingView(input: {
     input.hubRoutingSnapshot && typeof input.hubRoutingSnapshot === 'object'
       ? (input.hubRoutingSnapshot as HubRoutingSnapshot)
       : null;
-  const reason = (input.hubAssignmentReason ?? snapshot?.reason ?? null) as
-    | HubAssignmentReason
-    | null;
+  const reason = (input.hubAssignmentReason ??
+    snapshot?.reason ??
+    null) as HubAssignmentReason | null;
   return {
     assignmentStatus: input.hubId ? 'ASSIGNED' : 'UNASSIGNED',
     assignmentReason: reason,

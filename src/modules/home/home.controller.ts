@@ -1,8 +1,16 @@
 import { Controller, Get } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { OptionalAuth } from '../../common/decorators/optional-auth.decorator';
 import { OptionalUser } from '../../common/decorators/optional-user.decorator';
-import { SWAGGER_BEARER_AUTH, SWAGGER_TAGS } from '../../common/constants/swagger.constants';
+import {
+  SWAGGER_BEARER_AUTH,
+  SWAGGER_TAGS,
+} from '../../common/constants/swagger.constants';
 import { ApiErrorResponseDto } from '../../common/dto/api-response.dto';
 import type { AuthenticatedCustomer } from '../../auth/jwt/jwt-payload.interface';
 import { HomeResponseDto } from './dto/home-response.dto';
@@ -19,7 +27,7 @@ export class HomeController {
   @ApiOperation({
     summary: 'Aggregated home screen data',
     description:
-        'Single API for the Customer APP home screen. Public content is cached as `home:default` (TTL 300s). When a valid JWT is provided, also returns loyalty and lastOrders.',
+      'Single API for the Customer APP home screen. Public content is cached as `home:default` (TTL 300s). When a valid JWT is provided, also returns loyalty and lastOrders.',
   })
   @ApiResponse({
     status: 200,
@@ -31,9 +39,7 @@ export class HomeController {
     description: 'Internal server error',
     type: ApiErrorResponseDto,
   })
-  async getHome(
-    @OptionalUser() user: AuthenticatedCustomer | null,
-  ): Promise<{
+  async getHome(@OptionalUser() user: AuthenticatedCustomer | null): Promise<{
     success: boolean;
     message: string;
     data: HomeResponseDto;

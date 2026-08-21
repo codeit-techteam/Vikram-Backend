@@ -1,4 +1,14 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { SWAGGER_BEARER_AUTH } from '../../common/constants/swagger.constants';
 import { AdminJwtAuthGuard } from '../guards/admin-jwt-auth.guard';
@@ -40,16 +50,28 @@ export class AdminBannersController {
   @Post()
   @AdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
   @ApiOperation({ summary: 'Create banner' })
-  async create(@Body() dto: CreateBannerDto, @CurrentAdmin() admin: AuthenticatedAdmin) {
+  async create(
+    @Body() dto: CreateBannerDto,
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+  ) {
     const data = await this.bannersService.create(dto);
-    await this.auditService.log({ adminUserId: admin.id, adminEmail: admin.email, action: 'CREATE', resource: 'Banner', resourceId: data.id, newValue: dto });
+    await this.auditService.log({
+      adminUserId: admin.id,
+      adminEmail: admin.email,
+      action: 'CREATE',
+      resource: 'Banner',
+      resourceId: data.id,
+      newValue: dto,
+    });
     return { success: true, message: 'Banner created', data };
   }
 
   @Post('reorder')
   @AdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
   @ApiOperation({ summary: 'Reorder banners' })
-  async reorder(@Body() body: { items: Array<{ id: string; displayOrder: number }> }) {
+  async reorder(
+    @Body() body: { items: Array<{ id: string; displayOrder: number }> },
+  ) {
     const data = await this.bannersService.reorder(body.items);
     return { success: true, message: 'Banners reordered', data };
   }
@@ -57,7 +79,11 @@ export class AdminBannersController {
   @Patch(':id')
   @AdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
   @ApiOperation({ summary: 'Update banner' })
-  async update(@Param('id') id: string, @Body() dto: UpdateBannerDto, @CurrentAdmin() admin: AuthenticatedAdmin) {
+  async update(
+    @Param('id') id: string,
+    @Body() dto: UpdateBannerDto,
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+  ) {
     const previous = await this.bannersService.findOne(id);
     const data = await this.bannersService.update(id, dto);
     await this.auditService.log({
@@ -75,7 +101,10 @@ export class AdminBannersController {
   @Post(':id/duplicate')
   @AdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
   @ApiOperation({ summary: 'Duplicate banner as draft' })
-  async duplicate(@Param('id') id: string, @CurrentAdmin() admin: AuthenticatedAdmin) {
+  async duplicate(
+    @Param('id') id: string,
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+  ) {
     const data = await this.bannersService.duplicate(id);
     await this.auditService.log({
       adminUserId: admin.id,
@@ -92,27 +121,55 @@ export class AdminBannersController {
   @Patch(':id/publish')
   @AdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
   @ApiOperation({ summary: 'Publish banner' })
-  async publish(@Param('id') id: string, @CurrentAdmin() admin: AuthenticatedAdmin) {
+  async publish(
+    @Param('id') id: string,
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+  ) {
     const data = await this.bannersService.publish(id);
-    await this.auditService.log({ adminUserId: admin.id, adminEmail: admin.email, action: 'PUBLISH', resource: 'Banner', resourceId: id });
+    await this.auditService.log({
+      adminUserId: admin.id,
+      adminEmail: admin.email,
+      action: 'PUBLISH',
+      resource: 'Banner',
+      resourceId: id,
+    });
     return { success: true, message: 'Banner published', data };
   }
 
   @Patch(':id/unpublish')
   @AdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
   @ApiOperation({ summary: 'Unpublish banner' })
-  async unpublish(@Param('id') id: string, @CurrentAdmin() admin: AuthenticatedAdmin) {
+  async unpublish(
+    @Param('id') id: string,
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+  ) {
     const data = await this.bannersService.unpublish(id);
-    await this.auditService.log({ adminUserId: admin.id, adminEmail: admin.email, action: 'UNPUBLISH', resource: 'Banner', resourceId: id });
+    await this.auditService.log({
+      adminUserId: admin.id,
+      adminEmail: admin.email,
+      action: 'UNPUBLISH',
+      resource: 'Banner',
+      resourceId: id,
+    });
     return { success: true, message: 'Banner unpublished', data };
   }
 
   @Delete(':id')
   @AdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
   @ApiOperation({ summary: 'Delete banner' })
-  async remove(@Param('id') id: string, @CurrentAdmin() admin: AuthenticatedAdmin) {
+  async remove(
+    @Param('id') id: string,
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+  ) {
     const data = await this.bannersService.remove(id);
-    await this.auditService.log({ adminUserId: admin.id, adminEmail: admin.email, action: 'DELETE', resource: 'Banner', resourceId: id, oldValue: data });
+    await this.auditService.log({
+      adminUserId: admin.id,
+      adminEmail: admin.email,
+      action: 'DELETE',
+      resource: 'Banner',
+      resourceId: id,
+      oldValue: data,
+    });
     return { success: true, message: 'Banner deleted', data };
   }
 }

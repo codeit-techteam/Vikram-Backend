@@ -1,10 +1,7 @@
 import { Processor, WorkerHost, OnWorkerEvent } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import type { Job } from 'bullmq';
-import {
-  SCHEDULER_JOB_NAMES,
-  SCHEDULER_QUEUES,
-} from '../scheduler.constants';
+import { SCHEDULER_JOB_NAMES, SCHEDULER_QUEUES } from '../scheduler.constants';
 import { MembershipExpiryService } from '../services/membership.service';
 import { SchedulerLogService } from '../services/scheduler-log.service';
 

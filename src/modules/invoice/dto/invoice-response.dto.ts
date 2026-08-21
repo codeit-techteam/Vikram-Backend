@@ -4,7 +4,10 @@ import {
   PaymentMethod,
   PaymentStatus,
 } from '../../../../generated/prisma/client';
-import { InvoiceFinancialDto, InvoiceTaxBreakdownDto } from './invoice-list.dto';
+import {
+  InvoiceFinancialDto,
+  InvoiceTaxBreakdownDto,
+} from './invoice-list.dto';
 
 export class InvoiceItemDto {
   @ApiProperty()

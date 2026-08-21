@@ -1,5 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { EmergencyOrderStatus, OrderStatus } from '../../../generated/prisma/client';
+import {
+  EmergencyOrderStatus,
+  OrderStatus,
+} from '../../../generated/prisma/client';
 import { PrismaService } from '../../common/database/prisma.service';
 import type { EmergencyQueryDto } from './dto/admin-emergency.dto';
 
@@ -22,13 +25,23 @@ export class AdminEmergencyService {
         orderBy: [{ priorityLevel: 'desc' }, { createdAt: 'desc' }],
         include: {
           customer: { select: { id: true, phone: true, fullName: true } },
-          order: { select: { id: true, orderNumber: true, grandTotal: true, orderStatus: true } },
+          order: {
+            select: {
+              id: true,
+              orderNumber: true,
+              grandTotal: true,
+              orderStatus: true,
+            },
+          },
         },
       }),
       this.prisma.emergencyOrder.count({ where }),
     ]);
 
-    return { data, meta: { page, limit, total, totalPages: Math.ceil(total / limit) } };
+    return {
+      data,
+      meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    };
   }
 
   async findOne(id: string) {
@@ -36,7 +49,14 @@ export class AdminEmergencyService {
       where: { id },
       include: {
         customer: true,
-        order: { include: { items: { include: { product: { select: { id: true, name: true } } } }, address: true } },
+        order: {
+          include: {
+            items: {
+              include: { product: { select: { id: true, name: true } } },
+            },
+            address: true,
+          },
+        },
       },
     });
     if (!order) throw new NotFoundException('Emergency order not found');
@@ -45,18 +65,30 @@ export class AdminEmergencyService {
 
   async approve(id: string) {
     await this.findOne(id);
-    return this.prisma.emergencyOrder.update({ where: { id }, data: { status: EmergencyOrderStatus.APPROVED } });
+    return this.prisma.emergencyOrder.update({
+      where: { id },
+      data: { status: EmergencyOrderStatus.APPROVED },
+    });
   }
 
   async reject(id: string) {
     await this.findOne(id);
-    return this.prisma.emergencyOrder.update({ where: { id }, data: { status: EmergencyOrderStatus.REJECTED } });
+    return this.prisma.emergencyOrder.update({
+      where: { id },
+      data: { status: EmergencyOrderStatus.REJECTED },
+    });
   }
 
   async assignHub(id: string, hubId: string) {
     const emergency = await this.findOne(id);
-    await this.prisma.order.update({ where: { id: emergency.orderId }, data: { hubId } });
-    return this.prisma.emergencyOrder.update({ where: { id }, data: { status: EmergencyOrderStatus.ASSIGNED } });
+    await this.prisma.order.update({
+      where: { id: emergency.orderId },
+      data: { hubId },
+    });
+    return this.prisma.emergencyOrder.update({
+      where: { id },
+      data: { status: EmergencyOrderStatus.ASSIGNED },
+    });
   }
 
   async markDelivered(id: string) {
@@ -65,6 +97,9 @@ export class AdminEmergencyService {
       where: { id: emergency.orderId },
       data: { orderStatus: OrderStatus.DELIVERED, deliveredAt: new Date() },
     });
-    return this.prisma.emergencyOrder.update({ where: { id }, data: { status: EmergencyOrderStatus.COMPLETED } });
+    return this.prisma.emergencyOrder.update({
+      where: { id },
+      data: { status: EmergencyOrderStatus.COMPLETED },
+    });
   }
 }

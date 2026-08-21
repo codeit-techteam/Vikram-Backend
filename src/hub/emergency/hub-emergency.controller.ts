@@ -1,6 +1,17 @@
-import { Body, Controller, Get, Param, Patch, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { SWAGGER_BEARER_AUTH, SWAGGER_TAGS } from '../../common/constants/swagger.constants';
+import {
+  SWAGGER_BEARER_AUTH,
+  SWAGGER_TAGS,
+} from '../../common/constants/swagger.constants';
 import { HubJwtAuthGuard } from '../guards/hub-jwt-auth.guard';
 import { HubRolesGuard } from '../guards/hub-roles.guard';
 import { HubPermission } from '../decorators/hub-roles.decorator';
@@ -34,7 +45,11 @@ export class HubEmergencyController {
     @CurrentHubUser() user: AuthenticatedHubUser,
     @Param('id') id: string,
   ) {
-    const data = await this.emergencyService.accept(user.hubId, id, user.fullName);
+    const data = await this.emergencyService.accept(
+      user.hubId,
+      id,
+      user.fullName,
+    );
     return { success: true, message: 'Emergency order accepted', data };
   }
 
@@ -57,7 +72,11 @@ export class HubEmergencyController {
     @CurrentHubUser() user: AuthenticatedHubUser,
     @Param('id') id: string,
   ) {
-    const data = await this.emergencyService.complete(user.hubId, id, user.fullName);
+    const data = await this.emergencyService.complete(
+      user.hubId,
+      id,
+      user.fullName,
+    );
     return { success: true, message: 'Emergency order completed', data };
   }
 }

@@ -33,7 +33,12 @@ export class AdminFinanceService {
   private getPagination(page = 1, limit = 20) {
     const safePage = page < 1 ? 1 : page;
     const safeLimit = limit < 1 ? 20 : limit;
-    return { skip: (safePage - 1) * safeLimit, take: safeLimit, page: safePage, limit: safeLimit };
+    return {
+      skip: (safePage - 1) * safeLimit,
+      take: safeLimit,
+      page: safePage,
+      limit: safeLimit,
+    };
   }
 
   private getDateRange(fromDate?: string, toDate?: string) {
@@ -57,7 +62,9 @@ export class AdminFinanceService {
     return Number(value);
   }
 
-  private async generateSettlementNumber(type: SettlementType): Promise<string> {
+  private async generateSettlementNumber(
+    type: SettlementType,
+  ): Promise<string> {
     const prefix = type === SettlementType.HUB ? 'HUB' : 'VND';
     const year = new Date().getFullYear();
     const count = await this.prisma.settlementBatch.count({
@@ -125,7 +132,10 @@ export class AdminFinanceService {
         _count: { _all: true },
       }),
       this.prisma.settlementBatch.aggregate({
-        where: { type: SettlementType.VENDOR, status: SettlementStatus.PENDING },
+        where: {
+          type: SettlementType.VENDOR,
+          status: SettlementStatus.PENDING,
+        },
         _sum: { netAmount: true },
         _count: { _all: true },
       }),
@@ -150,7 +160,7 @@ export class AdminFinanceService {
           end: query.toDate
             ? new Date(`${query.toDate}T23:59:59.999Z`)
             : (() => {
-                const d = new Date(query.fromDate!);
+                const d = new Date(query.fromDate);
                 d.setDate(d.getDate() + 1);
                 return d;
               })(),
@@ -234,7 +244,13 @@ export class AdminFinanceService {
       this.prisma.order.count({
         where: {
           deletedAt: null,
-          orderStatus: { in: [OrderStatus.PENDING, OrderStatus.CONFIRMED, OrderStatus.PROCESSING] },
+          orderStatus: {
+            in: [
+              OrderStatus.PENDING,
+              OrderStatus.CONFIRMED,
+              OrderStatus.PROCESSING,
+            ],
+          },
           createdAt: { gte: start, lt: end },
         },
       }),
@@ -244,7 +260,10 @@ export class AdminFinanceService {
         _count: { _all: true },
       }),
       this.prisma.settlementBatch.aggregate({
-        where: { type: SettlementType.VENDOR, status: SettlementStatus.PENDING },
+        where: {
+          type: SettlementType.VENDOR,
+          status: SettlementStatus.PENDING,
+        },
         _sum: { netAmount: true },
         _count: { _all: true },
       }),
@@ -279,7 +298,10 @@ export class AdminFinanceService {
   }
 
   async listRefunds(query: RefundLedgerQueryDto) {
-    const { skip, take, page, limit } = this.getPagination(query.page, query.limit);
+    const { skip, take, page, limit } = this.getPagination(
+      query.page,
+      query.limit,
+    );
     const createdAt = this.getDateRange(query.fromDate, query.toDate);
 
     const where: Record<string, unknown> = {};
@@ -318,7 +340,11 @@ export class AdminFinanceService {
       if (row.status === RefundStatus.REJECTED) summary.rejected = amount;
     }
 
-    return { data, summary, meta: { page, limit, total, totalPages: Math.ceil(total / limit) } };
+    return {
+      data,
+      summary,
+      meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    };
   }
 
   async createRefund(dto: CreateRefundDto) {
@@ -416,7 +442,10 @@ export class AdminFinanceService {
   }
 
   async listHubSettlements(query: HubSettlementQueryDto) {
-    const { skip, take, page, limit } = this.getPagination(query.page, query.limit);
+    const { skip, take, page, limit } = this.getPagination(
+      query.page,
+      query.limit,
+    );
     const createdAt = this.getDateRange(query.fromDate, query.toDate);
 
     const where: Record<string, unknown> = { type: SettlementType.HUB };
@@ -456,7 +485,9 @@ export class AdminFinanceService {
     const settlement = await this.prisma.settlementBatch.findFirst({
       where: { id, type: SettlementType.HUB },
       include: {
-        hub: { select: { id: true, code: true, name: true, city: true, phone: true } },
+        hub: {
+          select: { id: true, code: true, name: true, city: true, phone: true },
+        },
         generatedBy: { select: { id: true, fullName: true, email: true } },
         approvedBy: { select: { id: true, fullName: true, email: true } },
       },
@@ -507,20 +538,32 @@ export class AdminFinanceService {
         deletedAt: null,
         deliveredAt: { gte: periodStart, lte: periodEnd },
       },
-      select: { id: true, orderNumber: true, grandTotal: true, deliveredAt: true },
+      select: {
+        id: true,
+        orderNumber: true,
+        grandTotal: true,
+        deliveredAt: true,
+      },
       orderBy: { deliveredAt: 'asc' },
     });
 
     const eligibleOrders = orders.filter((o) => !settledOrderIds.has(o.id));
     if (eligibleOrders.length === 0) {
-      throw new BadRequestException('No unsettled delivered orders found for this hub and period');
+      throw new BadRequestException(
+        'No unsettled delivered orders found for this hub and period',
+      );
     }
 
-    const grossAmount = eligibleOrders.reduce((sum, o) => sum + this.toNumber(o.grandTotal), 0);
+    const grossAmount = eligibleOrders.reduce(
+      (sum, o) => sum + this.toNumber(o.grandTotal),
+      0,
+    );
     const commissionRate = dto.commissionRate ?? DEFAULT_HUB_COMMISSION_RATE;
     const commissionAmount = (grossAmount * commissionRate) / 100;
     const netAmount = grossAmount - commissionAmount;
-    const settlementNumber = await this.generateSettlementNumber(SettlementType.HUB);
+    const settlementNumber = await this.generateSettlementNumber(
+      SettlementType.HUB,
+    );
 
     return this.prisma.settlementBatch.create({
       data: {
@@ -598,7 +641,10 @@ export class AdminFinanceService {
   }
 
   async listVendorSettlements(query: VendorSettlementQueryDto) {
-    const { skip, take, page, limit } = this.getPagination(query.page, query.limit);
+    const { skip, take, page, limit } = this.getPagination(
+      query.page,
+      query.limit,
+    );
     const createdAt = this.getDateRange(query.fromDate, query.toDate);
 
     const where: Record<string, unknown> = { type: SettlementType.VENDOR };
@@ -670,7 +716,10 @@ export class AdminFinanceService {
     return { settlement, orders };
   }
 
-  async generateVendorSettlement(dto: GenerateVendorSettlementDto, adminId: string) {
+  async generateVendorSettlement(
+    dto: GenerateVendorSettlementDto,
+    adminId: string,
+  ) {
     const periodStart = new Date(dto.periodStart);
     const periodEnd = new Date(`${dto.periodEnd}T23:59:59.999Z`);
     if (periodStart > periodEnd) {
@@ -700,7 +749,10 @@ export class AdminFinanceService {
       },
     });
 
-    const orderMap = new Map<string, { orderNumber: string; amount: number; deliveredAt: Date | null }>();
+    const orderMap = new Map<
+      string,
+      { orderNumber: string; amount: number; deliveredAt: Date | null }
+    >();
     for (const item of orderItems) {
       if (settledOrderIds.has(item.orderId)) continue;
       const existing = orderMap.get(item.orderId);
@@ -717,7 +769,9 @@ export class AdminFinanceService {
     }
 
     if (orderMap.size === 0) {
-      throw new BadRequestException('No unsettled delivered orders found for this vendor and period');
+      throw new BadRequestException(
+        'No unsettled delivered orders found for this vendor and period',
+      );
     }
 
     const breakdown = [...orderMap.entries()].map(([orderId, info]) => ({
@@ -731,7 +785,9 @@ export class AdminFinanceService {
     const commissionRate = dto.commissionRate ?? DEFAULT_VENDOR_COMMISSION_RATE;
     const commissionAmount = (grossAmount * commissionRate) / 100;
     const netAmount = grossAmount - commissionAmount;
-    const settlementNumber = await this.generateSettlementNumber(SettlementType.VENDOR);
+    const settlementNumber = await this.generateSettlementNumber(
+      SettlementType.VENDOR,
+    );
 
     return this.prisma.settlementBatch.create({
       data: {

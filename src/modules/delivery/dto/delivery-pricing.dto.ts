@@ -37,7 +37,8 @@ export class CalculateDeliveryPricingDto {
   distanceKm?: number;
 
   @ApiPropertyOptional({
-    description: 'When true, preview free-bike benefit for authenticated customer',
+    description:
+      'When true, preview free-bike benefit for authenticated customer',
   })
   @IsOptional()
   applyFreeBikeBenefit?: boolean;
@@ -111,7 +112,10 @@ export class UpdateDeliveryVehicleConfigDto {
   @Min(0)
   maxQuantity?: number | null;
 
-  @ApiPropertyOptional({ example: 90, description: 'Safe utilization % (1–100)' })
+  @ApiPropertyOptional({
+    example: 90,
+    description: 'Safe utilization % (1–100)',
+  })
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
@@ -322,7 +326,8 @@ export class UpdateDeliveryBenefitConfigDto {
 
   @ApiPropertyOptional({
     example: 99,
-    description: 'Company absorption when free bike benefit is used (separate from Bike list price)',
+    description:
+      'Company absorption when free bike benefit is used (separate from Bike list price)',
   })
   @IsOptional()
   @Type(() => Number)

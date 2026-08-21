@@ -1,9 +1,5 @@
 export type DeliveryPromotionLifecycleStatus =
-  | 'DRAFT'
-  | 'SCHEDULED'
-  | 'ACTIVE'
-  | 'EXPIRED'
-  | 'INACTIVE';
+  'DRAFT' | 'SCHEDULED' | 'ACTIVE' | 'EXPIRED' | 'INACTIVE';
 
 export const CUSTOMER_DELIVERY_PROMOTION_ORDER_BY = [
   { priority: 'desc' as const },
@@ -113,16 +109,15 @@ export function personalizeDeliveryPromotion<
     exhaustedBehavior?: string | null;
     targetAudience?: string | null;
   },
->(
-  promo: T,
-  ctx: DeliveryAudienceContext,
-): { promo: T; eligible: boolean } {
+>(promo: T, ctx: DeliveryAudienceContext): { promo: T; eligible: boolean } {
   if (!isDeliveryAudienceEligible(promo.targetAudience, ctx)) {
     const exhausted =
-      String(promo.targetAudience || '').toUpperCase() === 'FREE_BIKE_REMAINING' &&
+      String(promo.targetAudience || '').toUpperCase() ===
+        'FREE_BIKE_REMAINING' &&
       ctx.isLoggedIn &&
       ctx.remainingCount <= 0 &&
-      String(promo.exhaustedBehavior || 'HIDE').toUpperCase() === 'SHOW_ALTERNATE' &&
+      String(promo.exhaustedBehavior || 'HIDE').toUpperCase() ===
+        'SHOW_ALTERNATE' &&
       Boolean(promo.exhaustedHeadline?.trim());
 
     if (!exhausted) {

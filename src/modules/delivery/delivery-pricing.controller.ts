@@ -7,11 +7,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import {
-  ApiBearerAuth,
-  ApiOperation,
-  ApiTags,
-} from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { OptionalAuth } from '../../common/decorators/optional-auth.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -65,12 +61,10 @@ export class DeliveryPricingController {
       success: true,
       message: 'Delivery vehicle types',
       data: DELIVERY_VEHICLE_TYPES.map((type) => {
-        const cfg = byType.get(type as DeliveryVehicleType);
+        const cfg = byType.get(type);
         return {
           vehicleType: type,
-          displayName:
-            cfg?.displayName ??
-            DELIVERY_VEHICLE_DISPLAY_NAMES[type as DeliveryVehicleType],
+          displayName: cfg?.displayName ?? DELIVERY_VEHICLE_DISPLAY_NAMES[type],
           imageUrl: cfg?.imageUrl ?? null,
           maxWeightKg: cfg?.maxWeightKg ?? null,
           maxVolumeCft: cfg?.maxVolumeCft ?? null,
@@ -115,7 +109,7 @@ export class DeliveryPricingController {
         success: true,
         message: data.available
           ? 'Delivery charge calculated'
-          : data.message ?? 'Delivery pricing unavailable',
+          : (data.message ?? 'Delivery pricing unavailable'),
         data,
       };
     }
@@ -136,7 +130,7 @@ export class DeliveryPricingController {
       success: true,
       message: data.available
         ? 'Delivery charge calculated'
-        : data.message ?? 'Delivery pricing unavailable',
+        : (data.message ?? 'Delivery pricing unavailable'),
       data,
     };
   }

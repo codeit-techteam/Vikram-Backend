@@ -18,10 +18,7 @@ export class DeliveryBenefitService {
     private readonly pricingService: DeliveryPricingService,
   ) {}
 
-  async ensureBenefit(
-    customerId: string,
-    tx?: Prisma.TransactionClient,
-  ) {
+  async ensureBenefit(customerId: string, tx?: Prisma.TransactionClient) {
     const client = tx ?? this.prisma;
     const config = await this.pricingService.getBenefitConfig();
 

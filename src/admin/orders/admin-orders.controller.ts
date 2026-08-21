@@ -9,7 +9,12 @@ import {
   StreamableFile,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiProduces, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiProduces,
+  ApiTags,
+} from '@nestjs/swagger';
 import { SWAGGER_BEARER_AUTH } from '../../common/constants/swagger.constants';
 import { SkipResponseWrap } from '../../common/decorators/skip-response-wrap.decorator';
 import { AdminJwtAuthGuard } from '../guards/admin-jwt-auth.guard';
@@ -75,7 +80,9 @@ export class AdminOrdersController {
 
   @Get(':id/invoice')
   @AdminRoles(...ROLE_GROUPS.WAREHOUSE)
-  @ApiOperation({ summary: 'Get order invoice JSON (same invoice as customer/hub)' })
+  @ApiOperation({
+    summary: 'Get order invoice JSON (same invoice as customer/hub)',
+  })
   async getInvoice(@Param('id') id: string) {
     const data = await this.invoiceService.getInvoiceByOrderId(id);
     return { success: true, message: 'Invoice fetched', data };
@@ -88,7 +95,8 @@ export class AdminOrdersController {
   @AdminRoles(...ROLE_GROUPS.WAREHOUSE)
   @ApiOperation({ summary: 'Download order invoice PDF (single source)' })
   async getInvoicePdf(@Param('id') id: string): Promise<StreamableFile> {
-    const { buffer, filename } = await this.invoiceService.getInvoicePdfByOrderId(id);
+    const { buffer, filename } =
+      await this.invoiceService.getInvoicePdfByOrderId(id);
     return new StreamableFile(buffer, {
       type: 'application/pdf',
       disposition: `attachment; filename="${filename}"`,
@@ -177,13 +185,18 @@ export class AdminOrdersController {
 
   @Patch(':id/internal-note')
   @AdminRoles(...ROLE_GROUPS.WAREHOUSE)
-  @ApiOperation({ summary: 'Update admin internal note (never overwrites customer remarks)' })
+  @ApiOperation({
+    summary: 'Update admin internal note (never overwrites customer remarks)',
+  })
   async updateInternalNote(
     @Param('id') id: string,
     @Body() dto: UpdateAdminInternalNoteDto,
     @CurrentAdmin() admin: AuthenticatedAdmin,
   ) {
-    const data = await this.ordersService.updateInternalNote(id, dto.note ?? null);
+    const data = await this.ordersService.updateInternalNote(
+      id,
+      dto.note ?? null,
+    );
     await this.auditService.log({
       adminUserId: admin.id,
       adminEmail: admin.email,

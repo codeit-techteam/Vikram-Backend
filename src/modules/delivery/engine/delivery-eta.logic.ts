@@ -1,5 +1,8 @@
 import type { DeliveryVehicleType } from '../delivery-pricing.constants';
-import type { OrderLoadResult, VehicleSelectionResult } from './delivery-load.types';
+import type {
+  OrderLoadResult,
+  VehicleSelectionResult,
+} from './delivery-load.types';
 import {
   handlingKgPerMinute,
   inferLogisticsTypeFromCategory,
@@ -265,8 +268,8 @@ function formatMinutesRange(min: number, max: number): string {
   if (min === max) return fmt(min);
   // Compact hour ranges for bulk/RMC
   if (min >= 60 && max >= 60) {
-    const minH = Math.round(min / 60 * 10) / 10;
-    const maxH = Math.round(max / 60 * 10) / 10;
+    const minH = Math.round((min / 60) * 10) / 10;
+    const maxH = Math.round((max / 60) * 10) / 10;
     if (minH === maxH) {
       return minH === 1 ? '~1 hr' : `~${minH} hrs`;
     }
@@ -335,7 +338,8 @@ export function calculateDeliveryEtaPure(input: {
     hubClosedWaitMinutes = 0,
   } = input;
 
-  const isRmc = logisticsType === 'RMC' || selection.vehicleType === 'RMC_TRANSIT_MIXER';
+  const isRmc =
+    logisticsType === 'RMC' || selection.vehicleType === 'RMC_TRANSIT_MIXER';
   const weightKg = handlingWeightKg(logisticsType, load);
   const rule = findLoadingRule(loadingRules, logisticsType, load.totalQuantity);
   const vehicleCount = Math.max(1, selection.vehicleCount || 1);
@@ -347,9 +351,7 @@ export function calculateDeliveryEtaPure(input: {
 
   const trafficFactor =
     (etaConfig.trafficMultiplier || 1) *
-    (etaConfig.trafficDataAvailable || !now
-      ? 1
-      : timeOfDayTrafficFactor(now));
+    (etaConfig.trafficDataAvailable || !now ? 1 : timeOfDayTrafficFactor(now));
 
   const oneWayTravel = Math.max(
     1,
@@ -370,9 +372,8 @@ export function calculateDeliveryEtaPure(input: {
   let siteAccessMinutes = etaConfig.defaultSiteAccessMinutes;
   let plantPreparationMinutes = 0;
   let mixerLoadingMinutes = 0;
-  let bufferMinutes =
-    vehicleTiming?.operationalBufferMinutes ??
-    (isRmc ? 20 : 10);
+  const bufferMinutes =
+    vehicleTiming?.operationalBufferMinutes ?? (isRmc ? 20 : 10);
 
   const vehicleAssignmentMinutes =
     (vehicleTiming?.driverPreparationTimeMinutes ?? 5) +

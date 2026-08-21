@@ -14,7 +14,8 @@ export class TestimonialsController {
   @Get()
   @ApiOperation({
     summary: 'List published testimonials',
-    description: 'Returns published video and image testimonials sorted by sortOrder.',
+    description:
+      'Returns published video and image testimonials sorted by sortOrder.',
   })
   @ApiResponse({ status: 200, type: [TestimonialResponseDto] })
   async findAll(): Promise<{

@@ -104,7 +104,10 @@ export const ROLE_GROUPS = {
     ADMIN_ROLES.CUSTOMER_EXECUTIVE,
   ] as AdminRoleValue[],
   SUPER_ADMIN_ONLY: [ADMIN_ROLES.SUPER_ADMIN] as AdminRoleValue[],
-  WAREHOUSE: [ADMIN_ROLES.SUPER_ADMIN, ADMIN_ROLES.WAREHOUSE_MANAGER] as AdminRoleValue[],
+  WAREHOUSE: [
+    ADMIN_ROLES.SUPER_ADMIN,
+    ADMIN_ROLES.WAREHOUSE_MANAGER,
+  ] as AdminRoleValue[],
   CUSTOMER_EXECUTIVE: [
     ADMIN_ROLES.SUPER_ADMIN,
     ADMIN_ROLES.CUSTOMER_EXECUTIVE,
@@ -128,11 +131,17 @@ export const ROLE_SIDEBAR_CONFIG: Record<AdminRoleValue, SidebarNavItem[]> = {
       href: '/customer-app-cms',
       children: [
         { label: 'Banners', href: '/customer-app-cms/banners' },
-        { label: 'Delivery Promotion', href: '/customer-app-cms/delivery-promotion' },
+        {
+          label: 'Delivery Promotion',
+          href: '/customer-app-cms/delivery-promotion',
+        },
         { label: 'Offers', href: '/customer-app-cms/offers' },
         { label: 'Videos', href: '/customer-app-cms/videos' },
         { label: 'Testimonials', href: '/customer-app-cms/testimonials' },
-        { label: 'Push Notifications', href: '/customer-app-cms/push-notifications' },
+        {
+          label: 'Push Notifications',
+          href: '/customer-app-cms/push-notifications',
+        },
       ],
     },
     { label: 'Warehouse', href: '/central-warehouse' },

@@ -1,7 +1,4 @@
-import {
-  BRICK_GRADES,
-  BRICK_PRODUCT_TYPES,
-} from './catalog.constants';
+import { BRICK_GRADES, BRICK_PRODUCT_TYPES } from './catalog.constants';
 import { validateAndNormalizeCatalogAttributes } from './catalog-validation';
 
 describe('validateAndNormalizeCatalogAttributes', () => {
