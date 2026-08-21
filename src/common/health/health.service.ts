@@ -23,10 +23,11 @@ export class HealthService {
         [
           'HEALTH_DATABASE_DISCONNECTED',
           `env=${this.configService.get('app.env')}`,
+          `source=${this.prismaService.getConnectionSource()}`,
           `host=${meta.host}`,
           `port=${meta.port}`,
           meta.sslmode ? `sslmode=${meta.sslmode}` : null,
-          'reason=SELECT 1 failed — check Trusted Sources, DATABASE_URL bind, and DATABASE_CA_CERT',
+          'reason=SELECT 1 failed — bind DATABASE_PRIVATE_URL (VPC) or DATABASE_URL + CA_CERT',
         ]
           .filter(Boolean)
           .join(' '),

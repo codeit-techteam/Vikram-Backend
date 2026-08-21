@@ -232,9 +232,11 @@ export function validate(config: Record<string, unknown>) {
     const redisHost = validatedConfig.REDIS_HOST?.trim();
     const placeholder = /YOUR_|CHANGE_ME|<\w+>/i;
     const databaseUrl =
-      validatedConfig.DATABASE_URL?.trim() ||
-      validatedConfig.DATABASE_PRIVATE_URL?.trim() ||
-      '';
+      (validatedConfig.NODE_ENV === Environment.Production
+        ? validatedConfig.DATABASE_PRIVATE_URL?.trim() ||
+          validatedConfig.DATABASE_URL?.trim()
+        : validatedConfig.DATABASE_URL?.trim() ||
+          validatedConfig.DATABASE_PRIVATE_URL?.trim()) || '';
 
     if (!databaseUrl) {
       throw new Error(

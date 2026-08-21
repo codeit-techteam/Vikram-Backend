@@ -27,7 +27,8 @@ export default () => ({
       10,
     ),
     connectionTimeoutMs: parseInt(
-      process.env.DATABASE_CONNECTION_TIMEOUT_MS ?? '5000',
+      process.env.DATABASE_CONNECTION_TIMEOUT_MS ??
+        (process.env.NODE_ENV === 'production' ? '15000' : '5000'),
       10,
     ),
   },

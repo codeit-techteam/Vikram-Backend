@@ -47,6 +47,64 @@ export function isLocalDatabaseHost(host: string): boolean {
   return LOCAL_HOSTS.has(host);
 }
 
+export function isProductionNodeEnv(
+  nodeEnv: string | undefined = process.env.NODE_ENV,
+): boolean {
+  const normalized = nodeEnv?.trim().toLowerCase();
+  return normalized === 'production' || normalized === 'staging';
+}
+
+export type DatabaseUrlSource = 'DATABASE_URL' | 'DATABASE_PRIVATE_URL';
+
+function validateDatabaseUrlCandidate(raw: string | undefined): string | undefined {
+  const value = raw?.trim();
+  if (!value) {
+    return undefined;
+  }
+  if (value.includes('${') || /YOUR_|CHANGE_ME|<\w+>/i.test(value)) {
+    throw new Error(
+      'DATABASE_BINDABLE_URL_UNRESOLVED: DATABASE_URL/DATABASE_PRIVATE_URL ' +
+        'still contains an unresolved DigitalOcean bind placeholder. ' +
+        'Attach the managed database to the App Platform component and set ' +
+        'DATABASE_URL=${db-pgsql-blr1-63888.DATABASE_PRIVATE_URL} ' +
+        '(or .DATABASE_URL) as a bindable value — not a pasted literal ${...} string.',
+    );
+  }
+  if (!/^postgres(?:ql)?:\/\//i.test(value)) {
+    throw new Error(
+      'DATABASE_URL must start with postgresql:// or postgres://.',
+    );
+  }
+  return value;
+}
+
+/** Ordered candidates: VPC private URL first in production (DigitalOcean App Platform). */
+export function resolveDatabaseUrlCandidatesFromEnv(
+  env: NodeJS.ProcessEnv = process.env,
+): Array<{ url: string; source: DatabaseUrlSource }> {
+  const isProduction = isProductionNodeEnv(env.NODE_ENV);
+  const ordered: Array<[string | undefined, DatabaseUrlSource]> = isProduction
+    ? [
+        [env.DATABASE_PRIVATE_URL, 'DATABASE_PRIVATE_URL'],
+        [env.DATABASE_URL, 'DATABASE_URL'],
+      ]
+    : [
+        [env.DATABASE_URL, 'DATABASE_URL'],
+        [env.DATABASE_PRIVATE_URL, 'DATABASE_PRIVATE_URL'],
+      ];
+
+  const seen = new Set<string>();
+  const result: Array<{ url: string; source: DatabaseUrlSource }> = [];
+  for (const [raw, source] of ordered) {
+    const url = validateDatabaseUrlCandidate(raw);
+    if (url && !seen.has(url)) {
+      seen.add(url);
+      result.push({ url, source });
+    }
+  }
+  return result;
+}
+
 export function isManagedDigitalOceanPostgres(
   meta: Pick<DatabaseUrlMeta, 'host' | 'port'>,
 ): boolean {
@@ -105,36 +163,20 @@ export function resolveCaCertificate(
 }
 
 /**
- * Prefer DATABASE_URL; fall back to DATABASE_PRIVATE_URL (DigitalOcean VPC).
+ * Primary URL for Prisma/pg. In production prefers DATABASE_PRIVATE_URL (VPC).
  * Rejects unresolved App Platform bind placeholders such as
  * `${db-pgsql-blr1-63888.DATABASE_URL}`.
  */
 export function resolveDatabaseUrlFromEnv(
   env: NodeJS.ProcessEnv = process.env,
 ): string | undefined {
-  const candidates = [env.DATABASE_URL, env.DATABASE_PRIVATE_URL];
-  for (const raw of candidates) {
-    const value = raw?.trim();
-    if (!value) {
-      continue;
-    }
-    if (value.includes('${') || /YOUR_|CHANGE_ME|<\w+>/i.test(value)) {
-      throw new Error(
-        'DATABASE_BINDABLE_URL_UNRESOLVED: DATABASE_URL/DATABASE_PRIVATE_URL ' +
-          'still contains an unresolved DigitalOcean bind placeholder. ' +
-          'Attach the managed database to the App Platform component and set ' +
-          'DATABASE_URL=${db-pgsql-blr1-63888.DATABASE_PRIVATE_URL} ' +
-          '(or .DATABASE_URL) as a bindable value — not a pasted literal ${...} string.',
-      );
-    }
-    if (!/^postgres(?:ql)?:\/\//i.test(value)) {
-      throw new Error(
-        'DATABASE_URL must start with postgresql:// or postgres://.',
-      );
-    }
-    return value;
-  }
-  return undefined;
+  return resolveDatabaseUrlCandidatesFromEnv(env)[0]?.url;
+}
+
+export function resolveDatabaseUrlSourceFromEnv(
+  env: NodeJS.ProcessEnv = process.env,
+): DatabaseUrlSource | undefined {
+  return resolveDatabaseUrlCandidatesFromEnv(env)[0]?.source;
 }
 
 export function isDatabaseInfrastructureError(error: unknown): boolean {
@@ -176,19 +218,40 @@ function sslRequired(
   return nodeEnv === 'production' && !isLocalDatabaseHost(meta.host);
 }
 
-export function sanitizeDatabaseUrlForPg(databaseUrl: string): {
+export function sanitizeDatabaseUrlForPg(
+  databaseUrl: string,
+  options?: { caCert?: string; nodeEnv?: string },
+): {
   connectionString: string;
   schema: string;
   meta: DatabaseUrlMeta;
 } {
   const meta = parseDatabaseUrlMeta(databaseUrl);
   const parsed = new URL(databaseUrl);
+  const ca = options?.caCert?.trim();
+  const nodeEnv = options?.nodeEnv ?? process.env.NODE_ENV;
+
   // Prisma-only query param; node-postgres would send it as a startup GUC.
   parsed.searchParams.delete('schema');
+  // libpq-only params — pg uses PoolConfig.ssl instead.
+  parsed.searchParams.delete('sslrootcert');
+  parsed.searchParams.delete('sslcert');
+  parsed.searchParams.delete('sslkey');
+
+  const sslmode = parsed.searchParams.get('sslmode')?.toLowerCase();
+  if (!ca && (sslmode === 'verify-full' || sslmode === 'verify-ca')) {
+    parsed.searchParams.set('sslmode', 'require');
+  } else if (
+    !parsed.searchParams.get('sslmode') &&
+    sslRequired(meta, nodeEnv)
+  ) {
+    parsed.searchParams.set('sslmode', 'require');
+  }
+
   return {
     connectionString: parsed.toString(),
     schema: meta.schema || 'public',
-    meta,
+    meta: { ...meta, sslmode: parsed.searchParams.get('sslmode') },
   };
 }
 
@@ -202,6 +265,7 @@ export function buildPgPoolConfig(options: {
 }): PoolConfig & { schema: string } {
   const { connectionString, schema, meta } = sanitizeDatabaseUrlForPg(
     options.databaseUrl,
+    { caCert: options.caCert, nodeEnv: options.nodeEnv },
   );
   const config: PoolConfig & { schema: string } = {
     connectionString,

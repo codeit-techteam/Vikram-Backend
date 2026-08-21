@@ -13,6 +13,7 @@ import {
   classifyDatabaseError,
   formatDatabaseDiagnostic,
   parseDatabaseUrlMeta,
+  resolveDatabaseUrlSourceFromEnv,
   type DatabaseUrlMeta,
 } from './postgres-url';
 
@@ -25,10 +26,13 @@ export class PrismaService
   private readonly pool: Pool;
   private readonly nodeEnv: string;
   private readonly urlMeta: DatabaseUrlMeta;
+  private readonly urlSource: string;
 
   constructor(private readonly configService: ConfigService) {
     const databaseUrl = configService.getOrThrow<string>('database.url');
     const nodeEnv = configService.get<string>('app.env', 'development');
+    const urlSource =
+      resolveDatabaseUrlSourceFromEnv(process.env) ?? 'DATABASE_URL';
     const poolConfig = buildPgPoolConfig({
       databaseUrl,
       max: configService.get<number>('database.poolMax', 10),
@@ -38,7 +42,7 @@ export class PrismaService
       ),
       connectionTimeoutMillis: configService.get<number>(
         'database.connectionTimeoutMs',
-        5000,
+        nodeEnv === 'production' ? 15000 : 5000,
       ),
       nodeEnv,
       caCert: configService.get<string>('database.caCert'),
@@ -50,9 +54,10 @@ export class PrismaService
     this.pool = pool;
     this.nodeEnv = nodeEnv;
     this.urlMeta = parseDatabaseUrlMeta(databaseUrl);
+    this.urlSource = urlSource;
 
     this.logger.log(
-      `PostgreSQL pool configured host=${this.urlMeta.host} port=${this.urlMeta.port} ` +
+      `PostgreSQL pool configured source=${urlSource} host=${this.urlMeta.host} port=${this.urlMeta.port} ` +
         `db=${this.urlMeta.database} sslmode=${this.urlMeta.sslmode ?? 'default'} ` +
         `ssl=${Boolean(pgConfig.ssl)} env=${this.nodeEnv}`,
     );
@@ -66,21 +71,37 @@ export class PrismaService
     return this.urlMeta;
   }
 
+  getConnectionSource(): string {
+    return this.urlSource;
+  }
+
   async onModuleInit(): Promise<void> {
-    try {
-      await this.$connect();
-      await this.$queryRaw`SELECT 1`;
-      this.logger.log(
-        `PostgreSQL connection established host=${this.urlMeta.host} port=${this.urlMeta.port} sslmode=${this.urlMeta.sslmode ?? 'default'}`,
-      );
-    } catch (error) {
-      // Do not crash the process (platform health probes need the HTTP server),
-      // but never treat this as a successful connection.
-      this.logConnectionFailure(error);
-      this.logger.error(
-        'DATABASE_CONNECTION_FAILED at startup — login and DB-backed routes will return 503 until connectivity is restored. ' +
-          'Check Trusted Sources, DATABASE_URL/DATABASE_PRIVATE_URL bind, and DATABASE_CA_CERT.',
-      );
+    const maxAttempts = 3;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        await this.$connect();
+        await this.$queryRaw`SELECT 1`;
+        this.logger.log(
+          `PostgreSQL connection established source=${this.urlSource} host=${this.urlMeta.host} port=${this.urlMeta.port} sslmode=${this.urlMeta.sslmode ?? 'default'}`,
+        );
+        return;
+      } catch (error) {
+        if (attempt < maxAttempts) {
+          this.logger.warn(
+            `PostgreSQL connect attempt ${attempt}/${maxAttempts} failed source=${this.urlSource} host=${this.urlMeta.host} — retrying`,
+          );
+          await new Promise((resolve) => setTimeout(resolve, 2000 * attempt));
+          continue;
+        }
+
+        // Do not crash the process (platform health probes need the HTTP server),
+        // but never treat this as a successful connection.
+        this.logConnectionFailure(error);
+        this.logger.error(
+          'DATABASE_CONNECTION_FAILED at startup — login and DB-backed routes will return 503 until connectivity is restored. ' +
+            'Check Trusted Sources, bind DATABASE_PRIVATE_URL (VPC) or DATABASE_URL, and DATABASE_CA_CERT.',
+        );
+      }
     }
   }
 

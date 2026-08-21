@@ -4,6 +4,7 @@ import {
   classifyDatabaseError,
   isDatabaseInfrastructureError,
   redactSecrets,
+  resolveDatabaseUrlCandidatesFromEnv,
   resolveDatabaseUrlFromEnv,
   sanitizeDatabaseUrlForPg,
 } from './postgres-url';
@@ -48,6 +49,38 @@ describe('postgres-url', () => {
           'postgresql://doadmin:secret@private-db.ondigitalocean.com:25060/defaultdb?sslmode=require',
       }),
     ).toContain('private-db.ondigitalocean.com');
+  });
+
+  it('prefers DATABASE_PRIVATE_URL in production when both are set', () => {
+    const candidates = resolveDatabaseUrlCandidatesFromEnv({
+      NODE_ENV: 'production',
+      DATABASE_URL:
+        'postgresql://doadmin:secret@public-db.ondigitalocean.com:25060/defaultdb?sslmode=require',
+      DATABASE_PRIVATE_URL:
+        'postgresql://doadmin:secret@private-db.ondigitalocean.com:25060/defaultdb?sslmode=require',
+    });
+    expect(candidates[0]?.source).toBe('DATABASE_PRIVATE_URL');
+    expect(candidates[0]?.url).toContain('private-db.ondigitalocean.com');
+  });
+
+  it('prefers DATABASE_URL in development when both are set', () => {
+    const candidates = resolveDatabaseUrlCandidatesFromEnv({
+      NODE_ENV: 'development',
+      DATABASE_URL:
+        'postgresql://bajriwala:bajriwala@localhost:5432/bajriwala?schema=public',
+      DATABASE_PRIVATE_URL:
+        'postgresql://doadmin:secret@private-db.ondigitalocean.com:25060/defaultdb?sslmode=require',
+    });
+    expect(candidates[0]?.source).toBe('DATABASE_URL');
+    expect(candidates[0]?.url).toContain('localhost');
+  });
+
+  it('downgrades verify-full to require when no CA certificate is available', () => {
+    const result = sanitizeDatabaseUrlForPg(
+      'postgresql://user:pass@db.ondigitalocean.com:25060/defaultdb?sslmode=verify-full&sslrootcert=/tmp/ca.crt&schema=public',
+    );
+    expect(result.connectionString).toContain('sslmode=require');
+    expect(result.connectionString).not.toContain('sslrootcert');
   });
 
   it('strips Prisma schema query param before handing the URL to pg', () => {

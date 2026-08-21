@@ -1,0 +1,57 @@
+# DigitalOcean App Platform spec — reference for vikram-backend production DB wiring.
+# Apply with: doctl apps update <app-id> --spec .do/app.yaml
+#
+# Ensure the database component name matches your cluster in the DO control panel.
+name: bajriwala-backend
+region: blr
+services:
+  - name: vikram-backend
+    github:
+      repo: codeit-techteam/Vikram-Backend
+      branch: main
+      deploy_on_push: true
+    build_command: npm ci && npm run build
+    run_command: npm run start:prod
+    environment_slug: node-js
+    instance_count: 1
+    http_port: 8080
+    health_check:
+      http_path: /health
+      initial_delay_seconds: 30
+      period_seconds: 10
+      timeout_seconds: 5
+      success_threshold: 1
+      failure_threshold: 3
+    envs:
+      - key: NODE_ENV
+        scope: RUN_AND_BUILD_TIME
+        value: production
+      - key: PORT
+        scope: RUN_TIME
+        value: "8080"
+      # VPC private URL — no Trusted Sources needed when app + DB share a VPC.
+      - key: DATABASE_PRIVATE_URL
+        scope: RUN_TIME
+        value: ${db-pgsql-blr1-63888.DATABASE_PRIVATE_URL}
+      - key: DATABASE_URL
+        scope: RUN_TIME
+        value: ${db-pgsql-blr1-63888.DATABASE_PRIVATE_URL}
+      - key: DATABASE_CA_CERT
+        scope: RUN_TIME
+        value: ${db-pgsql-blr1-63888.CA_CERT}
+      - key: DATABASE_CONNECTION_TIMEOUT_MS
+        scope: RUN_TIME
+        value: "15000"
+      - key: JWT_SECRET
+        scope: RUN_TIME
+        type: SECRET
+      - key: JWT_REFRESH_SECRET
+        scope: RUN_TIME
+        type: SECRET
+      - key: CORS_ORIGINS
+        scope: RUN_TIME
+        value: REPLACE_WITH_PRODUCTION_FRONTEND_ORIGINS
+databases:
+  - name: db-pgsql-blr1-63888
+    engine: PG
+    production: true
