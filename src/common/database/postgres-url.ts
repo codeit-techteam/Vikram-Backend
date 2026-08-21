@@ -56,18 +56,38 @@ export function isProductionNodeEnv(
 
 export type DatabaseUrlSource = 'DATABASE_URL' | 'DATABASE_PRIVATE_URL';
 
-function validateDatabaseUrlCandidate(raw: string | undefined): string | undefined {
+export type ResolveDatabaseUrlOptions = {
+  /** Skip unresolved DigitalOcean ${db...} placeholders (e.g. prisma generate at build time). */
+  skipUnresolvedBindables?: boolean;
+};
+
+export function isUnresolvedDatabaseBindPlaceholder(value: string): boolean {
+  return value.includes('${');
+}
+
+function validateDatabaseUrlCandidate(
+  raw: string | undefined,
+  options?: ResolveDatabaseUrlOptions,
+): string | undefined {
   const value = raw?.trim();
   if (!value) {
     return undefined;
   }
-  if (value.includes('${') || /YOUR_|CHANGE_ME|<\w+>/i.test(value)) {
+  if (isUnresolvedDatabaseBindPlaceholder(value)) {
+    if (options?.skipUnresolvedBindables) {
+      return undefined;
+    }
     throw new Error(
       'DATABASE_BINDABLE_URL_UNRESOLVED: DATABASE_URL/DATABASE_PRIVATE_URL ' +
         'still contains an unresolved DigitalOcean bind placeholder. ' +
         'Attach the managed database to the App Platform component and set ' +
         'DATABASE_URL=${db-pgsql-blr1-63888.DATABASE_PRIVATE_URL} ' +
         '(or .DATABASE_URL) as a bindable value — not a pasted literal ${...} string.',
+    );
+  }
+  if (/YOUR_|CHANGE_ME|<\w+>/i.test(value)) {
+    throw new Error(
+      'DATABASE_URL is a placeholder. Replace YOUR_/CHANGE_ME values before deploying.',
     );
   }
   if (!/^postgres(?:ql)?:\/\//i.test(value)) {
@@ -81,6 +101,7 @@ function validateDatabaseUrlCandidate(raw: string | undefined): string | undefin
 /** Ordered candidates: VPC private URL first in production (DigitalOcean App Platform). */
 export function resolveDatabaseUrlCandidatesFromEnv(
   env: NodeJS.ProcessEnv = process.env,
+  options?: ResolveDatabaseUrlOptions,
 ): Array<{ url: string; source: DatabaseUrlSource }> {
   const isProduction = isProductionNodeEnv(env.NODE_ENV);
   const ordered: Array<[string | undefined, DatabaseUrlSource]> = isProduction
@@ -96,7 +117,7 @@ export function resolveDatabaseUrlCandidatesFromEnv(
   const seen = new Set<string>();
   const result: Array<{ url: string; source: DatabaseUrlSource }> = [];
   for (const [raw, source] of ordered) {
-    const url = validateDatabaseUrlCandidate(raw);
+    const url = validateDatabaseUrlCandidate(raw, options);
     if (url && !seen.has(url)) {
       seen.add(url);
       result.push({ url, source });
@@ -169,14 +190,16 @@ export function resolveCaCertificate(
  */
 export function resolveDatabaseUrlFromEnv(
   env: NodeJS.ProcessEnv = process.env,
+  options?: ResolveDatabaseUrlOptions,
 ): string | undefined {
-  return resolveDatabaseUrlCandidatesFromEnv(env)[0]?.url;
+  return resolveDatabaseUrlCandidatesFromEnv(env, options)[0]?.url;
 }
 
 export function resolveDatabaseUrlSourceFromEnv(
   env: NodeJS.ProcessEnv = process.env,
+  options?: ResolveDatabaseUrlOptions,
 ): DatabaseUrlSource | undefined {
-  return resolveDatabaseUrlCandidatesFromEnv(env)[0]?.source;
+  return resolveDatabaseUrlCandidatesFromEnv(env, options)[0]?.source;
 }
 
 export function isDatabaseInfrastructureError(error: unknown): boolean {

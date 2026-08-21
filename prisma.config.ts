@@ -10,14 +10,10 @@ import {
 dns.setDefaultResultOrder('ipv4first');
 
 function resolveDatabaseUrl(): string | undefined {
-  let databaseUrl: string | undefined;
-  try {
-    databaseUrl = resolveDatabaseUrlFromEnv();
-  } catch (error) {
-    throw error instanceof Error
-      ? error
-      : new Error('DATABASE_URL is invalid.');
-  }
+  // prisma generate runs at build time; DO bindables may be unset or literal ${...}.
+  const databaseUrl = resolveDatabaseUrlFromEnv(process.env, {
+    skipUnresolvedBindables: true,
+  });
 
   if (!databaseUrl) {
     return undefined;

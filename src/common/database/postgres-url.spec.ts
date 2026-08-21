@@ -42,6 +42,18 @@ describe('postgres-url', () => {
     ).toThrow(/DATABASE_BINDABLE_URL_UNRESOLVED/);
   });
 
+  it('skips unresolved bind placeholders during prisma generate (build time)', () => {
+    expect(
+      resolveDatabaseUrlFromEnv(
+        {
+          DATABASE_URL: '${db-pgsql-blr1-63888.DATABASE_PRIVATE_URL}',
+          DATABASE_PRIVATE_URL: '${db-pgsql-blr1-63888.DATABASE_PRIVATE_URL}',
+        },
+        { skipUnresolvedBindables: true },
+      ),
+    ).toBeUndefined();
+  });
+
   it('falls back to DATABASE_PRIVATE_URL when DATABASE_URL is unset', () => {
     expect(
       resolveDatabaseUrlFromEnv({
