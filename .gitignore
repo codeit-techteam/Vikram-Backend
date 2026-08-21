@@ -19,6 +19,9 @@ pnpm-debug.log*
 .env.*
 !.env.example
 
+# Database migration backups (may contain production data)
+backups/
+
 # Prisma generated client
 generated/
 

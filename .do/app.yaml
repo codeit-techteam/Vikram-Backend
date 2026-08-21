@@ -50,7 +50,10 @@ services:
         type: SECRET
       - key: CORS_ORIGINS
         scope: RUN_TIME
-        value: REPLACE_WITH_PRODUCTION_FRONTEND_ORIGINS
+        value: http://localhost:3000,http://localhost:3001,http://127.0.0.1:3000
+      - key: DB_SEED_IF_EMPTY
+        scope: RUN_TIME
+        value: "true"
 databases:
   - name: db-pgsql-blr1-63888
     engine: PG
