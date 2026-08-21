@@ -24,9 +24,20 @@ interface RealtimeSocketData {
   customerId?: string;
 }
 
+interface RealtimeClientToServerEvents {
+  subscribeOrder: (body: { orderId?: string }) => void;
+  unsubscribeOrder: (body: { orderId?: string }) => void;
+}
+
+interface RealtimeServerToClientEvents {
+  connected: (payload: { customerId: string; room: string }) => void;
+  [ORDER_STATUS_UPDATED_EVENT]: (payload: OrderUpdatedPayload) => void;
+  [ORDER_STATUS_UPDATED_EVENT_LEGACY]: (payload: OrderUpdatedPayload) => void;
+}
+
 type AuthenticatedSocket = Socket<
-  Record<string, never>,
-  Record<string, never>,
+  RealtimeClientToServerEvents,
+  RealtimeServerToClientEvents,
   Record<string, never>,
   RealtimeSocketData
 >;
