@@ -99,6 +99,56 @@ export function resolveCaCertificate(
   return raw.replace(/\\n/g, '\n');
 }
 
+/**
+ * Prefer DATABASE_URL; fall back to DATABASE_PRIVATE_URL (DigitalOcean VPC).
+ * Rejects unresolved App Platform bind placeholders such as
+ * `${db-pgsql-blr1-63888.DATABASE_URL}`.
+ */
+export function resolveDatabaseUrlFromEnv(
+  env: NodeJS.ProcessEnv = process.env,
+): string | undefined {
+  const candidates = [env.DATABASE_URL, env.DATABASE_PRIVATE_URL];
+  for (const raw of candidates) {
+    const value = raw?.trim();
+    if (!value) {
+      continue;
+    }
+    if (value.includes('${') || /YOUR_|CHANGE_ME|<\w+>/i.test(value)) {
+      throw new Error(
+        'DATABASE_BINDABLE_URL_UNRESOLVED: DATABASE_URL/DATABASE_PRIVATE_URL ' +
+          'still contains an unresolved DigitalOcean bind placeholder. ' +
+          'Attach the managed database to the App Platform component and set ' +
+          'DATABASE_URL=${db-pgsql-blr1-63888.DATABASE_PRIVATE_URL} ' +
+          '(or .DATABASE_URL) as a bindable value — not a pasted literal ${...} string.',
+      );
+    }
+    if (!/^postgres(?:ql)?:\/\//i.test(value)) {
+      throw new Error(
+        'DATABASE_URL must start with postgresql:// or postgres://.',
+      );
+    }
+    return value;
+  }
+  return undefined;
+}
+
+export function isDatabaseInfrastructureError(error: unknown): boolean {
+  const diagnostic = classifyDatabaseError(error);
+  return (
+    diagnostic.category === 'DATABASE_NETWORK_FAILED' ||
+    diagnostic.category === 'DATABASE_SSL_FAILED' ||
+    diagnostic.category === 'DATABASE_AUTH_FAILED' ||
+    diagnostic.category === 'DATABASE_POOL_EXHAUSTED' ||
+    diagnostic.category === 'DATABASE_CONNECTION_FAILED' ||
+    diagnostic.category === 'DATABASE_BINDABLE_URL_UNRESOLVED' ||
+    diagnostic.prismaCode === 'P1000' ||
+    diagnostic.prismaCode === 'P1001' ||
+    diagnostic.prismaCode === 'P1002' ||
+    diagnostic.prismaCode === 'P1017' ||
+    diagnostic.prismaCode === 'P2024'
+  );
+}
+
 function sslRequired(
   meta: DatabaseUrlMeta,
   nodeEnv: string | undefined,
@@ -233,7 +283,7 @@ export function classifyDatabaseError(error: unknown): DatabaseErrorDiagnostic {
     };
   }
   if (
-    /etimedout|timeout|econnrefused|enotfound|ehostunreach|econnreset|enxio/i.test(
+    /etimedout|timeout|econnrefused|enotfound|ehostunreach|econnreset|enxio|can't reach database|could not connect|connection terminated/i.test(
       combined,
     )
   ) {

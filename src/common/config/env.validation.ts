@@ -37,7 +37,12 @@ class EnvironmentVariables {
   CORS_ORIGINS?: string;
 
   @IsString()
-  DATABASE_URL: string;
+  @IsOptional()
+  DATABASE_URL?: string;
+
+  @IsString()
+  @IsOptional()
+  DATABASE_PRIVATE_URL?: string;
 
   @IsString()
   @IsOptional()
@@ -46,6 +51,25 @@ class EnvironmentVariables {
   @IsString()
   @IsOptional()
   CA_CERT?: string;
+
+  @IsString()
+  @IsOptional()
+  SCHEDULER_ENABLED?: string;
+
+  @Type(() => Number)
+  @IsNumber()
+  @IsOptional()
+  SCHEDULER_DRAIN_DELAY_MS?: number;
+
+  @Type(() => Number)
+  @IsNumber()
+  @IsOptional()
+  SCHEDULER_STALLED_INTERVAL_MS?: number;
+
+  @Type(() => Number)
+  @IsNumber()
+  @IsOptional()
+  SCHEDULER_LOCK_DURATION_MS?: number;
 
   @Type(() => Number)
   @IsNumber()
@@ -166,6 +190,9 @@ const NUMERIC_ENV_KEYS = [
   'SCHEDULER_JOB_ATTEMPTS',
   'SCHEDULER_JOB_BACKOFF_MS',
   'SCHEDULER_PROCESSOR_CONCURRENCY',
+  'SCHEDULER_DRAIN_DELAY_MS',
+  'SCHEDULER_STALLED_INTERVAL_MS',
+  'SCHEDULER_LOCK_DURATION_MS',
 ] as const;
 
 export function validate(config: Record<string, unknown>) {
@@ -188,20 +215,34 @@ export function validate(config: Record<string, unknown>) {
     throw new Error(errors.toString());
   }
 
+  if (
+    !validatedConfig.DATABASE_URL?.trim() &&
+    !validatedConfig.DATABASE_PRIVATE_URL?.trim()
+  ) {
+    throw new Error(
+      'DATABASE_URL (or DATABASE_PRIVATE_URL) is required.',
+    );
+  }
+
   if (validatedConfig.NODE_ENV === Environment.Production) {
     const redisUrl = validatedConfig.REDIS_URL?.trim();
     const redisHost = validatedConfig.REDIS_HOST?.trim();
     const placeholder = /YOUR_|CHANGE_ME|<\w+>/i;
-    const databaseUrl = validatedConfig.DATABASE_URL?.trim() ?? '';
+    const databaseUrl =
+      validatedConfig.DATABASE_URL?.trim() ||
+      validatedConfig.DATABASE_PRIVATE_URL?.trim() ||
+      '';
 
     if (!databaseUrl) {
-      throw new Error('DATABASE_URL is required in production.');
+      throw new Error(
+        'DATABASE_URL (or DATABASE_PRIVATE_URL) is required in production.',
+      );
     }
     if (placeholder.test(databaseUrl) || databaseUrl.includes('${')) {
       throw new Error(
-        'DATABASE_URL is a placeholder or unresolved bindable variable. ' +
+        'DATABASE_BINDABLE_URL_UNRESOLVED: DATABASE_URL is a placeholder or unresolved bindable variable. ' +
           'On DigitalOcean App Platform set DATABASE_URL as a bindable value such as ' +
-          '${db-pgsql-blr1-63888.DATABASE_URL} or ${db-pgsql-blr1-63888.DATABASE_PRIVATE_URL}.',
+          '${db-pgsql-blr1-63888.DATABASE_PRIVATE_URL} or ${db-pgsql-blr1-63888.DATABASE_URL}.',
       );
     }
     if (!/^postgres(?:ql)?:\/\//i.test(databaseUrl)) {
@@ -219,7 +260,8 @@ export function validate(config: Record<string, unknown>) {
     } catch (error) {
       if (
         error instanceof Error &&
-        error.message.startsWith('Production DATABASE_URL')
+        (error.message.startsWith('Production DATABASE_URL') ||
+          error.message.startsWith('DATABASE_BINDABLE_URL_UNRESOLVED'))
       ) {
         throw error;
       }

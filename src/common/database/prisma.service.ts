@@ -51,9 +51,19 @@ export class PrismaService
     this.nodeEnv = nodeEnv;
     this.urlMeta = parseDatabaseUrlMeta(databaseUrl);
 
+    this.logger.log(
+      `PostgreSQL pool configured host=${this.urlMeta.host} port=${this.urlMeta.port} ` +
+        `db=${this.urlMeta.database} sslmode=${this.urlMeta.sslmode ?? 'default'} ` +
+        `ssl=${Boolean(pgConfig.ssl)} env=${this.nodeEnv}`,
+    );
+
     this.pool.on('error', (error: Error) => {
       this.logConnectionFailure(error);
     });
+  }
+
+  getConnectionMeta(): DatabaseUrlMeta {
+    return this.urlMeta;
   }
 
   async onModuleInit(): Promise<void> {
@@ -64,7 +74,13 @@ export class PrismaService
         `PostgreSQL connection established host=${this.urlMeta.host} port=${this.urlMeta.port} sslmode=${this.urlMeta.sslmode ?? 'default'}`,
       );
     } catch (error) {
+      // Do not crash the process (platform health probes need the HTTP server),
+      // but never treat this as a successful connection.
       this.logConnectionFailure(error);
+      this.logger.error(
+        'DATABASE_CONNECTION_FAILED at startup — login and DB-backed routes will return 503 until connectivity is restored. ' +
+          'Check Trusted Sources, DATABASE_URL/DATABASE_PRIVATE_URL bind, and DATABASE_CA_CERT.',
+      );
     }
   }
 

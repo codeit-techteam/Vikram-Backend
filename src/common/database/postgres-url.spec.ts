@@ -2,7 +2,9 @@ import {
   assertProductionDatabaseUrl,
   buildPgPoolConfig,
   classifyDatabaseError,
+  isDatabaseInfrastructureError,
   redactSecrets,
+  resolveDatabaseUrlFromEnv,
   sanitizeDatabaseUrlForPg,
 } from './postgres-url';
 
@@ -29,6 +31,23 @@ describe('postgres-url', () => {
         'postgresql://bajriwala:bajriwala@localhost:5432/bajriwala',
       ),
     ).toThrow(/must not use localhost/i);
+  });
+
+  it('detects unresolved DigitalOcean bind placeholders from env', () => {
+    expect(() =>
+      resolveDatabaseUrlFromEnv({
+        DATABASE_URL: '${db-pgsql-blr1-63888.DATABASE_URL}',
+      }),
+    ).toThrow(/DATABASE_BINDABLE_URL_UNRESOLVED/);
+  });
+
+  it('falls back to DATABASE_PRIVATE_URL when DATABASE_URL is unset', () => {
+    expect(
+      resolveDatabaseUrlFromEnv({
+        DATABASE_PRIVATE_URL:
+          'postgresql://doadmin:secret@private-db.ondigitalocean.com:25060/defaultdb?sslmode=require',
+      }),
+    ).toContain('private-db.ondigitalocean.com');
   });
 
   it('strips Prisma schema query param before handing the URL to pg', () => {
@@ -86,5 +105,15 @@ describe('postgres-url', () => {
     );
     expect(diagnostic.category).toBe('DATABASE_SSL_FAILED');
     expect(diagnostic.reason).not.toContain('hunter2');
+  });
+
+  it('classifies network failures as infrastructure errors', () => {
+    const error = Object.assign(new Error("Can't reach database server"), {
+      code: 'P1001',
+    });
+    expect(classifyDatabaseError(error).category).toBe(
+      'DATABASE_NETWORK_FAILED',
+    );
+    expect(isDatabaseInfrastructureError(error)).toBe(true);
   });
 });

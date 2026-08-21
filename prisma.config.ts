@@ -4,24 +4,23 @@ import { defineConfig } from 'prisma/config';
 import {
   applyPrismaEngineSsl,
   resolveCaCertificate,
+  resolveDatabaseUrlFromEnv,
 } from './src/common/database/postgres-url';
 
 dns.setDefaultResultOrder('ipv4first');
 
 function resolveDatabaseUrl(): string | undefined {
-  const databaseUrl = process.env.DATABASE_URL?.trim();
-  if (!databaseUrl) {
-    return undefined;
+  let databaseUrl: string | undefined;
+  try {
+    databaseUrl = resolveDatabaseUrlFromEnv();
+  } catch (error) {
+    throw error instanceof Error
+      ? error
+      : new Error('DATABASE_URL is invalid.');
   }
 
-  if (databaseUrl.includes('${') || !/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(databaseUrl)) {
-    throw new Error(
-      'DATABASE_URL is not a valid PostgreSQL connection string. ' +
-        'It must start with postgresql:// (or postgres://). ' +
-        'On DigitalOcean App Platform, either paste the managed database Connection string, ' +
-        'or attach the database to this app and set DATABASE_URL to ${<db-component-name>.DATABASE_URL} with both braces. ' +
-        'Unresolved ${...} values are passed through literally and Prisma rejects them (P1013).',
-    );
+  if (!databaseUrl) {
+    return undefined;
   }
 
   return applyPrismaEngineSsl(databaseUrl, resolveCaCertificate());

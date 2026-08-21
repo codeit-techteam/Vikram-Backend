@@ -7,6 +7,7 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { createHash, randomBytes } from 'crypto';
+import { runAuthDatabaseOperation } from '../../common/auth/auth-database.util';
 import { PrismaService } from '../../common/database/prisma.service';
 import {
   getPermissionsForRole,
@@ -30,6 +31,19 @@ export class AdminAuthService {
   ) {}
 
   async login(email: string, password: string): Promise<AdminLoginResponseDto> {
+    const nodeEnv = this.configService.get<string>('app.env', 'development');
+    return runAuthDatabaseOperation(
+      'AUTH_LOGIN',
+      this.prisma.getConnectionMeta(),
+      nodeEnv,
+      () => this.loginInternal(email, password),
+    );
+  }
+
+  private async loginInternal(
+    email: string,
+    password: string,
+  ): Promise<AdminLoginResponseDto> {
     const admin = await this.prisma.adminUser.findFirst({
       where: { email: email.toLowerCase(), deletedAt: null, isActive: true },
     });

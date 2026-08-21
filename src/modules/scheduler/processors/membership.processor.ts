@@ -8,7 +8,12 @@ import {
 import { MembershipExpiryService } from '../services/membership.service';
 import { SchedulerLogService } from '../services/scheduler-log.service';
 
-@Processor(SCHEDULER_QUEUES.MEMBERSHIP_EXPIRY, { concurrency: 2 })
+@Processor(SCHEDULER_QUEUES.MEMBERSHIP_EXPIRY, {
+  concurrency: 1,
+  drainDelay: 5000,
+  stalledInterval: 120_000,
+  lockDuration: 60_000,
+})
 export class MembershipProcessor extends WorkerHost {
   private readonly logger = new Logger(MembershipProcessor.name);
 

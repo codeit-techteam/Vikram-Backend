@@ -8,7 +8,13 @@ import {
 import { ScheduledNotificationDispatchService } from '../services/notification.service';
 import { SchedulerLogService } from '../services/scheduler-log.service';
 
-@Processor(SCHEDULER_QUEUES.NOTIFICATION_SCHEDULER, { concurrency: 2 })
+@Processor(SCHEDULER_QUEUES.NOTIFICATION_SCHEDULER, {
+  concurrency: 1,
+  // Default BullMQ drainDelay is 5ms — burns managed Redis request quotas.
+  drainDelay: 5000,
+  stalledInterval: 120_000,
+  lockDuration: 60_000,
+})
 export class NotificationProcessor extends WorkerHost {
   private readonly logger = new Logger(NotificationProcessor.name);
 

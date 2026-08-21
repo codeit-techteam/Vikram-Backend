@@ -1,5 +1,5 @@
 import { BullModule } from '@nestjs/bullmq';
-import { Module } from '@nestjs/common';
+import { Logger, Module } from '@nestjs/common';
 import { ScheduleModule } from '@nestjs/schedule';
 import { NotificationModule } from '../notification/notification.module';
 import {
@@ -22,9 +22,31 @@ import { DailyReportService } from './services/report.service';
 import { ScheduledNotificationDispatchService } from './services/notification.service';
 import { SchedulerLogService } from './services/scheduler-log.service';
 
+const schedulerEnabled = process.env.SCHEDULER_ENABLED !== 'false';
+const logger = new Logger('SchedulerModule');
+
+if (!schedulerEnabled) {
+  logger.warn(
+    'SCHEDULER_ENABLED=false — BullMQ workers and Nest cron schedulers are not registered (Redis quota relief).',
+  );
+}
+
+const schedulerRuntimeProviders = schedulerEnabled
+  ? [
+      MembershipProcessor,
+      LoyaltyProcessor,
+      ReportProcessor,
+      NotificationProcessor,
+      MembershipScheduler,
+      LoyaltyScheduler,
+      ReportScheduler,
+      NotificationScheduler,
+    ]
+  : [];
+
 @Module({
   imports: [
-    ScheduleModule.forRoot(),
+    ...(schedulerEnabled ? [ScheduleModule.forRoot()] : []),
     NotificationModule,
     BullModule.registerQueue(
       ...ALL_SCHEDULER_QUEUES.map((name) => ({
@@ -40,14 +62,7 @@ import { SchedulerLogService } from './services/scheduler-log.service';
     LoyaltyExpiryService,
     DailyReportService,
     ScheduledNotificationDispatchService,
-    MembershipProcessor,
-    LoyaltyProcessor,
-    ReportProcessor,
-    NotificationProcessor,
-    MembershipScheduler,
-    LoyaltyScheduler,
-    ReportScheduler,
-    NotificationScheduler,
+    ...schedulerRuntimeProviders,
     SchedulerStatusService,
   ],
   exports: [

@@ -28,7 +28,7 @@ export class NotificationScheduler implements OnModuleInit {
   onModuleInit(): void {
     const expression = this.configService.get<string>(
       'scheduler.notificationCron',
-      '*/10 * * * *',
+      '0 */30 * * * *',
     );
     const job = CronJob.from({
       cronTime: expression,

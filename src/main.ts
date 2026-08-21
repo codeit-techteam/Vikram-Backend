@@ -13,6 +13,7 @@ import morgan from 'morgan';
 import { Logger } from 'nestjs-pino';
 import { AppModule } from './app.module';
 import { setupSwagger, getSwaggerUrl } from './common/config/swagger.config';
+import { isOriginAllowed } from './common/config/cors.util';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { ApiResponseInterceptor } from './common/interceptors/api-response.interceptor';
 
@@ -52,22 +53,29 @@ async function bootstrap() {
         origin: string | undefined,
         callback: (err: Error | null, allow?: boolean) => void,
       ) => {
-        if (
-          !origin ||
-          corsOrigins.includes(origin) ||
-          origin.startsWith('http://localhost') ||
-          origin.startsWith('http://127.0.0.1') ||
-          origin.startsWith('exp://')
-        ) {
-          callback(null, true);
-          return;
-        }
-        callback(null, corsOrigins.length === 0 || corsOrigins.includes(origin));
+        callback(
+          null,
+          isOriginAllowed(origin, corsOrigins, {
+            isProduction: false,
+            allowLocalhostInDev: true,
+          }),
+        );
       };
 
   app.enableCors({
     origin: corsOriginOption,
     credentials: true,
+    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'Accept',
+      'Origin',
+      'X-Requested-With',
+      'X-Internal-Api-Key',
+    ],
+    exposedHeaders: ['Content-Disposition'],
+    optionsSuccessStatus: 204,
   });
 
   app.useGlobalPipes(

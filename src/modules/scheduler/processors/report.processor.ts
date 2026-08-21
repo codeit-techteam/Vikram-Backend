@@ -9,7 +9,12 @@ import { DailyReportService } from '../services/report.service';
 import { SchedulerLogService } from '../services/scheduler-log.service';
 import { previousDay } from '../scheduler.utils';
 
-@Processor(SCHEDULER_QUEUES.DAILY_REPORT, { concurrency: 1 })
+@Processor(SCHEDULER_QUEUES.DAILY_REPORT, {
+  concurrency: 1,
+  drainDelay: 5000,
+  stalledInterval: 120_000,
+  lockDuration: 60_000,
+})
 export class ReportProcessor extends WorkerHost {
   private readonly logger = new Logger(ReportProcessor.name);
 

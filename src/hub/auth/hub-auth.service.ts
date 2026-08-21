@@ -8,6 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { createHash, randomBytes } from 'crypto';
+import { runAuthDatabaseOperation } from '../../common/auth/auth-database.util';
 import { PrismaService } from '../../common/database/prisma.service';
 import type {
   HubLoginResponseDto,
@@ -25,6 +26,19 @@ export class HubAuthService {
   ) {}
 
   async login(employeeId: string, password: string): Promise<HubLoginResponseDto> {
+    const nodeEnv = this.configService.get<string>('app.env', 'development');
+    return runAuthDatabaseOperation(
+      'AUTH_LOGIN',
+      this.prisma.getConnectionMeta(),
+      nodeEnv,
+      () => this.loginInternal(employeeId, password),
+    );
+  }
+
+  private async loginInternal(
+    employeeId: string,
+    password: string,
+  ): Promise<HubLoginResponseDto> {
     const normalizedId = employeeId.trim().toLowerCase();
     const user = await this.prisma.hubUser.findFirst({
       where: { employeeId: normalizedId, deletedAt: null },

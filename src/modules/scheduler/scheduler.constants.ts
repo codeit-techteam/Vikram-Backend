@@ -17,6 +17,7 @@ export const SCHEDULER_JOB_NAMES = {
   DISPATCH_SCHEDULED_NOTIFICATIONS: 'dispatch-scheduled-notifications',
 } as const;
 
+/** Keep completed/failed job retention low to reduce Redis key churn. */
 export const DEFAULT_SCHEDULER_JOB_OPTIONS: DefaultJobOptions = {
   attempts: 3,
   backoff: {
@@ -24,10 +25,10 @@ export const DEFAULT_SCHEDULER_JOB_OPTIONS: DefaultJobOptions = {
     delay: 5000,
   },
   removeOnComplete: {
-    count: 100,
+    count: 20,
   },
   removeOnFail: {
-    count: 200,
+    count: 50,
   },
 };
 

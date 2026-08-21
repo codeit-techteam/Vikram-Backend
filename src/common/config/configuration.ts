@@ -1,3 +1,5 @@
+import { resolveDatabaseUrlFromEnv } from '../database/postgres-url';
+import { parseCorsOrigins } from './cors.util';
 import { resolveRedisFromEnv } from './redis.config';
 
 export default () => ({
@@ -8,16 +10,11 @@ export default () => ({
     apiPrefix: process.env.API_PREFIX ?? 'api',
   },
   cors: {
-    origins: process.env.CORS_ORIGINS?.split(',')
-      .map((origin) => origin.trim())
-      .filter(Boolean) ?? [
-      'http://localhost:3000',
-      'http://localhost:3001',
-      'http://localhost:8081',
-    ],
+    origins: parseCorsOrigins(process.env.CORS_ORIGINS),
   },
   database: {
-    url: process.env.DATABASE_URL,
+    // Prefer DATABASE_URL; fall back to DATABASE_PRIVATE_URL for DO VPC.
+    url: resolveDatabaseUrlFromEnv(),
     caCert:
       process.env.DATABASE_CA_CERT ||
       process.env.CA_CERT ||
@@ -111,14 +108,26 @@ export default () => ({
     ),
   },
   scheduler: {
+    /** Set SCHEDULER_ENABLED=false to stop BullMQ workers (Redis quota relief). */
+    enabled: process.env.SCHEDULER_ENABLED !== 'false',
     membershipCron: process.env.MEMBERSHIP_CRON ?? '0 30 0 * * *',
     loyaltyCron: process.env.LOYALTY_CRON ?? '0 0 1 * * *',
     reportCron: process.env.REPORT_CRON ?? '0 50 23 * * *',
-    notificationCron: process.env.NOTIFICATION_CRON ?? '*/10 * * * *',
+    // Default every 30 minutes — reduces Redis churn vs */10.
+    notificationCron: process.env.NOTIFICATION_CRON ?? '0 */30 * * * *',
     jobAttempts: parseInt(process.env.SCHEDULER_JOB_ATTEMPTS ?? '3', 10),
     jobBackoffMs: parseInt(process.env.SCHEDULER_JOB_BACKOFF_MS ?? '5000', 10),
     processorConcurrency: parseInt(
-      process.env.SCHEDULER_PROCESSOR_CONCURRENCY ?? '2',
+      process.env.SCHEDULER_PROCESSOR_CONCURRENCY ?? '1',
+      10,
+    ),
+    drainDelayMs: parseInt(process.env.SCHEDULER_DRAIN_DELAY_MS ?? '5000', 10),
+    stalledIntervalMs: parseInt(
+      process.env.SCHEDULER_STALLED_INTERVAL_MS ?? '120000',
+      10,
+    ),
+    lockDurationMs: parseInt(
+      process.env.SCHEDULER_LOCK_DURATION_MS ?? '60000',
       10,
     ),
   },
