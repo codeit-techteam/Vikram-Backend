@@ -21,6 +21,7 @@
     "start:debug": "nest start --debug --watch",
     "start:prod": "prisma migrate deploy && npm run db:seed:if-empty && node dist/src/main.js",
     "db:seed:if-empty": "tsx scripts/db-seed-if-empty.ts",
+    "db:bootstrap:hub-auth": "tsx scripts/bootstrap-hub-auth.ts",
     "db:audit": "bash scripts/db-audit.sh",
     "db:migrate:local-to-do": "bash scripts/migrate-local-to-do.sh",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",

@@ -1,9 +1,7 @@
 /**
- * Idempotent bootstrap: runs prisma/seed.ts when required hub login accounts
- * are missing. Safe to run on every production deploy (seed uses upserts).
- *
- * Skips when DB_SEED_IF_EMPTY=false.
- * In production, runs automatically unless explicitly disabled.
+ * Production bootstrap entrypoint used during deploy.
+ * 1) Full seed when catalog/hubs are empty
+ * 2) Minimal hub auth bootstrap when hubmanager01 is missing
  */
 import 'dotenv/config';
 import { execSync } from 'node:child_process';
@@ -12,6 +10,14 @@ import {
   buildPgPoolConfig,
   resolveDatabaseUrlFromEnv,
 } from '../src/common/database/postgres-url';
+
+async function countRows(
+  pool: pg.Pool,
+  sql: string,
+): Promise<number> {
+  const result = await pool.query<{ count: string }>(sql);
+  return Number.parseInt(result.rows[0]?.count ?? '0', 10);
+}
 
 async function main(): Promise<void> {
   const explicitOff =
@@ -37,36 +43,50 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const poolConfig = buildPgPoolConfig({
-    databaseUrl,
-    max: 1,
-    idleTimeoutMillis: 5000,
-    connectionTimeoutMillis: 15000,
-    nodeEnv: process.env.NODE_ENV,
-    caCert: process.env.DATABASE_CA_CERT,
-  });
-  const pool = new pg.Pool(poolConfig);
+  const pool = new pg.Pool(
+    buildPgPoolConfig({
+      databaseUrl,
+      max: 1,
+      idleTimeoutMillis: 5000,
+      connectionTimeoutMillis: 15000,
+      nodeEnv: process.env.NODE_ENV,
+      caCert: process.env.DATABASE_CA_CERT,
+    }),
+  );
 
   try {
-    const result = await pool.query<{ count: string }>(
-      `SELECT COUNT(*)::text AS count FROM hub_users
-       WHERE employee_id = 'hubmanager01' AND deleted_at IS NULL`,
-    );
     const hubManagerExists =
-      Number.parseInt(result.rows[0]?.count ?? '0', 10) > 0;
+      (await countRows(
+        pool,
+        `SELECT COUNT(*)::text AS count FROM hub_users
+         WHERE employee_id = 'hubmanager01' AND deleted_at IS NULL`,
+      )) > 0;
 
     if (hubManagerExists) {
+      console.log('[db-seed-if-empty] hubmanager01 already exists — done.');
+      return;
+    }
+
+    const productCount = await countRows(
+      pool,
+      'SELECT COUNT(*)::text AS count FROM products',
+    );
+
+    if (productCount === 0) {
       console.log(
-        '[db-seed-if-empty] hubmanager01 already exists — seed not required.',
+        '[db-seed-if-empty] Empty catalog — running full prisma seed...',
       );
+      execSync('npm run prisma:seed', { stdio: 'inherit', env: process.env });
       return;
     }
 
     console.log(
-      '[db-seed-if-empty] hubmanager01 missing — running prisma seed (upserts)...',
+      '[db-seed-if-empty] hubmanager01 missing — running minimal hub auth bootstrap...',
     );
-    execSync('npm run prisma:seed', { stdio: 'inherit', env: process.env });
-    console.log('[db-seed-if-empty] Seed completed.');
+    execSync('tsx scripts/bootstrap-hub-auth.ts', {
+      stdio: 'inherit',
+      env: process.env,
+    });
   } finally {
     await pool.end();
   }
