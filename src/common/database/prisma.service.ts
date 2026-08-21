@@ -59,7 +59,7 @@ export class PrismaService
     this.logger.log(
       `PostgreSQL pool configured source=${urlSource} host=${this.urlMeta.host} port=${this.urlMeta.port} ` +
         `db=${this.urlMeta.database} sslmode=${this.urlMeta.sslmode ?? 'default'} ` +
-        `ssl=${Boolean(pgConfig.ssl)} env=${this.nodeEnv}`,
+        `ssl=${Boolean(pgConfig.ssl)} sslVerify=${pgConfig.ssl && typeof pgConfig.ssl === 'object' ? (pgConfig.ssl as { rejectUnauthorized?: boolean }).rejectUnauthorized !== false : false} env=${this.nodeEnv}`,
     );
 
     this.pool.on('error', (error: Error) => {

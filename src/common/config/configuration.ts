@@ -1,4 +1,4 @@
-import { resolveDatabaseUrlFromEnv } from '../database/postgres-url';
+import { normalizeCaCertificate, resolveDatabaseUrlFromEnv } from '../database/postgres-url';
 import { parseCorsOrigins } from './cors.util';
 import { REDIS_BULLMQ_ENABLED } from './redis-bullmq.feature';
 import { resolveRedisFromEnv } from './redis.config';
@@ -16,11 +16,11 @@ export default () => ({
   database: {
     // Prefer DATABASE_URL; fall back to DATABASE_PRIVATE_URL for DO VPC.
     url: resolveDatabaseUrlFromEnv(),
-    caCert:
+    caCert: normalizeCaCertificate(
       process.env.DATABASE_CA_CERT ||
-      process.env.CA_CERT ||
-      process.env.DATABASE_CA ||
-      '',
+        process.env.CA_CERT ||
+        process.env.DATABASE_CA,
+    ),
     poolMax: parseInt(process.env.DATABASE_POOL_MAX ?? '10', 10),
     poolIdleTimeoutMs: parseInt(
       process.env.DATABASE_POOL_IDLE_TIMEOUT_MS ?? '30000',

@@ -7,6 +7,7 @@ import {
   resolveDatabaseUrlCandidatesFromEnv,
   resolveDatabaseUrlFromEnv,
   sanitizeDatabaseUrlForPg,
+  normalizeCaCertificate,
 } from './postgres-url';
 
 describe('postgres-url', () => {
@@ -91,8 +92,18 @@ describe('postgres-url', () => {
     const result = sanitizeDatabaseUrlForPg(
       'postgresql://user:pass@db.ondigitalocean.com:25060/defaultdb?sslmode=verify-full&sslrootcert=/tmp/ca.crt&schema=public',
     );
-    expect(result.connectionString).toContain('sslmode=require');
     expect(result.connectionString).not.toContain('sslrootcert');
+    expect(result.connectionString).not.toContain('sslmode=');
+  });
+
+  it('accepts a valid PEM CA and rejects invalid CA text', () => {
+    const pem =
+      '-----BEGIN CERTIFICATE-----\nMIIBkTCB+wIJAKHHCg\n-----END CERTIFICATE-----';
+    expect(normalizeCaCertificate(pem)).toContain('BEGIN CERTIFICATE');
+    expect(normalizeCaCertificate('43 38 E7 AB fingerprint only')).toBeUndefined();
+    expect(
+      normalizeCaCertificate('${db-pgsql-blr1-63888.CA_CERT}'),
+    ).toBeUndefined();
   });
 
   it('strips Prisma schema query param before handing the URL to pg', () => {
@@ -101,7 +112,7 @@ describe('postgres-url', () => {
     );
     expect(result.schema).toBe('public');
     expect(result.connectionString).not.toContain('schema=');
-    expect(result.connectionString).toContain('sslmode=require');
+    expect(result.connectionString).not.toContain('sslmode=');
   });
 
   it('keeps TLS enabled for DigitalOcean hosts when no CA is provided', () => {
@@ -114,7 +125,7 @@ describe('postgres-url', () => {
       nodeEnv: 'production',
     });
     expect(config.ssl).toEqual({ rejectUnauthorized: false });
-    expect(config.connectionString).toContain('sslmode=require');
+    expect(config.connectionString).not.toContain('sslmode=');
   });
 
   it('verifies TLS when a CA certificate is supplied', () => {

@@ -177,10 +177,25 @@ export function resolveCaCertificate(
     env.DATABASE_CA_CERT?.trim() ||
     env.CA_CERT?.trim() ||
     env.DATABASE_CA?.trim();
-  if (!raw) {
+  return normalizeCaCertificate(raw);
+}
+
+/** Returns PEM CA text, or undefined when missing/invalid/unresolved. */
+export function normalizeCaCertificate(raw: string | undefined): string | undefined {
+  if (!raw?.trim()) {
     return undefined;
   }
-  return raw.replace(/\\n/g, '\n');
+  const value = raw.replace(/\\n/g, '\n').trim();
+  if (isUnresolvedDatabaseBindPlaceholder(value)) {
+    return undefined;
+  }
+  if (
+    !value.includes('-----BEGIN CERTIFICATE-----') ||
+    !value.includes('-----END CERTIFICATE-----')
+  ) {
+    return undefined;
+  }
+  return value;
 }
 
 /**
@@ -271,6 +286,11 @@ export function sanitizeDatabaseUrlForPg(
     parsed.searchParams.set('sslmode', 'require');
   }
 
+  // node-postgres uses PoolConfig.ssl; drop sslmode to avoid verify conflicts.
+  if (sslRequired(meta, nodeEnv)) {
+    parsed.searchParams.delete('sslmode');
+  }
+
   return {
     connectionString: parsed.toString(),
     schema: meta.schema || 'public',
@@ -299,13 +319,13 @@ export function buildPgPoolConfig(options: {
   };
 
   if (sslRequired(meta, options.nodeEnv)) {
-    const ca = options.caCert?.trim();
+    const ca = normalizeCaCertificate(options.caCert);
     if (ca) {
-      // TLS stays enabled; verify the DigitalOcean CA when it is supplied.
+      // TLS stays enabled; verify the DigitalOcean CA when a valid PEM is supplied.
       config.ssl = { rejectUnauthorized: true, ca };
     } else {
-      // TLS stays enabled. DigitalOcean managed PostgreSQL presents a chain
-      // Node does not trust unless CA_CERT / DATABASE_CA_CERT is provided.
+      // DigitalOcean managed PostgreSQL uses a project CA that Node does not trust
+      // by default — encrypt without strict verification unless a valid PEM is set.
       config.ssl = { rejectUnauthorized: false };
     }
   }
