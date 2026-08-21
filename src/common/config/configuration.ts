@@ -18,6 +18,11 @@ export default () => ({
   },
   database: {
     url: process.env.DATABASE_URL,
+    caCert:
+      process.env.DATABASE_CA_CERT ||
+      process.env.CA_CERT ||
+      process.env.DATABASE_CA ||
+      '',
     poolMax: parseInt(process.env.DATABASE_POOL_MAX ?? '10', 10),
     poolIdleTimeoutMs: parseInt(
       process.env.DATABASE_POOL_IDLE_TIMEOUT_MS ?? '30000',

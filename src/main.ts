@@ -1,3 +1,4 @@
+import dns from 'node:dns';
 import {
   RequestMethod,
   ValidationPipe,
@@ -14,6 +15,8 @@ import { AppModule } from './app.module';
 import { setupSwagger, getSwaggerUrl } from './common/config/swagger.config';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { ApiResponseInterceptor } from './common/interceptors/api-response.interceptor';
+
+dns.setDefaultResultOrder('ipv4first');
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });

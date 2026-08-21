@@ -1,5 +1,12 @@
 import 'dotenv/config';
+import dns from 'node:dns';
 import { defineConfig } from 'prisma/config';
+import {
+  applyPrismaEngineSsl,
+  resolveCaCertificate,
+} from './src/common/database/postgres-url';
+
+dns.setDefaultResultOrder('ipv4first');
 
 function resolveDatabaseUrl(): string | undefined {
   const databaseUrl = process.env.DATABASE_URL?.trim();
@@ -17,7 +24,7 @@ function resolveDatabaseUrl(): string | undefined {
     );
   }
 
-  return databaseUrl;
+  return applyPrismaEngineSsl(databaseUrl, resolveCaCertificate());
 }
 
 const databaseUrl = resolveDatabaseUrl();

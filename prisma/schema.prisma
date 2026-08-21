@@ -9,6 +9,8 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  // Prisma 7 reads the connection URL from prisma.config.ts via env("DATABASE_URL") /
+  // process.env.DATABASE_URL. Do not hardcode host, user, password, or port here.
 }
 
 // ─── Enums ───────────────────────────────────────────────────────────────────

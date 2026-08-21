@@ -39,6 +39,14 @@ class EnvironmentVariables {
   @IsString()
   DATABASE_URL: string;
 
+  @IsString()
+  @IsOptional()
+  DATABASE_CA_CERT?: string;
+
+  @IsString()
+  @IsOptional()
+  CA_CERT?: string;
+
   @Type(() => Number)
   @IsNumber()
   @IsOptional()
@@ -184,6 +192,39 @@ export function validate(config: Record<string, unknown>) {
     const redisUrl = validatedConfig.REDIS_URL?.trim();
     const redisHost = validatedConfig.REDIS_HOST?.trim();
     const placeholder = /YOUR_|CHANGE_ME|<\w+>/i;
+    const databaseUrl = validatedConfig.DATABASE_URL?.trim() ?? '';
+
+    if (!databaseUrl) {
+      throw new Error('DATABASE_URL is required in production.');
+    }
+    if (placeholder.test(databaseUrl) || databaseUrl.includes('${')) {
+      throw new Error(
+        'DATABASE_URL is a placeholder or unresolved bindable variable. ' +
+          'On DigitalOcean App Platform set DATABASE_URL as a bindable value such as ' +
+          '${db-pgsql-blr1-63888.DATABASE_URL} or ${db-pgsql-blr1-63888.DATABASE_PRIVATE_URL}.',
+      );
+    }
+    if (!/^postgres(?:ql)?:\/\//i.test(databaseUrl)) {
+      throw new Error(
+        'DATABASE_URL must start with postgresql:// or postgres://.',
+      );
+    }
+    try {
+      const host = new URL(databaseUrl).hostname;
+      if (!host || host === 'localhost' || host === '127.0.0.1' || host === '::1') {
+        throw new Error(
+          'Production DATABASE_URL must not use localhost. Use the DigitalOcean Managed PostgreSQL host.',
+        );
+      }
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        error.message.startsWith('Production DATABASE_URL')
+      ) {
+        throw error;
+      }
+      throw new Error('DATABASE_URL is not a valid PostgreSQL connection string.');
+    }
 
     if (redisUrl) {
       if (placeholder.test(redisUrl) || redisUrl.includes('${')) {
