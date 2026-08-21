@@ -11,7 +11,7 @@
   },
   "scripts": {
     "db:repair-migration-checksums": "node --env-file=.env prisma/scripts/repair-migration-checksums.mjs",
-    "build": "prisma generate && nest build",
+    "build": "prisma generate && nest build && tsc -p tsconfig.scripts.json",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
     "start:dev": "nest start --watch",
@@ -20,8 +20,8 @@
     "redis:logs": "docker compose -f docker-compose.redis.yml logs -f redis",
     "start:debug": "nest start --debug --watch",
     "start:prod": "prisma migrate deploy && npm run db:seed:if-empty && node dist/src/main.js",
-    "db:seed:if-empty": "tsx scripts/db-seed-if-empty.ts",
-    "db:bootstrap:hub-auth": "tsx scripts/bootstrap-hub-auth.ts",
+    "db:seed:if-empty": "node dist/scripts/db-seed-if-empty.js",
+    "db:bootstrap:hub-auth": "node dist/scripts/bootstrap-hub-auth.js",
     "db:audit": "bash scripts/db-audit.sh",
     "db:migrate:local-to-do": "bash scripts/migrate-local-to-do.sh",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
@@ -101,6 +101,7 @@
     "rxjs": "^7.8.1",
     "socket.io": "^4.8.3",
     "typescript": "^5.7.3",
+    "tsx": "^4.23.1",
     "uuid": "^14.0.1"
   },
   "devDependencies": {
@@ -123,7 +124,6 @@
     "ts-loader": "^9.5.2",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
-    "tsx": "^4.23.1",
     "typescript-eslint": "^8.20.0"
   },
   "jest": {

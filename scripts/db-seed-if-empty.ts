@@ -83,7 +83,7 @@ async function main(): Promise<void> {
     console.log(
       '[db-seed-if-empty] hubmanager01 missing — running minimal hub auth bootstrap...',
     );
-    execSync('tsx scripts/bootstrap-hub-auth.ts', {
+    execSync('node dist/scripts/bootstrap-hub-auth.js', {
       stdio: 'inherit',
       env: process.env,
     });

@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "."
+  },
+  "include": [
+    "scripts/db-seed-if-empty.ts",
+    "scripts/bootstrap-hub-auth.ts"
+  ],
+  "exclude": ["node_modules", "dist", "test"]
+}
