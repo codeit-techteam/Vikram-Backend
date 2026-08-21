@@ -11,6 +11,7 @@ import {
   WebSocketServer,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
+import { isOriginAllowed, parseCorsOrigins } from '../common/config/cors.util';
 import { PrismaService } from '../common/database/prisma.service';
 import type { JwtPayload } from '../auth/jwt/jwt-payload.interface';
 import {
@@ -25,10 +26,26 @@ type AuthenticatedSocket = Socket & {
   };
 };
 
+const wsCorsOrigins = parseCorsOrigins(process.env.CORS_ORIGINS);
+const wsIsProduction = process.env.NODE_ENV === 'production';
+
 @WebSocketGateway({
   namespace: '/realtime',
   cors: {
-    origin: true,
+    origin: wsIsProduction
+      ? wsCorsOrigins
+      : (
+          origin: string | undefined,
+          callback: (err: Error | null, allow?: boolean) => void,
+        ) => {
+          callback(
+            null,
+            isOriginAllowed(origin, wsCorsOrigins, {
+              isProduction: false,
+              allowLocalhostInDev: true,
+            }),
+          );
+        },
     credentials: true,
   },
   transports: ['websocket', 'polling'],

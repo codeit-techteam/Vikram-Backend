@@ -55,6 +55,10 @@ class EnvironmentVariables {
 
   @IsString()
   @IsOptional()
+  DATABASE_CA?: string;
+
+  @IsString()
+  @IsOptional()
   SCHEDULER_ENABLED?: string;
 
   @Type(() => Number)

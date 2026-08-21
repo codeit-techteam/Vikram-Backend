@@ -18,8 +18,18 @@ export class HealthService {
     const databaseConnected = await this.prismaService.isConnected();
 
     if (!databaseConnected) {
+      const meta = this.prismaService.getConnectionMeta();
       this.logger.warn(
-        `HEALTH_DATABASE_DISCONNECTED env=${this.configService.get('app.env')}`,
+        [
+          'HEALTH_DATABASE_DISCONNECTED',
+          `env=${this.configService.get('app.env')}`,
+          `host=${meta.host}`,
+          `port=${meta.port}`,
+          meta.sslmode ? `sslmode=${meta.sslmode}` : null,
+          'reason=SELECT 1 failed — check Trusted Sources, DATABASE_URL bind, and DATABASE_CA_CERT',
+        ]
+          .filter(Boolean)
+          .join(' '),
       );
     }
 
