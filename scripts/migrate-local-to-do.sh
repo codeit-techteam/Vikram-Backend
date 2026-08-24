@@ -24,19 +24,31 @@ fi
 
 AUTO_YES=false
 SKIP_PROD_BACKUP=false
+REUSE_DUMP=""
 for arg in "$@"; do
   case "${arg}" in
     --yes|-y) AUTO_YES=true ;;
     --skip-prod-backup) SKIP_PROD_BACKUP=true ;;
+    --dump-file=*) REUSE_DUMP="${arg#*=}" ;;
   esac
 done
 
 mkdir -p "${BACKUP_DIR}"
 
-echo "=== Phase 1: Local backup ==="
-LOCAL_DUMP="${BACKUP_DIR}/local-bajriwala-${TIMESTAMP}.dump"
-pg_dump_url "${LOCAL_URL}" "${LOCAL_DUMP}"
-echo "Local backup: ${LOCAL_DUMP} ($(du -h "${LOCAL_DUMP}" | cut -f1))"
+if [[ -n "${REUSE_DUMP}" ]]; then
+  LOCAL_DUMP="${REUSE_DUMP}"
+  if [[ ! -f "${LOCAL_DUMP}" ]]; then
+    echo "Dump file not found: ${LOCAL_DUMP}"
+    exit 1
+  fi
+  echo "=== Phase 1: Local backup (reusing existing dump) ==="
+  echo "Using: ${LOCAL_DUMP} ($(du -h "${LOCAL_DUMP}" | cut -f1))"
+else
+  echo "=== Phase 1: Local backup ==="
+  LOCAL_DUMP="${BACKUP_DIR}/local-bajriwala-${TIMESTAMP}.dump"
+  pg_dump_url "${LOCAL_URL}" "${LOCAL_DUMP}"
+  echo "Local backup: ${LOCAL_DUMP} ($(du -h "${LOCAL_DUMP}" | cut -f1))"
+fi
 
 if [[ -z "${DO_URL}" ]]; then
   echo ""

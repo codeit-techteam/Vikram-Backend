@@ -1,23 +1,27 @@
 #!/usr/bin/env bash
-# Resolve pg_dump / pg_restore / psql from PATH or Homebrew libpq.
-# Falls back to the local Docker Postgres container for localhost dumps.
+# PostgreSQL client helpers — prefer PG 16 (matches DigitalOcean managed Postgres 16).
+# Homebrew libpq 17/18 adds GUCs like transaction_timeout that PG 16 rejects on restore.
+
+PG16_IMAGE="${PG16_IMAGE:-postgres:16-alpine}"
 
 ensure_pg_tools() {
-  if command -v pg_dump >/dev/null 2>&1 \
-    && command -v pg_restore >/dev/null 2>&1 \
-    && command -v psql >/dev/null 2>&1; then
+  if command -v psql >/dev/null 2>&1; then
     return 0
   fi
 
   local dir
   for dir in /opt/homebrew/opt/libpq/bin /usr/local/opt/libpq/bin; do
-    if [[ -x "${dir}/pg_dump" && -x "${dir}/pg_restore" && -x "${dir}/psql" ]]; then
+    if [[ -x "${dir}/psql" ]]; then
       export PATH="${dir}:${PATH}"
       return 0
     fi
   done
 
   return 1
+}
+
+docker_available() {
+  command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1
 }
 
 local_postgres_container() {
@@ -33,11 +37,24 @@ is_local_database_url() {
   [[ "${url}" == *"@localhost:"* || "${url}" == *"@127.0.0.1:"* ]]
 }
 
-# pg_dump/psql do not accept Prisma-only params like ?schema=public
 sanitize_pg_url() {
   local url="$1"
   url="$(echo "${url}" | sed -E 's/[?&]schema=[^&]*//g; s/\?&/?/g; s/[?&]$//')"
   echo "${url}"
+}
+
+host_pg_major_version() {
+  if ! command -v pg_dump >/dev/null 2>&1; then
+    echo "0"
+    return
+  fi
+  pg_dump --version | sed -E 's/.*PostgreSQL\) ([0-9]+).*/\1/'
+}
+
+should_use_pg16_docker() {
+  local major
+  major="$(host_pg_major_version)"
+  [[ "${major}" -gt 16 ]] || ! command -v pg_restore >/dev/null 2>&1
 }
 
 pg_dump_url() {
@@ -45,22 +62,64 @@ pg_dump_url() {
   local output_file="$2"
   url="$(sanitize_pg_url "${url}")"
 
-  if ensure_pg_tools; then
-    pg_dump -Fc -f "${output_file}" "${url}"
-    return
-  fi
-
   local container
   if is_local_database_url "${url}" && container="$(local_postgres_container)"; then
-    echo "Using docker exec (${container}) for local pg_dump..."
+    echo "Using docker exec (${container}, PG 16) for pg_dump..."
     docker exec "${container}" pg_dump -U bajriwala -d bajriwala -Fc > "${output_file}"
     return
   fi
 
+  if docker_available && should_use_pg16_docker; then
+    echo "Using ${PG16_IMAGE} for pg_dump (PG 16 compatible)..."
+    local abs_dir abs_file
+    abs_dir="$(cd "$(dirname "${output_file}")" && pwd)"
+    abs_file="$(basename "${output_file}")"
+    docker run --rm \
+      -v "${abs_dir}:/backups" \
+      "${PG16_IMAGE}" \
+      pg_dump -Fc -f "/backups/${abs_file}" "${url}"
+    return
+  fi
+
+  if command -v pg_dump >/dev/null 2>&1; then
+    pg_dump -Fc -f "${output_file}" "${url}"
+    return
+  fi
+
   echo "PostgreSQL client tools not found."
-  echo "Install with: brew install libpq"
-  echo "Then run: export PATH=\"/opt/homebrew/opt/libpq/bin:\$PATH\""
+  echo "Install with: brew install libpq  OR  docker compose up -d postgres"
   exit 1
+}
+
+pg_restore_url() {
+  local url="$1"
+  local dump_file="$2"
+  url="$(sanitize_pg_url "${url}")"
+
+  if [[ ! -f "${dump_file}" ]]; then
+    echo "Dump file not found: ${dump_file}"
+    exit 1
+  fi
+
+  if docker_available && should_use_pg16_docker; then
+    echo "Using ${PG16_IMAGE} for pg_restore (PG 16 compatible)..."
+    local abs_dir abs_file
+    abs_dir="$(cd "$(dirname "${dump_file}")" && pwd)"
+    abs_file="$(basename "${dump_file}")"
+    docker run --rm \
+      -v "${abs_dir}:/backups:ro" \
+      "${PG16_IMAGE}" \
+      pg_restore --clean --if-exists --no-owner --no-acl \
+      -d "${url}" "/backups/${abs_file}"
+    return
+  fi
+
+  if ! command -v pg_restore >/dev/null 2>&1; then
+    echo "pg_restore not found. Install: brew install libpq"
+    exit 1
+  fi
+
+  pg_restore --clean --if-exists --no-owner --no-acl -d "${url}" "${dump_file}"
 }
 
 wait_for_do_database() {
@@ -69,6 +128,12 @@ wait_for_do_database() {
   local attempt=1
   local public_ip
 
+  if ! ensure_pg_tools; then
+    echo "psql not found — install libpq or use docker."
+    return 1
+  fi
+
+  url="$(sanitize_pg_url "${url}")"
   public_ip="$(curl -s --max-time 5 ifconfig.me 2>/dev/null || true)"
   public_ip="${public_ip:-unknown}"
 
@@ -80,14 +145,11 @@ wait_for_do_database() {
   fi
 
   echo ""
-  echo "Cannot reach the managed database from this machine (Trusted Sources)."
-  echo "Add YOUR public IP to the DATABASE firewall — not the app egress IPs."
+  echo "Cannot reach the managed database (Trusted Sources)."
+  echo "  Your IP: ${public_ip}"
+  echo "  Where:   DigitalOcean → Databases → db-pgsql-blr1-63888 → Network Access"
   echo ""
-  echo "  Your IP:     ${public_ip}"
-  echo "  Where:       DigitalOcean → Databases → db-pgsql-blr1-63888 → Settings → Trusted Sources"
-  echo "  Alternative: npm run db:prepare:vpc-restore   (restore via App Platform VPC)"
-  echo ""
-  echo "Waiting up to $((max_attempts * 10))s for access (add the IP now)..."
+  echo "Waiting up to $((max_attempts * 10))s..."
 
   while (( attempt <= max_attempts )); do
     if PGCONNECT_TIMEOUT=5 psql "${url}" -c "SELECT 1" >/dev/null 2>&1; then
@@ -100,21 +162,6 @@ wait_for_do_database() {
   done
 
   echo ""
-  echo "Timed out. Use Trusted Sources or VPC restore:"
-  echo "  npm run db:prepare:vpc-restore"
+  echo "Timed out."
   return 1
-}
-
-pg_restore_url() {
-  local url="$1"
-  local dump_file="$2"
-
-  if ! ensure_pg_tools; then
-    echo "PostgreSQL client tools not found (pg_restore required)."
-    echo "Install with: brew install libpq"
-    echo "Then run: export PATH=\"/opt/homebrew/opt/libpq/bin:\$PATH\""
-    exit 1
-  fi
-
-  pg_restore --clean --if-exists --no-owner --no-acl -d "$(sanitize_pg_url "${url}")" "${dump_file}"
 }
