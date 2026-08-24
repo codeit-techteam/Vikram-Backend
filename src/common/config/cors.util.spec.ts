@@ -4,12 +4,19 @@ describe('cors.util', () => {
   it('splits, trims, and drops empty CORS origins', () => {
     expect(
       parseCorsOrigins(' http://localhost:3000 , ,https://hub.example.com '),
-    ).toEqual(['http://localhost:3000', 'https://hub.example.com']);
+    ).toEqual([
+      'http://localhost:3000',
+      'https://hub.example.com',
+      'https://vikram-admin.vercel.app',
+      'https://vikram-hub-panel-frontend.vercel.app',
+    ]);
   });
 
   it('never allows wildcard origin *', () => {
     expect(parseCorsOrigins('*,http://localhost:3000')).toEqual([
       'http://localhost:3000',
+      'https://vikram-admin.vercel.app',
+      'https://vikram-hub-panel-frontend.vercel.app',
     ]);
   });
 
@@ -37,5 +44,21 @@ describe('cors.util', () => {
         allowLocalhostInDev: true,
       }),
     ).toBe(true);
+  });
+
+  it('allows deployed Vercel admin and hub panel origins', () => {
+    expect(
+      isOriginAllowed('https://vikram-admin.vercel.app', [], {
+        isProduction: true,
+      }),
+    ).toBe(true);
+    expect(
+      isOriginAllowed('https://vikram-admin-git-main.vercel.app', [], {
+        isProduction: true,
+      }),
+    ).toBe(true);
+    expect(
+      isOriginAllowed('https://evil.vercel.app', [], { isProduction: true }),
+    ).toBe(false);
   });
 });

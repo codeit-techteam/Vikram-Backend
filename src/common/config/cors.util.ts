@@ -1,3 +1,9 @@
+/** Browser origins that must work even if DigitalOcean CORS_ORIGINS is stale. */
+export const PRODUCTION_FRONTEND_ORIGINS = [
+  'https://vikram-admin.vercel.app',
+  'https://vikram-hub-panel-frontend.vercel.app',
+] as const;
+
 /**
  * Parse CORS_ORIGINS into a clean allow-list.
  * Never returns '*'; empty entries are dropped.
@@ -10,13 +16,15 @@ export function parseCorsOrigins(
     'http://localhost:8081',
   ],
 ): string[] {
-  if (raw == null || raw.trim() === '') {
-    return [...fallback];
-  }
-  return raw
-    .split(',')
-    .map((origin) => origin.trim())
-    .filter((origin) => origin.length > 0 && origin !== '*');
+  const parsed =
+    raw == null || raw.trim() === ''
+      ? [...fallback]
+      : raw
+          .split(',')
+          .map((origin) => origin.trim())
+          .filter((origin) => origin.length > 0 && origin !== '*');
+
+  return [...new Set([...parsed, ...PRODUCTION_FRONTEND_ORIGINS])];
 }
 
 export function isOriginAllowed(
@@ -27,7 +35,7 @@ export function isOriginAllowed(
   if (!origin) {
     return true;
   }
-  if (allowed.includes(origin)) {
+  if (allowed.includes(origin) || isVercelFrontendOrigin(origin)) {
     return true;
   }
   if (
@@ -40,4 +48,21 @@ export function isOriginAllowed(
     return true;
   }
   return false;
+}
+
+function isVercelFrontendOrigin(origin: string): boolean {
+  try {
+    const { protocol, hostname } = new URL(origin);
+    if (protocol !== 'https:' || !hostname.endsWith('.vercel.app')) {
+      return false;
+    }
+    return (
+      hostname === 'vikram-admin.vercel.app' ||
+      hostname.startsWith('vikram-admin-') ||
+      hostname === 'vikram-hub-panel-frontend.vercel.app' ||
+      hostname.startsWith('vikram-hub-panel-frontend-')
+    );
+  } catch {
+    return false;
+  }
 }
