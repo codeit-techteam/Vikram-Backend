@@ -6,7 +6,8 @@
   },
   "include": [
     "scripts/db-seed-if-empty.ts",
-    "scripts/bootstrap-hub-auth.ts"
+    "scripts/bootstrap-hub-auth.ts",
+    "scripts/restore-sql-from-url.ts"
   ],
   "exclude": ["node_modules", "dist", "test"]
 }

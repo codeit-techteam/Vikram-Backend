@@ -3,12 +3,23 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-LOCAL_URL="${LOCAL_DATABASE_URL:-postgresql://bajriwala:bajriwala@localhost:5432/bajriwala?schema=public}"
+# shellcheck source=lib/pg-tools.sh
+source "${ROOT}/scripts/lib/pg-tools.sh"
+
+LOCAL_URL="$(sanitize_pg_url "${LOCAL_DATABASE_URL:-postgresql://bajriwala:bajriwala@localhost:5432/bajriwala}")"
 DO_URL="${DO_DATABASE_URL:-}"
+if [[ -n "${DO_URL}" ]]; then
+  DO_URL="$(sanitize_pg_url "${DO_URL}")"
+fi
 
 audit_db() {
   local label="$1" url="$2"
   echo "=== ${label} ==="
+  if ! ensure_pg_tools; then
+    echo "  (psql not available — brew install libpq)"
+    echo ""
+    return
+  fi
   psql "${url}" -At -c "
     SELECT 'hub_users' || ': ' || COUNT(*) FROM hub_users WHERE deleted_at IS NULL
     UNION ALL SELECT 'hubs' || ': ' || COUNT(*) FROM hubs
@@ -29,7 +40,17 @@ audit_db() {
   echo ""
 }
 
-if psql "${LOCAL_URL}" -c "SELECT 1" >/dev/null 2>&1; then
+local_reachable() {
+  if ensure_pg_tools && psql "${LOCAL_URL}" -c "SELECT 1" >/dev/null 2>&1; then
+    return 0
+  fi
+  if local_postgres_container >/dev/null 2>&1; then
+    return 0
+  fi
+  return 1
+}
+
+if local_reachable; then
   audit_db "LOCAL DATABASE" "${LOCAL_URL}"
 else
   echo "=== LOCAL DATABASE ==="

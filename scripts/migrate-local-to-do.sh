@@ -1,27 +1,41 @@
 #!/usr/bin/env bash
 # Safe local → DigitalOcean PostgreSQL migration helper.
-# Requires: pg_dump, pg_restore, psql (brew install libpq)
 #
 # Usage:
 #   export DO_DATABASE_URL='postgresql://...'   # from DO dashboard (Trusted Sources required)
-#   ./scripts/migrate-local-to-do.sh
+#   npm run db:migrate:local-to-do
 #
+# Requires pg_dump/pg_restore (brew install libpq) or local Docker postgres for backup.
 # Never commit connection strings or passwords.
 
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=lib/pg-tools.sh
+source "${ROOT}/scripts/lib/pg-tools.sh"
+
 BACKUP_DIR="${ROOT}/backups"
 TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
-LOCAL_URL="${LOCAL_DATABASE_URL:-postgresql://bajriwala:bajriwala@localhost:5432/bajriwala?schema=public}"
+LOCAL_URL="$(sanitize_pg_url "${LOCAL_DATABASE_URL:-postgresql://bajriwala:bajriwala@localhost:5432/bajriwala}")"
 DO_URL="${DO_DATABASE_URL:-}"
+if [[ -n "${DO_URL}" ]]; then
+  DO_URL="$(sanitize_pg_url "${DO_URL}")"
+fi
+
+AUTO_YES=false
+SKIP_PROD_BACKUP=false
+for arg in "$@"; do
+  case "${arg}" in
+    --yes|-y) AUTO_YES=true ;;
+    --skip-prod-backup) SKIP_PROD_BACKUP=true ;;
+  esac
+done
 
 mkdir -p "${BACKUP_DIR}"
 
 echo "=== Phase 1: Local backup ==="
 LOCAL_DUMP="${BACKUP_DIR}/local-bajriwala-${TIMESTAMP}.dump"
-PGPASSWORD="${PGPASSWORD:-}" pg_dump -Fc -f "${LOCAL_DUMP}" "${LOCAL_URL}" 2>/dev/null || \
-  pg_dump -Fc -f "${LOCAL_DUMP}" "${LOCAL_URL}"
+pg_dump_url "${LOCAL_URL}" "${LOCAL_DUMP}"
 echo "Local backup: ${LOCAL_DUMP} ($(du -h "${LOCAL_DUMP}" | cut -f1))"
 
 if [[ -z "${DO_URL}" ]]; then
@@ -34,11 +48,30 @@ if [[ -z "${DO_URL}" ]]; then
   exit 0
 fi
 
-echo ""
-echo "=== Phase 2: Production backup (before restore) ==="
-DO_BACKUP="${BACKUP_DIR}/do-before-restore-${TIMESTAMP}.dump"
-pg_dump -Fc -f "${DO_BACKUP}" "${DO_URL}"
-echo "Production backup: ${DO_BACKUP} ($(du -h "${DO_BACKUP}" | cut -f1))"
+if ! ensure_pg_tools; then
+  echo ""
+  echo "DO_DATABASE_URL is set, but pg_restore/psql are required for remote migration."
+  echo "Install client tools:"
+  echo "  brew install libpq"
+  echo "  export PATH=\"/opt/homebrew/opt/libpq/bin:\$PATH\""
+  echo ""
+  echo "Local backup saved at: ${LOCAL_DUMP}"
+  exit 1
+fi
+
+wait_for_do_database "${DO_URL}" || exit 1
+
+if [[ "${SKIP_PROD_BACKUP}" == true ]]; then
+  echo ""
+  echo "=== Phase 2: Production backup (skipped) ==="
+  DO_BACKUP=""
+else
+  echo ""
+  echo "=== Phase 2: Production backup (before restore) ==="
+  DO_BACKUP="${BACKUP_DIR}/do-before-restore-${TIMESTAMP}.dump"
+  pg_dump_url "${DO_URL}" "${DO_BACKUP}"
+  echo "Production backup: ${DO_BACKUP} ($(du -h "${DO_BACKUP}" | cut -f1))"
+fi
 
 echo ""
 echo "=== Phase 3: Audit row counts ==="
@@ -59,14 +92,18 @@ audit "DO (before)" "${DO_URL}"
 
 echo ""
 echo "=== Phase 4: Restore local dump to DigitalOcean ==="
-echo "This will merge/replace data. Production backup saved at ${DO_BACKUP}"
-read -r -p "Proceed with pg_restore? [y/N] " confirm
-if [[ "${confirm}" != "y" && "${confirm}" != "Y" ]]; then
-  echo "Aborted."
-  exit 0
+if [[ -n "${DO_BACKUP}" ]]; then
+  echo "Production backup saved at ${DO_BACKUP}"
+fi
+if [[ "${AUTO_YES}" != true ]]; then
+  read -r -p "Proceed with pg_restore? [y/N] " confirm
+  if [[ "${confirm}" != "y" && "${confirm}" != "Y" ]]; then
+    echo "Aborted."
+    exit 0
+  fi
 fi
 
-pg_restore --clean --if-exists --no-owner --no-acl -d "${DO_URL}" "${LOCAL_DUMP}"
+pg_restore_url "${DO_URL}" "${LOCAL_DUMP}"
 
 echo ""
 echo "=== Phase 5: Apply pending Prisma migrations ==="
