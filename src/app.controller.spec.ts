@@ -15,8 +15,13 @@ describe('AppController', () => {
   });
 
   describe('root', () => {
-    it('should return "Hello World!"', () => {
-      expect(appController.getHello()).toBe('Hello World!');
+    it('should return a live landing payload', () => {
+      expect(appController.getRoot()).toEqual({
+        name: 'Bajriwala ERP API',
+        status: 'live',
+        health: '/health',
+        docs: '/api/docs',
+      });
     });
   });
 });
