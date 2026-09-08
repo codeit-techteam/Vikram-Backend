@@ -7,8 +7,10 @@ import {
   IsInt,
   IsOptional,
   IsString,
+  IsUUID,
   Min,
   MinLength,
+  ValidateIf,
 } from 'class-validator';
 import { AdminRole } from '../../../../generated/prisma/client';
 
@@ -87,9 +89,19 @@ export class CreateAdminUserDto {
     example: 'Rajesh Kumar',
     description: 'Full name of the admin user',
   })
+  @IsOptional()
   @IsString()
   @MinLength(2)
-  name: string;
+  name?: string;
+
+  @ApiPropertyOptional({
+    example: 'Rajesh Kumar',
+    description: 'Alias for name (admin frontend sends fullName)',
+  })
+  @IsOptional()
+  @IsString()
+  @MinLength(2)
+  fullName?: string;
 
   @ApiProperty({ example: 'rajesh.kumar@bajriwala.in' })
   @IsEmail()
@@ -108,6 +120,11 @@ export class CreateAdminUserDto {
   @IsString()
   @MinLength(6)
   password: string;
+
+  @ApiPropertyOptional({ description: 'Assigned hub UUID (executives)' })
+  @IsOptional()
+  @IsUUID()
+  hubId?: string;
 }
 
 export class UpdateAdminUserDto {
@@ -116,6 +133,12 @@ export class UpdateAdminUserDto {
   @IsString()
   @MinLength(2)
   name?: string;
+
+  @ApiPropertyOptional({ example: 'Rajesh Kumar' })
+  @IsOptional()
+  @IsString()
+  @MinLength(2)
+  fullName?: string;
 
   @ApiPropertyOptional({ example: 'rajesh.kumar@bajriwala.in' })
   @IsOptional()
@@ -127,6 +150,12 @@ export class UpdateAdminUserDto {
   @IsString()
   @MinLength(10)
   phone?: string;
+
+  @ApiPropertyOptional({ description: 'Assigned hub UUID or null to clear' })
+  @IsOptional()
+  @ValidateIf((_, value) => value !== null)
+  @IsUUID()
+  hubId?: string | null;
 }
 
 export class UpdateAdminUserStatusDto {
@@ -190,6 +219,20 @@ export class AdminUserQueryDto {
   status?: AdminUserDisplayStatus;
 
   @ApiPropertyOptional({
+    description: 'Filter by assigned hub UUID',
+  })
+  @IsOptional()
+  @IsUUID()
+  hubId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Filter by hub state / region',
+  })
+  @IsOptional()
+  @IsString()
+  region?: string;
+
+  @ApiPropertyOptional({
     description: 'Filter users created on or after this date (ISO 8601)',
     example: '2026-07-01',
   })
@@ -226,4 +269,12 @@ export class ResetAdminUserPasswordResponseDto {
 
   @ApiProperty({ example: 'Admin@x7k2m9' })
   temporaryPassword!: string;
+}
+
+export class AssignAdminUserHubDto {
+  @ApiPropertyOptional({ description: 'Hub UUID or null to clear' })
+  @IsOptional()
+  @ValidateIf((_, value) => value !== null)
+  @IsUUID()
+  hubId?: string | null;
 }

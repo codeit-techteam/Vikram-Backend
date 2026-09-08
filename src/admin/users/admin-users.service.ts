@@ -8,9 +8,11 @@ import {
 import * as bcrypt from 'bcrypt';
 import { AdminRole, Prisma } from '../../../generated/prisma/client';
 import { PrismaService } from '../../common/database/prisma.service';
+import { startOfDayIst } from '../../hub/common/hub-date.util';
 import { AuditService } from '../audit/audit.service';
 import type {
   AdminUserQueryDto,
+  AssignAdminUserHubDto,
   ChangeAdminUserRoleDto,
   CreateAdminUserDto,
   ResetAdminUserPasswordDto,
@@ -52,6 +54,13 @@ export class AdminUsersService {
       ];
     }
 
+    if (query.hubId) where.assignedHubId = query.hubId;
+    if (query.region) {
+      where.assignedHub = {
+        state: { equals: query.region, mode: 'insensitive' },
+      };
+    }
+
     if (query.createdFrom || query.createdTo) {
       where.createdAt = {};
       if (query.createdFrom) {
@@ -71,32 +80,207 @@ export class AdminUsersService {
         take: limit,
         orderBy: { createdAt: 'desc' },
         include: {
+          assignedHub: {
+            select: { id: true, name: true, city: true, state: true, hubType: true },
+          },
           _count: { select: { assignedCustomers: true } },
         },
       }),
       this.prisma.adminUser.count({ where }),
     ]);
 
+    const userIds = rows.map((row) => row.id);
+    const startOfToday = startOfDayIst();
+    const [todayOrders, totalOrders, todayCalls] = userIds.length
+      ? await Promise.all([
+          this.prisma.order.groupBy({
+            by: ['createdByAdminId'],
+            where: {
+              createdByAdminId: { in: userIds },
+              deletedAt: null,
+              createdAt: { gte: startOfToday },
+            },
+            _count: { _all: true },
+          }),
+          this.prisma.order.groupBy({
+            by: ['createdByAdminId'],
+            where: {
+              createdByAdminId: { in: userIds },
+              deletedAt: null,
+            },
+            _count: { _all: true },
+          }),
+          this.prisma.supportTicket.groupBy({
+            by: ['assignedExecutiveId'],
+            where: {
+              assignedExecutiveId: { in: userIds },
+              deletedAt: null,
+              updatedAt: { gte: startOfToday },
+            },
+            _count: { _all: true },
+          }),
+        ])
+      : [[], [], []];
+
+    const todayOrderMap = new Map(
+      todayOrders.map((row) => [row.createdByAdminId, row._count._all]),
+    );
+    const totalOrderMap = new Map(
+      totalOrders.map((row) => [row.createdByAdminId, row._count._all]),
+    );
+    const todayCallMap = new Map(
+      todayCalls.map((row) => [row.assignedExecutiveId, row._count._all]),
+    );
+
     return {
       data: rows.map((row) =>
-        this.mapUser(row, row._count?.assignedCustomers ?? 0),
+        this.mapUser(row, {
+          assignedCustomers: row._count?.assignedCustomers ?? 0,
+          todayOrders: todayOrderMap.get(row.id) ?? 0,
+          totalOrders: totalOrderMap.get(row.id) ?? 0,
+          todayCalls: todayCallMap.get(row.id) ?? 0,
+        }),
       ),
-      meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
+      meta: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 },
     };
+  }
+
+  async getStats(role?: string) {
+    const parsedRole = Object.values(AdminRole).includes(role as AdminRole)
+      ? (role as AdminRole)
+      : undefined;
+    const startOfToday = startOfDayIst();
+    const monthStart = new Date(startOfToday);
+    monthStart.setDate(1);
+
+    const baseWhere: Prisma.AdminUserWhereInput = {
+      deletedAt: null,
+      ...(parsedRole ? { role: parsedRole } : {}),
+    };
+
+    const [total, available, joinedThisMonth, ordersCreatedToday, callsAssisted] =
+      await Promise.all([
+        this.prisma.adminUser.count({ where: baseWhere }),
+        this.prisma.adminUser.count({
+          where: { ...baseWhere, isActive: true },
+        }),
+        this.prisma.adminUser.count({
+          where: { ...baseWhere, createdAt: { gte: monthStart } },
+        }),
+        this.prisma.order.count({
+          where: {
+            deletedAt: null,
+            createdAt: { gte: startOfToday },
+            orderSource: 'CUSTOMER_EXECUTIVE',
+          },
+        }),
+        this.prisma.supportTicket.count({
+          where: {
+            deletedAt: null,
+            updatedAt: { gte: startOfToday },
+            assignedExecutiveId: { not: null },
+            ...(parsedRole
+              ? {
+                  assignedExecutive: { role: parsedRole, deletedAt: null },
+                }
+              : {}),
+          },
+        }),
+      ]);
+
+    return {
+      totalExecutives: total,
+      availableToday: available,
+      ordersCreatedToday,
+      customerCallsAssisted: callsAssisted,
+      joinedThisMonth,
+    };
+  }
+
+  async exportCsv(query: AdminUserQueryDto): Promise<string> {
+    const result = await this.findAll({ ...query, page: 1, limit: 2000 });
+    const header = [
+      'ID',
+      'Name',
+      'Email',
+      'Phone',
+      'Role',
+      'Status',
+      'Hub',
+      'Region',
+      'Assigned Customers',
+      'Orders Today',
+      'Total Orders',
+      'Created',
+    ];
+    const lines = result.data.map((row) =>
+      [
+        row.id,
+        row.fullName,
+        row.email,
+        row.phone ?? '',
+        row.role,
+        row.status,
+        row.assignedHubName ?? '',
+        row.assignedHubState ?? '',
+        row.assignedCustomers,
+        row.todayOrders,
+        row.totalOrders,
+        row.createdAt,
+      ]
+        .map((cell) => `"${String(cell ?? '').replace(/"/g, '""')}"`)
+        .join(','),
+    );
+    return [header.map((h) => `"${h}"`).join(','), ...lines].join('\n');
   }
 
   async findOne(id: string) {
     const user = await this.prisma.adminUser.findFirst({
       where: { id, deletedAt: null },
       include: {
+        assignedHub: {
+          select: { id: true, name: true, city: true, state: true, hubType: true },
+        },
         _count: { select: { assignedCustomers: true } },
       },
     });
     if (!user) throw new NotFoundException('Admin user not found');
-    return this.mapUser(user, user._count.assignedCustomers);
+
+    const startOfToday = startOfDayIst();
+    const [todayOrders, totalOrders, todayCalls] = await Promise.all([
+      this.prisma.order.count({
+        where: {
+          createdByAdminId: id,
+          deletedAt: null,
+          createdAt: { gte: startOfToday },
+        },
+      }),
+      this.prisma.order.count({
+        where: { createdByAdminId: id, deletedAt: null },
+      }),
+      this.prisma.supportTicket.count({
+        where: {
+          assignedExecutiveId: id,
+          deletedAt: null,
+          updatedAt: { gte: startOfToday },
+        },
+      }),
+    ]);
+
+    return this.mapUser(user, {
+      assignedCustomers: user._count.assignedCustomers,
+      todayOrders,
+      totalOrders,
+      todayCalls,
+    });
   }
 
   async create(dto: CreateAdminUserDto, actorId: string, actorEmail: string) {
+    const fullName = (dto.name ?? dto.fullName ?? '').trim();
+    if (fullName.length < 2) {
+      throw new BadRequestException('Name is required');
+    }
+
     const email = dto.email.toLowerCase();
 
     const existing = await this.prisma.adminUser.findFirst({
@@ -109,15 +293,25 @@ export class AdminUsersService {
       throw new ConflictException('Email already in use');
     }
 
+    if (dto.hubId) {
+      await this.assertHub(dto.hubId);
+    }
+
     const passwordHash = await bcrypt.hash(dto.password, 10);
     const created = await this.prisma.adminUser.create({
       data: {
-        fullName: dto.name.trim(),
+        fullName,
         email,
         phone: dto.phone,
         role: dto.role,
         passwordHash,
         isActive: true,
+        assignedHubId: dto.hubId ?? null,
+      },
+      include: {
+        assignedHub: {
+          select: { id: true, name: true, city: true, state: true, hubType: true },
+        },
       },
     });
 
@@ -132,6 +326,7 @@ export class AdminUsersService {
         email: created.email,
         phone: created.phone,
         role: created.role,
+        assignedHubId: created.assignedHubId,
       },
     });
 
@@ -160,12 +355,24 @@ export class AdminUsersService {
       }
     }
 
+    if (dto.hubId) {
+      await this.assertHub(dto.hubId);
+    }
+
     const updated = await this.prisma.adminUser.update({
       where: { id },
       data: {
-        ...(dto.name !== undefined && { fullName: dto.name.trim() }),
+        ...((dto.name ?? dto.fullName) !== undefined && {
+          fullName: (dto.name ?? dto.fullName ?? '').trim(),
+        }),
         ...(dto.email !== undefined && { email: dto.email.toLowerCase() }),
         ...(dto.phone !== undefined && { phone: dto.phone }),
+        ...(dto.hubId !== undefined && { assignedHubId: dto.hubId }),
+      },
+      include: {
+        assignedHub: {
+          select: { id: true, name: true, city: true, state: true, hubType: true },
+        },
       },
     });
 
@@ -328,6 +535,47 @@ export class AdminUsersService {
     return this.mapUser(deleted);
   }
 
+  async assignHub(
+    id: string,
+    dto: AssignAdminUserHubDto,
+    actorId: string,
+    actorEmail: string,
+  ) {
+    const existing = await this.getUserOrThrow(id);
+    if (dto.hubId) {
+      await this.assertHub(dto.hubId);
+    }
+
+    const updated = await this.prisma.adminUser.update({
+      where: { id },
+      data: { assignedHubId: dto.hubId ?? null },
+      include: {
+        assignedHub: {
+          select: { id: true, name: true, city: true, state: true, hubType: true },
+        },
+      },
+    });
+
+    await this.auditService.log({
+      adminUserId: actorId,
+      adminEmail: actorEmail,
+      action: 'UPDATE',
+      resource: 'AdminUserAssignment',
+      resourceId: id,
+      oldValue: { assignedHubId: existing.assignedHubId },
+      newValue: { assignedHubId: dto.hubId ?? null },
+    });
+
+    return this.mapUser(updated);
+  }
+
+  private async assertHub(hubId: string) {
+    const hub = await this.prisma.hub.findFirst({
+      where: { id: hubId, deletedAt: null },
+    });
+    if (!hub) throw new BadRequestException('Hub not found');
+  }
+
   private async getUserOrThrow(id: string) {
     const user = await this.prisma.adminUser.findFirst({
       where: { id, deletedAt: null },
@@ -383,11 +631,24 @@ export class AdminUsersService {
       phone: string | null;
       role: AdminRole;
       isActive: boolean;
+      assignedHubId?: string | null;
       lastLoginAt: Date | null;
       createdAt: Date;
       updatedAt: Date;
+      assignedHub?: {
+        id: string;
+        name: string;
+        city: string;
+        state: string;
+        hubType?: string | null;
+      } | null;
     },
-    assignedCustomers = 0,
+    extras: {
+      assignedCustomers?: number;
+      todayOrders?: number;
+      totalOrders?: number;
+      todayCalls?: number;
+    } = {},
   ) {
     return {
       id: user.id,
@@ -403,7 +664,15 @@ export class AdminUsersService {
       lastLoginAt: user.lastLoginAt,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
-      assignedCustomers,
+      assignedHubId: user.assignedHubId ?? user.assignedHub?.id ?? null,
+      assignedHubName: user.assignedHub?.name ?? null,
+      assignedHubCity: user.assignedHub?.city ?? null,
+      assignedHubState: user.assignedHub?.state ?? null,
+      assignedHubType: user.assignedHub?.hubType ?? null,
+      assignedCustomers: extras.assignedCustomers ?? 0,
+      todayOrders: extras.todayOrders ?? 0,
+      totalOrders: extras.totalOrders ?? 0,
+      todayCalls: extras.todayCalls ?? 0,
     };
   }
 }

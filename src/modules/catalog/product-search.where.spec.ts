@@ -46,4 +46,40 @@ describe('buildProductSearchClause', () => {
       }),
     );
   });
+
+  it('matches variant values, units, and SKUs for queries like 50 kg', () => {
+    const clause = buildProductSearchClause('50 kg');
+    expect(clause).toEqual(
+      expect.objectContaining({
+        AND: [
+          {
+            OR: expect.arrayContaining([
+              {
+                variants: {
+                  some: expect.objectContaining({
+                    OR: expect.arrayContaining([
+                      { value: { contains: '50', mode: 'insensitive' } },
+                    ]),
+                  }),
+                },
+              },
+            ]),
+          },
+          {
+            OR: expect.arrayContaining([
+              {
+                variants: {
+                  some: expect.objectContaining({
+                    OR: expect.arrayContaining([
+                      { sizeUnit: { contains: 'kg', mode: 'insensitive' } },
+                    ]),
+                  }),
+                },
+              },
+            ]),
+          },
+        ],
+      }),
+    );
+  });
 });

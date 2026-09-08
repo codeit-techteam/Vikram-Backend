@@ -3,11 +3,13 @@ import {
   Controller,
   Delete,
   Get,
+  Header,
   Param,
   Patch,
   Post,
   Put,
   Query,
+  StreamableFile,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
@@ -20,7 +22,10 @@ import { ROLE_GROUPS } from '../constants/admin-rbac.constants';
 import { AdminCustomersService } from './admin-customers.service';
 import {
   AdminAssignCustomerDto,
+  AdminBulkAssignDto,
+  AdminBulkStatusDto,
   AdminCustomerQueryDto,
+  AdminInviteCustomerDto,
   AdminSetStatusDto,
   AdminUpdateCustomerDto,
   AdminUpgradeMembershipDto,
@@ -59,6 +64,89 @@ export class AdminCustomersController {
   async stats() {
     const data = await this.customersService.getStats();
     return { success: true, message: 'Customer stats fetched', data };
+  }
+
+  @Get('filter-options')
+  @AdminRoles(...ROLE_GROUPS.CUSTOMER_EXECUTIVE)
+  @ApiOperation({ summary: 'Hubs, executives, and states for customer filters' })
+  async filterOptions() {
+    const data = await this.customersService.getFilterOptions();
+    return { success: true, message: 'Customer filter options fetched', data };
+  }
+
+  @Get('export')
+  @AdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
+  @Header('Content-Type', 'text/csv')
+  @ApiOperation({ summary: 'Export customers CSV for current filters or selected IDs' })
+  async export(@Query() query: AdminCustomerQueryDto) {
+    const csv = await this.customersService.exportCsv(query);
+    return new StreamableFile(Buffer.from(csv, 'utf-8'), {
+      type: 'text/csv',
+      disposition: `attachment; filename="customers-${Date.now()}.csv"`,
+    });
+  }
+
+  @Post('invite')
+  @AdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
+  @ApiOperation({
+    summary: 'Invite a customer (creates account; customer logs in via OTP)',
+  })
+  async invite(
+    @Body() dto: AdminInviteCustomerDto,
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+  ) {
+    const data = await this.customersService.invite(dto, admin.id);
+    await this.auditService.log({
+      adminUserId: admin.id,
+      adminEmail: admin.email,
+      action: 'CREATE',
+      resource: 'Customer',
+      resourceId: data.id,
+      newValue: { phone: dto.phone, fullName: dto.fullName },
+    });
+    return { success: true, message: 'Customer invited', data };
+  }
+
+  @Post('bulk/status')
+  @AdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
+  @ApiOperation({ summary: 'Bulk activate, deactivate, or block customers' })
+  async bulkStatus(
+    @Body() dto: AdminBulkStatusDto,
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+  ) {
+    const data = await this.customersService.bulkSetStatus(dto);
+    await this.auditService.log({
+      adminUserId: admin.id,
+      adminEmail: admin.email,
+      action: 'UPDATE',
+      resource: 'CustomerStatus',
+      resourceId: dto.ids.join(','),
+      newValue: { status: dto.status, count: data.updated },
+    });
+    return { success: true, message: 'Customer statuses updated', data };
+  }
+
+  @Post('bulk/assignment')
+  @AdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
+  @ApiOperation({ summary: 'Bulk assign hub and/or customer executive' })
+  async bulkAssign(
+    @Body() dto: AdminBulkAssignDto,
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+  ) {
+    const data = await this.customersService.bulkAssign(dto, admin.id);
+    await this.auditService.log({
+      adminUserId: admin.id,
+      adminEmail: admin.email,
+      action: 'UPDATE',
+      resource: 'CustomerAssignment',
+      resourceId: dto.ids.join(','),
+      newValue: {
+        hubId: dto.hubId,
+        executiveId: dto.executiveId,
+        count: data.updated,
+      },
+    });
+    return { success: true, message: 'Customer assignments updated', data };
   }
 
   @Get(':id')

@@ -228,20 +228,21 @@ export class CustomerAuthService {
 
     if (deviceInfo.fcmToken) {
       await this.prisma.notificationToken.upsert({
-        where: {
-          customerId_token: {
-            customerId,
-            token: deviceInfo.fcmToken,
-          },
-        },
+        where: { token: deviceInfo.fcmToken },
         create: {
           customerId,
           token: deviceInfo.fcmToken,
           platform: deviceInfo.platform ?? DevicePlatform.ANDROID,
+          deviceId: deviceInfo.deviceId,
+          isActive: true,
+          lastSeenAt: new Date(),
         },
         update: {
+          customerId,
           isActive: true,
           platform: deviceInfo.platform,
+          deviceId: deviceInfo.deviceId,
+          lastSeenAt: new Date(),
         },
       });
     }

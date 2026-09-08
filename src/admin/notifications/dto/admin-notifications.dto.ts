@@ -1,10 +1,10 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsOptional, IsBoolean, IsInt, Min } from 'class-validator';
+import { IsString, IsOptional, IsBoolean, IsInt, Min, MaxLength } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateNotificationDto {
-  @ApiProperty() @IsString() title: string;
-  @ApiProperty() @IsString() body: string;
+  @ApiProperty() @IsString() @MaxLength(50) title: string;
+  @ApiProperty() @IsString() @MaxLength(150) body: string;
   @ApiProperty() @IsString() type: string;
   @ApiProperty() @IsString() label: string;
   @ApiPropertyOptional() @IsOptional() @IsString() customerId?: string;
@@ -14,8 +14,8 @@ export class CreateNotificationDto {
 }
 
 export class BroadcastNotificationDto {
-  @ApiProperty() @IsString() title: string;
-  @ApiProperty() @IsString() body: string;
+  @ApiProperty() @IsString() @MaxLength(50) title: string;
+  @ApiProperty() @IsString() @MaxLength(150) body: string;
   @ApiProperty() @IsString() type: string;
   @ApiProperty() @IsString() label: string;
   @ApiPropertyOptional() @IsOptional() @IsString() actionLabel?: string;
@@ -23,8 +23,8 @@ export class BroadcastNotificationDto {
 }
 
 export class UpdateNotificationDto {
-  @ApiPropertyOptional() @IsOptional() @IsString() title?: string;
-  @ApiPropertyOptional() @IsOptional() @IsString() body?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(50) title?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(150) body?: string;
 }
 
 export class NotificationQueryDto {

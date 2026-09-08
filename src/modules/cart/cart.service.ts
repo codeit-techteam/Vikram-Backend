@@ -279,16 +279,24 @@ export class CartService {
     if (variantId) {
       const match = variants.find((v) => v.id === variantId);
       if (!match) {
-        throw new BadRequestException('Invalid variant for this product');
+        throw new BadRequestException(
+          'Selected variant is no longer available.',
+        );
+      }
+      if (!match.isActive) {
+        throw new BadRequestException(
+          'This variant is currently unavailable.',
+        );
       }
       if (!match.inStock) {
-        throw new BadRequestException('Selected variant is out of stock');
+        throw new BadRequestException('This variant is currently unavailable.');
       }
       return match;
     }
 
-    if (variants.length === 1) {
-      return variants[0];
+    const sellable = variants.filter((v) => v.isActive && v.inStock);
+    if (sellable.length === 1) {
+      return sellable[0];
     }
 
     if (requireWhenMulti && (hasVariants || variants.length > 1)) {
@@ -297,7 +305,7 @@ export class CartService {
       );
     }
 
-    return variants[0] ?? null;
+    return sellable[0] ?? variants[0] ?? null;
   }
 
   private resolveUnitPrice(
@@ -363,8 +371,20 @@ export class CartService {
 
   async getAvailableStock(
     productId: string,
-    _variantId?: string,
+    variantId?: string,
   ): Promise<number> {
+    if (variantId) {
+      const variant = await this.prisma.productVariant.findFirst({
+        where: { id: variantId, productId, deletedAt: null },
+      });
+      if (!variant || !variant.isActive) return 0;
+      // Admin-managed variant stock is the source of truth once a quantity is set
+      // (including explicit 0). Legacy rows with stock=0 + inStock share hub pool.
+      if (variant.stock > 0 || !variant.inStock) {
+        return Math.max(0, variant.stock);
+      }
+    }
+
     const aggregates = await this.prisma.hubInventory.aggregate({
       where: {
         productId,
@@ -393,11 +413,11 @@ export class CartService {
       throw new BadRequestException(`Maximum order quantity is ${maxOrder}`);
     }
     if (availableStock <= 0) {
-      throw new BadRequestException('Product is out of stock');
+      throw new BadRequestException('This product is currently unavailable.');
     }
     if (quantity > availableStock) {
       throw new BadRequestException(
-        `Quantity exceeds available stock (${availableStock})`,
+        `Only ${availableStock} units are available.`,
       );
     }
   }
@@ -420,7 +440,15 @@ export class CartService {
                 variants: {
                   where: { deletedAt: null },
                   orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
-                  select: { id: true, label: true, displayUnit: true },
+                  select: {
+                    id: true,
+                    label: true,
+                    displayUnit: true,
+                    sizeUnit: true,
+                    sku: true,
+                    mrp: true,
+                    imageUrl: true,
+                  },
                 },
               },
             },
@@ -444,9 +472,11 @@ export class CartService {
         item.product.spec ??
         null;
       const mrp =
-        item.product.mrp != null
-          ? decimalToNumber(item.product.mrp)
-          : decimalToNumber(item.product.retailPrice);
+        matchedVariant?.mrp != null
+          ? decimalToNumber(matchedVariant.mrp)
+          : item.product.mrp != null
+            ? decimalToNumber(item.product.mrp)
+            : decimalToNumber(item.product.retailPrice);
 
       return {
         id: item.id,
@@ -465,16 +495,22 @@ export class CartService {
           slug: item.product.slug,
           name: item.product.name,
           brand: item.product.brand,
-          sku: item.product.sku,
+          sku: matchedVariant?.sku ?? item.product.sku,
           category: item.product.category?.name ?? null,
           productType: item.product.productType ?? null,
           grade: item.product.grade ?? null,
           variant: variantLabel,
           mrp,
-          unit: normalizeCatalogUnit(item.product.unit) || item.product.unit,
-          thumbnailUrl: pickPreferredMediaUrl(
-            item.product.images.map((img) => img.url),
-          ),
+          unit:
+            matchedVariant?.sizeUnit ||
+            matchedVariant?.displayUnit ||
+            normalizeCatalogUnit(item.product.unit) ||
+            item.product.unit,
+          thumbnailUrl:
+            matchedVariant?.imageUrl ||
+            pickPreferredMediaUrl(
+              item.product.images.map((img) => img.url),
+            ),
           maxOrder: item.product.maxOrder,
           minOrder: item.product.minOrder,
         },

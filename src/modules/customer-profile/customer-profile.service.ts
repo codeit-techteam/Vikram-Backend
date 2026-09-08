@@ -159,7 +159,6 @@ export class CustomerProfileService {
                   variants: {
                     where: { deletedAt: null },
                     orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
-                    take: 1,
                     select: { id: true, label: true, displayUnit: true },
                   },
                 },
@@ -185,17 +184,20 @@ export class CustomerProfileService {
           const productName = item.name || product?.name || 'Product';
           const productImage =
             item.productImage ?? product?.images?.[0]?.url ?? null;
+          const matchedVariant = item.variantId
+            ? product?.variants?.find((row) => row.id === item.variantId)
+            : undefined;
           const variant =
             item.variant ??
-            product?.variants?.[0]?.label ??
-            product?.variants?.[0]?.displayUnit ??
+            matchedVariant?.label ??
+            matchedVariant?.displayUnit ??
             product?.spec ??
             null;
           const unitPrice = decimalToNumber(item.unitPrice);
           return {
             id: item.id,
             productId: item.productId,
-            variantId: item.variantId ?? product?.variants?.[0]?.id ?? null,
+            variantId: item.variantId ?? matchedVariant?.id ?? null,
             name: productName,
             productName,
             productImage,

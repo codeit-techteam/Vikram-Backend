@@ -11,12 +11,17 @@ import {
 
 export interface SeedVariant {
   label: string;
+  attribute?: string;
+  value?: string;
   displayUnit?: string;
   size?: number;
   sizeUnit?: string;
   count?: number;
+  sku?: string;
   price: number;
+  mrp?: number | null;
   bulkPrice?: number | null;
+  stock?: number;
   inStock?: boolean;
 }
 
@@ -625,10 +630,10 @@ export const SEED_PRODUCTS: SeedProduct[] = [
     isBestSelling: true,
     displayOrder: 2,
     variants: [
-      { label: '250 ml', size: 250, sizeUnit: 'ml', price: 150 },
-      { label: '500 ml', size: 500, sizeUnit: 'ml', price: 280 },
-      { label: '1 L', size: 1000, sizeUnit: 'ml', price: 520 },
-      { label: '4 L', size: 4000, sizeUnit: 'ml', price: 1750 },
+      { label: '250 ml', attribute: 'Size', value: '250', size: 250, sizeUnit: 'ml', sku: 'FEV-SH-250', price: 150, mrp: 173, stock: 100 },
+      { label: '500 ml', attribute: 'Size', value: '500', size: 500, sizeUnit: 'ml', sku: 'FEV-SH-500', price: 280, mrp: 320, stock: 50 },
+      { label: '1 L', attribute: 'Size', value: '1', size: 1, sizeUnit: 'L', sku: 'FEV-SH-1L', price: 520, mrp: 600, stock: 30 },
+      { label: '4 L', attribute: 'Size', value: '4', size: 4, sizeUnit: 'L', sku: 'FEV-SH-4L', price: 1750, mrp: 2000, stock: 10 },
     ],
   },
   {

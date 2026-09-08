@@ -46,6 +46,17 @@ export class AdminAuthService {
   ): Promise<AdminLoginResponseDto> {
     const admin = await this.prisma.adminUser.findFirst({
       where: { email: email.toLowerCase(), deletedAt: null, isActive: true },
+      include: {
+        assignedHub: {
+          select: {
+            id: true,
+            name: true,
+            code: true,
+            city: true,
+            state: true,
+          },
+        },
+      },
     });
 
     if (!admin) {
@@ -123,6 +134,17 @@ export class AdminAuthService {
   async getMe(adminId: string): Promise<AdminMeDto> {
     const admin = await this.prisma.adminUser.findFirst({
       where: { id: adminId, deletedAt: null },
+      include: {
+        assignedHub: {
+          select: {
+            id: true,
+            name: true,
+            code: true,
+            city: true,
+            state: true,
+          },
+        },
+      },
     });
 
     if (!admin) {
@@ -184,7 +206,17 @@ export class AdminAuthService {
     email: string;
     fullName: string;
     role: string;
+    phone?: string | null;
+    isActive?: boolean;
     lastLoginAt: Date | null;
+    assignedHubId?: string | null;
+    assignedHub?: {
+      id: string;
+      name: string;
+      code: string;
+      city: string;
+      state: string;
+    } | null;
   }): AdminMeDto {
     const role = admin.role;
     const permissions = getPermissionsForRole(role);
@@ -199,6 +231,10 @@ export class AdminAuthService {
       permissions,
       sidebar,
       lastLoginAt: admin.lastLoginAt,
+      phone: admin.phone ?? null,
+      isActive: admin.isActive ?? true,
+      assignedHubId: admin.assignedHubId ?? null,
+      assignedHub: admin.assignedHub ?? null,
     };
   }
 

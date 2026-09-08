@@ -53,6 +53,8 @@ import { AdminLoyaltyService } from './loyalty/admin-loyalty.service';
 // Products
 import { AdminProductsController } from './products/admin-products.controller';
 import { AdminProductsService } from './products/admin-products.service';
+import { AdminProductVariantsController } from './products/admin-product-variants.controller';
+import { AdminProductVariantsService } from './products/admin-product-variants.service';
 
 // Categories
 import { AdminCategoriesController } from './categories/admin-categories.controller';
@@ -107,6 +109,7 @@ import { AdminOrdersService } from './orders/admin-orders.service';
 // Notifications
 import { AdminNotificationsController } from './notifications/admin-notifications.controller';
 import { AdminNotificationsService } from './notifications/admin-notifications.service';
+import { AdminPushCampaignsService } from './notifications/admin-push-campaigns.service';
 
 // Offers
 import { AdminOffersController } from './offers/admin-offers.controller';
@@ -155,6 +158,7 @@ import { OtpModule } from '../auth/otp/otp.module';
 import { CartModule } from '../modules/cart/cart.module';
 import { OrdersModule } from '../modules/orders/orders.module';
 import { NotificationModule } from '../modules/notification/notification.module';
+import { PushModule } from '../modules/push/push.module';
 import { SupportModule } from '../modules/support/support.module';
 import { InvoiceModule } from '../modules/invoice/invoice.module';
 import { HubModule } from '../hub/hub.module';
@@ -169,6 +173,7 @@ import { DeliveryModule } from '../modules/delivery/delivery.module';
     CartModule,
     OrdersModule,
     NotificationModule,
+    PushModule,
     SupportModule,
     InvoiceModule,
     HubModule,
@@ -198,6 +203,7 @@ import { DeliveryModule } from '../modules/delivery/delivery.module';
     AdminHubsController,
     AdminLoyaltyController,
     AdminProductsController,
+    AdminProductVariantsController,
     AdminCategoriesController,
     AdminBannersController,
     AdminDeliveryPromotionsController,
@@ -247,6 +253,7 @@ import { DeliveryModule } from '../modules/delivery/delivery.module';
     AdminMembershipService,
     AdminLoyaltyService,
     AdminProductsService,
+    AdminProductVariantsService,
     AdminCategoriesService,
     AdminBannersService,
     AdminDeliveryPromotionsService,
@@ -260,6 +267,7 @@ import { DeliveryModule } from '../modules/delivery/delivery.module';
     AdminEmergencyService,
     AdminOrdersService,
     AdminNotificationsService,
+    AdminPushCampaignsService,
     AdminOffersService,
     AdminCmsService,
     AdminSearchService,

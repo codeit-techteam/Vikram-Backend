@@ -32,6 +32,14 @@ import {
   normalizeCatalogUnit,
 } from '../catalog/catalog-display';
 import { buildProductSearchClause } from '../catalog/product-search.where';
+import { calculateDiscount } from '../../common/shopping/pricing.util';
+import {
+  customerDescriptionLooksUnsafe,
+  htmlToPlainText,
+  parseCatalogCommerceMeta,
+} from '../../common/shopping/catalog-commerce-meta.util';
+import { hydrateMissingVariantsFromCommerceMeta } from '../../common/shopping/product-variant-hydrate';
+import { normalizeAttributesMap } from '../../common/shopping/product-variant.constants';
 import { ProductQueryDto } from './dto/product-query.dto';
 import {
   BulkPricingTierDto,
@@ -56,7 +64,7 @@ const PRODUCT_LIST_INCLUDE = {
     take: 6,
   },
   variants: {
-    where: { deletedAt: null },
+    where: { deletedAt: null, isActive: true },
     orderBy: { displayOrder: 'asc' as const },
   },
 } satisfies Prisma.ProductInclude;
@@ -76,7 +84,7 @@ const PRODUCT_DETAIL_INCLUDE = {
     orderBy: [{ isPrimary: 'desc' as const }, { displayOrder: 'asc' as const }],
   },
   variants: {
-    where: { deletedAt: null },
+    where: { deletedAt: null, isActive: true },
     orderBy: { displayOrder: 'asc' as const },
   },
 } satisfies Prisma.ProductInclude;
@@ -122,7 +130,7 @@ export class ProductService {
         );
 
     const cached = await this.cache.get<ProductListResponseDto>(cacheKey);
-    if (cached) return cached;
+    if (cached && !this.isStaleCustomerCatalog(cached.items)) return cached;
 
     const where = this.buildWhereClause(query);
     const orderBy = this.buildOrderBy(query);
@@ -148,8 +156,10 @@ export class ProductService {
     );
     const etaMap = await this.catalogEtaMap(products, distanceKm);
 
+    const hydrated = await this.hydrateCatalogProducts(products);
+
     const result: ProductListResponseDto = {
-      items: products.map((p) =>
+      items: hydrated.map((p) =>
         this.mapProduct(
           p,
           true,
@@ -198,7 +208,7 @@ export class ProductService {
   async findBySlug(slug: string): Promise<ProductResponseDto> {
     const cacheKey = CACHE_KEYS.PRODUCT(slug);
     const cached = await this.cache.get<ProductResponseDto>(cacheKey);
-    if (cached) return cached;
+    if (cached && !this.isStaleCustomerCatalog([cached])) return cached;
 
     const looksLikeUuid =
       /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
@@ -237,13 +247,16 @@ export class ProductService {
       ...related.map((p) => p.id),
     ]);
 
+    const [hydratedProduct, ...hydratedRelated] =
+      await this.hydrateCatalogProducts([product, ...related]);
+
     const result = this.mapProduct(
-      product,
+      hydratedProduct ?? product,
       true,
       stockMap.get(product.id),
       hubInvMap.get(product.id),
     );
-    result.relatedProducts = related.map((p) =>
+    result.relatedProducts = hydratedRelated.map((p) =>
       this.mapProduct(p, true, stockMap.get(p.id), hubInvMap.get(p.id)),
     );
 
@@ -270,15 +283,7 @@ export class ProductService {
     const stockMap = await this.getStockMap(products.map((p) => p.id));
     const hubInvMap = await this.getHubInventoryMap(products.map((p) => p.id));
     const etaMap = await this.catalogEtaMap(products, distanceKm);
-    return products.map((p) =>
-      this.mapProduct(
-        p,
-        true,
-        stockMap.get(p.id),
-        hubInvMap.get(p.id),
-        etaMap.get(p.id),
-      ),
-    );
+    return this.mapHydratedProducts(products, stockMap, hubInvMap, etaMap);
   }
 
   async findBestSelling(limit = 8): Promise<ProductResponseDto[]> {
@@ -297,9 +302,7 @@ export class ProductService {
     });
     const stockMap = await this.getStockMap(products.map((p) => p.id));
     const hubInvMap = await this.getHubInventoryMap(products.map((p) => p.id));
-    return products.map((p) =>
-      this.mapProduct(p, true, stockMap.get(p.id), hubInvMap.get(p.id)),
-    );
+    return this.mapHydratedProducts(products, stockMap, hubInvMap);
   }
 
   async findRecommended(limit = 8): Promise<ProductResponseDto[]> {
@@ -315,9 +318,7 @@ export class ProductService {
     });
     const stockMap = await this.getStockMap(products.map((p) => p.id));
     const hubInvMap = await this.getHubInventoryMap(products.map((p) => p.id));
-    return products.map((p) =>
-      this.mapProduct(p, true, stockMap.get(p.id), hubInvMap.get(p.id)),
-    );
+    return this.mapHydratedProducts(products, stockMap, hubInvMap);
   }
 
   async findNewArrivals(
@@ -333,15 +334,7 @@ export class ProductService {
     const stockMap = await this.getStockMap(products.map((p) => p.id));
     const hubInvMap = await this.getHubInventoryMap(products.map((p) => p.id));
     const etaMap = await this.catalogEtaMap(products, distanceKm);
-    return products.map((p) =>
-      this.mapProduct(
-        p,
-        true,
-        stockMap.get(p.id),
-        hubInvMap.get(p.id),
-        etaMap.get(p.id),
-      ),
-    );
+    return this.mapHydratedProducts(products, stockMap, hubInvMap, etaMap);
   }
 
   /**
@@ -394,15 +387,7 @@ export class ProductService {
     const stockMap = await this.getStockMap(ids, hubId);
     const hubInvMap = await this.getHubInventoryMap(ids, hubId);
     const etaMap = await this.catalogEtaMap(products, distanceKm);
-    return products.map((p) =>
-      this.mapProduct(
-        p,
-        true,
-        stockMap.get(p.id),
-        hubInvMap.get(p.id),
-        etaMap.get(p.id),
-      ),
-    );
+    return this.mapHydratedProducts(products, stockMap, hubInvMap, etaMap);
   }
 
   /**
@@ -480,15 +465,7 @@ export class ProductService {
     const stockMap = await this.getStockMap(ids, hubId);
     const hubInvMap = await this.getHubInventoryMap(ids, hubId);
     const etaMap = await this.catalogEtaMap(finalProducts, distanceKm);
-    return finalProducts.map((p) =>
-      this.mapProduct(
-        p,
-        true,
-        stockMap.get(p.id),
-        hubInvMap.get(p.id),
-        etaMap.get(p.id),
-      ),
-    );
+    return this.mapHydratedProducts(finalProducts, stockMap, hubInvMap, etaMap);
   }
 
   async findHomeProducts(options?: {
@@ -529,7 +506,14 @@ export class ProductService {
       offers: ProductResponseDto[];
       recentlyAdded: ProductResponseDto[];
     }>(cacheKey);
-    if (cached) return cached;
+    if (cached && !this.isStaleCustomerCatalog([
+      ...cached.featured,
+      ...cached.popular,
+      ...cached.offers,
+      ...cached.recentlyAdded,
+    ])) {
+      return cached;
+    }
 
     const empty = {
       featured: [] as ProductResponseDto[],
@@ -813,8 +797,7 @@ export class ProductService {
   }
 
   private discountPercent(mrp: number | null, price: number): number {
-    if (!mrp || mrp <= price || mrp <= 0) return 0;
-    return Math.round(((mrp - price) / mrp) * 100);
+    return calculateDiscount(mrp, price).discountPercent;
   }
 
   private resolveBulkPricing(product: {
@@ -849,34 +832,159 @@ export class ProductService {
     return [];
   }
 
+  private isStaleCustomerCatalog(
+    products: Array<{ description?: string | null }>,
+  ): boolean {
+    return products.some((product) =>
+      customerDescriptionLooksUnsafe(product.description),
+    );
+  }
+
+  private async hydrateCatalogProducts<
+    T extends {
+      id: string;
+      description?: string | null;
+      variants?: Array<{
+        id: string;
+        value?: string | null;
+        label: string;
+        displayUnit: string | null;
+        sizeUnit: string | null;
+      }>;
+    },
+  >(products: T[]): Promise<T[]> {
+    if (products.length === 0) return products;
+    const needsHydrate = products.filter((product) => {
+      const metaCount = (
+        parseCatalogCommerceMeta(product.description)?.variants ?? []
+      ).filter((row) => row.isActive !== false).length;
+      return metaCount > (product.variants?.length ?? 0);
+    });
+    if (needsHydrate.length === 0) return products;
+
+    const results = await Promise.all(
+      needsHydrate.map((product) =>
+        hydrateMissingVariantsFromCommerceMeta(this.prisma, product),
+      ),
+    );
+    if (!results.some((row) => row.created + row.restored > 0)) {
+      return products;
+    }
+
+    await this.cache.invalidateProducts();
+    const refreshed = await this.prisma.productVariant.findMany({
+      where: {
+        productId: { in: needsHydrate.map((product) => product.id) },
+        deletedAt: null,
+        isActive: true,
+      },
+      orderBy: { displayOrder: 'asc' },
+    });
+    const byProduct = new Map<string, typeof refreshed>();
+    for (const variant of refreshed) {
+      const list = byProduct.get(variant.productId) ?? [];
+      list.push(variant);
+      byProduct.set(variant.productId, list);
+    }
+
+    return products.map((product) => {
+      const nextVariants = byProduct.get(product.id);
+      return nextVariants
+        ? ({ ...product, variants: nextVariants } as T)
+        : product;
+    });
+  }
+
+  private async mapHydratedProducts(
+    products: Array<Parameters<ProductService['mapProduct']>[0]>,
+    stockMap: Map<string, number>,
+    hubInvMap: Map<
+      string,
+      Array<{
+        hubId: string;
+        availableQty: number;
+        variantId: string | null;
+        hubName?: string;
+      }>
+    >,
+    etaMap?: Map<string, DeliveryEtaCalculationResult>,
+  ): Promise<ProductResponseDto[]> {
+    const hydrated = await this.hydrateCatalogProducts(products);
+    return hydrated.map((product) =>
+      this.mapProduct(
+        product,
+        true,
+        stockMap.get(product.id),
+        hubInvMap.get(product.id),
+        etaMap?.get(product.id),
+      ),
+    );
+  }
+
   private mapVariants(
     variants:
       | Array<{
           id: string;
+          attribute?: string | null;
+          value?: string | null;
+          attributes?: unknown;
           label: string;
           displayUnit: string | null;
           size: unknown;
           sizeUnit: string | null;
+          sku?: string | null;
           price: unknown;
+          mrp?: unknown;
           bulkPrice: unknown;
+          stock?: number;
           inStock: boolean;
+          isActive?: boolean;
+          imageUrl?: string | null;
+          displayOrder?: number;
         }>
       | undefined,
     productMrp: number | null,
   ): ProductVariantResponseDto[] {
     return (variants ?? []).map((v) => {
       const price = Number(v.price);
+      const mrp =
+        v.mrp != null ? Number(v.mrp) : productMrp;
+      const { discountAmount, discountPercent } = calculateDiscount(mrp, price);
+      const stockLeft = v.stock ?? null;
+      const inStock =
+        v.isActive === false ? false : v.inStock && (stockLeft == null || stockLeft > 0);
+      const attributes = normalizeAttributesMap(
+        v.attributes && typeof v.attributes === 'object' && !Array.isArray(v.attributes)
+          ? (v.attributes as Record<string, string>)
+          : undefined,
+        v.attribute,
+        v.value ?? v.label,
+      );
+      const unit = v.sizeUnit ?? v.displayUnit;
       return {
         id: v.id,
         label: v.label,
+        attribute: v.attribute ?? null,
+        value: v.value ?? null,
+        attributes,
+        unit,
         displayUnit: v.displayUnit,
         size: v.size ? Number(v.size) : null,
         sizeUnit: v.sizeUnit,
+        sku: v.sku ?? null,
         price,
-        mrp: productMrp,
-        discountPercent: this.discountPercent(productMrp, price),
+        sellingPrice: price,
+        mrp,
+        discount: discountAmount,
+        discountAmount,
+        discountPercent,
         bulkPrice: v.bulkPrice ? Number(v.bulkPrice) : null,
-        inStock: v.inStock,
+        inStock,
+        stockLeft,
+        stock: stockLeft,
+        isActive: v.isActive !== false,
+        imageUrl: v.imageUrl ?? null,
+        displayOrder: v.displayOrder ?? 0,
       };
     });
   }
@@ -1016,13 +1124,22 @@ export class ProductService {
       }>;
       variants?: Array<{
         id: string;
+        attribute?: string | null;
+        value?: string | null;
+        attributes?: unknown;
         label: string;
         displayUnit: string | null;
         size: unknown;
         sizeUnit: string | null;
+        sku?: string | null;
         price: unknown;
+        mrp?: unknown;
         bulkPrice: unknown;
+        stock?: number;
         inStock: boolean;
+        isActive?: boolean;
+        imageUrl?: string | null;
+        displayOrder?: number;
       }>;
     },
     includeVariants: boolean,
@@ -1062,11 +1179,22 @@ export class ProductService {
       product.averageRating != null ? Number(product.averageRating) : 0;
     const reviewCount = product.reviewCount ?? 0;
     const isNewArrival = product.listingType === 'NEW_ARRIVAL';
-    const variants = includeVariants
+    const mappedVariants = includeVariants
       ? this.mapVariants(product.variants, mrp)
       : undefined;
-    const variantCount = product.variants?.length ?? 0;
+    const variantCount = mappedVariants?.length ?? 0;
+    const variants = variantCount > 0 ? mappedVariants : undefined;
+    const cheapestVariant = variants
+      ? [...variants].sort((a, b) => a.price - b.price)[0]
+      : undefined;
+    const variantAttribute = variants?.[0]?.attribute ?? null;
     const deliveryEligible = stockLeft > 0;
+    const unit =
+      cheapestVariant?.unit ||
+      cheapestVariant?.displayUnit ||
+      cheapestVariant?.sizeUnit ||
+      normalizeCatalogUnit(product.unit) ||
+      product.unit;
 
     const parent = product.category.parent;
     const isChildCategory = Boolean(product.category.parentId && parent);
@@ -1080,7 +1208,7 @@ export class ProductService {
       detailName: product.detailName,
       brand: product.brand,
       brandLogoUrl: product.brandLogoUrl ?? null,
-      description: product.description,
+      description: htmlToPlainText(product.description) || null,
       categoryId: product.categoryId,
       categorySlug: product.category.slug,
       categoryName: product.category.name,
@@ -1104,7 +1232,7 @@ export class ProductService {
       badgeColor: product.badgeColor,
       status: product.status,
       spec: product.spec,
-      unit: normalizeCatalogUnit(product.unit) || product.unit,
+      unit,
       retailPrice,
       price: retailPrice,
       mrp,
@@ -1126,9 +1254,10 @@ export class ProductService {
           ? Number(product.weightPerUnitKg)
           : null,
       logisticsType: product.logisticsType ?? null,
-      hasVariants: product.hasVariants || variantCount > 1,
+      hasVariants: variantCount > 0,
       defaultVariantId: product.defaultVariantId,
       variantCount,
+      variantAttribute,
       perPiecePrice: product.perPiecePrice
         ? Number(product.perPiecePrice)
         : null,

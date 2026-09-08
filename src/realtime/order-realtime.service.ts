@@ -14,7 +14,8 @@ import { PrismaService } from '../common/database/prisma.service';
 import { NotificationService } from '../modules/notification/notification.service';
 import { OrderEventsService } from '../modules/orders/order-events.service';
 import type { OrderUpdatedPayload } from '../modules/orders/order-lifecycle.constants';
-import { FcmPushService } from './fcm-push.service';
+import { FcmPushService } from '../modules/push/fcm-push.service';
+import { PushInboxEventsService } from '../modules/push/push-inbox.events';
 import { getOrderStatusPushCopy } from './order-status-messages';
 import { OrdersGateway } from './orders.gateway';
 
@@ -22,6 +23,7 @@ import { OrdersGateway } from './orders.gateway';
 export class OrderRealtimeService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(OrderRealtimeService.name);
   private unsubscribe: (() => void) | null = null;
+  private unsubscribeInbox: (() => void) | null = null;
   private readonly recentNotifyKeys = new Map<string, number>();
   /** Serialize fan-out per order so rapid OTP→Delivered cannot emit stale OFD after Delivered. */
   private readonly orderChains = new Map<string, Promise<void>>();
@@ -33,6 +35,7 @@ export class OrderRealtimeService implements OnModuleInit, OnModuleDestroy {
     private readonly notificationService: NotificationService,
     private readonly fcmPush: FcmPushService,
     private readonly cache: CacheService,
+    private readonly inboxEvents: PushInboxEventsService,
   ) {}
 
   onModuleInit(): void {
@@ -42,6 +45,9 @@ export class OrderRealtimeService implements OnModuleInit, OnModuleDestroy {
       );
       this.enqueue(payload.orderId, () => this.handleOrderUpdated(payload));
     });
+    this.unsubscribeInbox = this.inboxEvents.onInboxCreated((payload) => {
+      this.fanOutInboxCreated(payload.campaignId, payload.customerIds);
+    });
     this.logger.log(
       'Listening for ORDER_UPDATED → Socket.IO order.updated (serialized per order)',
     );
@@ -50,6 +56,8 @@ export class OrderRealtimeService implements OnModuleInit, OnModuleDestroy {
   onModuleDestroy(): void {
     this.unsubscribe?.();
     this.unsubscribe = null;
+    this.unsubscribeInbox?.();
+    this.unsubscribeInbox = null;
   }
 
   private enqueue(orderId: string, task: () => Promise<void>): void {
@@ -70,6 +78,20 @@ export class OrderRealtimeService implements OnModuleInit, OnModuleDestroy {
         }
       });
     this.orderChains.set(orderId, next);
+  }
+
+  private fanOutInboxCreated(campaignId: string, customerIds: string[]): void {
+    const chunkSize = 200;
+    const sendChunk = (offset: number) => {
+      const slice = customerIds.slice(offset, offset + chunkSize);
+      for (const customerId of slice) {
+        this.gateway.emitNotificationCreated(customerId, { campaignId });
+      }
+      if (offset + chunkSize < customerIds.length) {
+        setImmediate(() => sendChunk(offset + chunkSize));
+      }
+    };
+    sendChunk(0);
   }
 
   private async handleOrderUpdated(

@@ -29,10 +29,13 @@ interface RealtimeClientToServerEvents {
   unsubscribeOrder: (body: { orderId?: string }) => void;
 }
 
+export const NOTIFICATION_CREATED_EVENT = 'notification.created';
+
 interface RealtimeServerToClientEvents {
   connected: (payload: { customerId: string; room: string }) => void;
   [ORDER_STATUS_UPDATED_EVENT]: (payload: OrderUpdatedPayload) => void;
   [ORDER_STATUS_UPDATED_EVENT_LEGACY]: (payload: OrderUpdatedPayload) => void;
+  [NOTIFICATION_CREATED_EVENT]: (payload: { campaignId: string }) => void;
 }
 
 type AuthenticatedSocket = Socket<
@@ -199,6 +202,15 @@ export class OrdersGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.logger.log(
       `[Socket] Emitted ${ORDER_STATUS_UPDATED_EVENT} orderId=${payload.orderId} status=${payload.status} customerId=${payload.customerId ?? 'n/a'} room=${roomSizeHint}`,
     );
+  }
+
+  emitNotificationCreated(
+    customerId: string,
+    payload: { campaignId: string },
+  ): void {
+    this.server
+      .to(this.customerRoom(customerId))
+      .emit(NOTIFICATION_CREATED_EVENT, payload);
   }
 
   customerRoom(customerId: string): string {

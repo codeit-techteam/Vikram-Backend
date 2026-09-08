@@ -28,7 +28,7 @@ const PRODUCT_SELECT = {
     select: { url: true },
   },
   variants: {
-    where: { deletedAt: null },
+    where: { deletedAt: null, isActive: true },
     select: { inStock: true, deletedAt: true, price: true },
   },
 } as const;

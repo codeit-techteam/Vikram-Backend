@@ -36,6 +36,7 @@ import {
   CeBulkRejectDto,
   CeBulkStatusDto,
   CeCancelOrderDto,
+  CeCatalogQueryDto,
   CeCreateOrderDto,
   CeCreateTicketDto,
   CeCustomerSearchQueryDto,
@@ -89,6 +90,13 @@ export class CustomerExecutiveController {
       limit ? Number(limit) : 20,
     );
     return { success: true, message: 'Activity fetched', data };
+  }
+
+  @Get('products')
+  @ApiOperation({ summary: 'Search catalog products with variants for CE orders' })
+  async searchCatalog(@Query() query: CeCatalogQueryDto) {
+    const data = await this.ceService.searchCatalog(query);
+    return { success: true, message: 'Products fetched', data };
   }
 
   @Post('customers/lookup')
@@ -473,15 +481,21 @@ export class CustomerExecutiveController {
 
   @Get('emergency')
   @ApiOperation({ summary: 'List emergency orders' })
-  async getEmergency(@Query() query: CePaginationQueryDto) {
-    const data = await this.ceService.findEmergencyOrders(query);
+  async getEmergency(
+    @Query() query: CePaginationQueryDto,
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+  ) {
+    const data = await this.ceService.findEmergencyOrders(query, admin);
     return { success: true, message: 'Emergency orders fetched', data };
   }
 
   @Get('emergency/:id')
   @ApiOperation({ summary: 'Get emergency order details' })
-  async getEmergencyById(@Param('id') id: string) {
-    const data = await this.ceService.findEmergencyOrder(id);
+  async getEmergencyById(
+    @Param('id') id: string,
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+  ) {
+    const data = await this.ceService.findEmergencyOrder(id, admin);
     return { success: true, message: 'Emergency order fetched', data };
   }
 
@@ -490,8 +504,9 @@ export class CustomerExecutiveController {
   async updateEmergencyStatus(
     @Param('id') id: string,
     @Body() dto: CeEmergencyStatusDto,
+    @CurrentAdmin() admin: AuthenticatedAdmin,
   ) {
-    const data = await this.ceService.updateEmergencyStatus(id, dto);
+    const data = await this.ceService.updateEmergencyStatus(id, dto, admin);
     return { success: true, message: 'Emergency status updated', data };
   }
 

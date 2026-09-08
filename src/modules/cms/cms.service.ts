@@ -372,7 +372,7 @@ export class CmsService {
                 isVisible: true,
                 deletedAt: true,
                 variants: {
-                  where: { deletedAt: null },
+                  where: { deletedAt: null, isActive: true },
                   select: { inStock: true, deletedAt: true, price: true },
                 },
               },

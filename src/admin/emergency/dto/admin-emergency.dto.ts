@@ -24,6 +24,10 @@ export class EmergencyQueryDto {
   limit?: number = 20;
 }
 
+export type EmergencyListOptions = EmergencyQueryDto & {
+  customerIds?: string[] | null;
+};
+
 export class AssignHubDto {
   @IsString() hubId: string;
 }

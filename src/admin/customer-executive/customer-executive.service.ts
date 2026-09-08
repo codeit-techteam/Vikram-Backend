@@ -11,6 +11,7 @@ import {
   AdminRole,
   AuditAction,
   BulkEnquiryStatus,
+  EntityStatus,
   ExpertCallbackStatus,
   NotificationType,
   OrderStatus,
@@ -68,6 +69,7 @@ import type {
   CeBulkRejectDto,
   CeBulkStatusDto,
   CeCancelOrderDto,
+  CeCatalogQueryDto,
   CeCreateOrderDto,
   CeCreateTicketDto,
   CeCustomerSearchQueryDto,
@@ -158,13 +160,26 @@ export class CustomerExecutiveService {
     if (!customer) throw new NotFoundException('Customer not found');
     if (this.isSuperAdmin(admin)) return customer;
 
-    // Allow CE to access unassigned customers (e.g. phone lookup → place order).
     if (
       customer.assignedExecutiveId &&
       customer.assignedExecutiveId !== admin.id
     ) {
       throw new ForbiddenException('You do not have access to this customer');
     }
+
+    // Unassigned customers are reachable for lookup/place-order, but only
+    // within the executive's assigned hub when one is configured.
+    if (!customer.assignedExecutiveId && admin.assignedHubId) {
+      if (
+        customer.assignedHubId &&
+        customer.assignedHubId !== admin.assignedHubId
+      ) {
+        throw new ForbiddenException(
+          'You do not have access to this customer',
+        );
+      }
+    }
+
     return customer;
   }
 
@@ -485,6 +500,73 @@ export class CustomerExecutiveService {
     };
   }
 
+  async searchCatalog(query: CeCatalogQueryDto) {
+    const page = query.page ?? 1;
+    const limit = Math.min(query.limit ?? 20, 100);
+    const skip = (page - 1) * limit;
+    const term = query.q?.trim();
+
+    const where: Prisma.ProductWhereInput = {
+      deletedAt: null,
+      entityStatus: EntityStatus.ACTIVE,
+      isVisible: true,
+      ...(term
+        ? {
+            OR: [
+              { name: { contains: term, mode: 'insensitive' } },
+              { sku: { contains: term, mode: 'insensitive' } },
+              { slug: { contains: term, mode: 'insensitive' } },
+            ],
+          }
+        : {}),
+    };
+
+    const [data, total] = await Promise.all([
+      this.prisma.product.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }],
+        include: {
+          category: { select: { id: true, name: true } },
+          images: {
+            where: { deletedAt: null },
+            orderBy: [{ isPrimary: 'desc' }, { displayOrder: 'asc' }],
+            take: 4,
+          },
+          variants: {
+            where: { deletedAt: null, isActive: true },
+            orderBy: { displayOrder: 'asc' },
+            select: {
+              id: true,
+              attribute: true,
+              value: true,
+              attributes: true,
+              label: true,
+              displayUnit: true,
+              size: true,
+              sizeUnit: true,
+              sku: true,
+              price: true,
+              mrp: true,
+              stock: true,
+              inStock: true,
+              isActive: true,
+              imageUrl: true,
+              displayOrder: true,
+            },
+          },
+        },
+      }),
+      this.prisma.product.count({ where }),
+    ]);
+
+    return {
+      data,
+      meta: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 },
+    };
+  }
+
   async lookupCustomer(dto: CeLookupCustomerDto, admin: AuthenticatedAdmin) {
     if (!isValidIndianMobile(dto.phone)) {
       throw new BadRequestException('Invalid Indian mobile number');
@@ -663,6 +745,7 @@ export class CustomerExecutiveService {
           roleSelected: !!roleId,
           roleId,
           assignedExecutiveId: admin.id,
+          assignedHubId: admin.assignedHubId ?? undefined,
           registeredByUserId: admin.id,
           registrationSource: RegistrationSource.CUSTOMER_EXECUTIVE,
           profile: {
@@ -764,75 +847,77 @@ export class CustomerExecutiveService {
         ? await this.resolveRoleId(dto.customerType)
         : undefined;
 
-    await this.prisma.customer.update({
-      where: { id },
-      data: {
-        ...(dto.fullName !== undefined && { fullName: dto.fullName }),
-        ...(dto.email !== undefined && { email: dto.email }),
-        ...(roleId !== undefined && {
-          roleId,
-          roleSelected: !!roleId,
-        }),
-        ...(dto.companyName !== undefined ||
-        dto.gstNumber !== undefined ||
-        dto.address !== undefined
-          ? {
-              profile: {
-                upsert: {
-                  create: {
-                    companyName: dto.companyName,
-                    gstNumber: dto.gstNumber,
-                    registeredAddress: dto.address,
-                  },
-                  update: {
-                    ...(dto.companyName !== undefined && {
+    await this.prisma.$transaction(async (tx) => {
+      await tx.customer.update({
+        where: { id },
+        data: {
+          ...(dto.fullName !== undefined && { fullName: dto.fullName }),
+          ...(dto.email !== undefined && { email: dto.email }),
+          ...(roleId !== undefined && {
+            roleId,
+            roleSelected: !!roleId,
+          }),
+          ...(dto.companyName !== undefined ||
+          dto.gstNumber !== undefined ||
+          dto.address !== undefined
+            ? {
+                profile: {
+                  upsert: {
+                    create: {
                       companyName: dto.companyName,
-                    }),
-                    ...(dto.gstNumber !== undefined && {
                       gstNumber: dto.gstNumber,
-                    }),
-                    ...(dto.address !== undefined && {
                       registeredAddress: dto.address,
-                    }),
+                    },
+                    update: {
+                      ...(dto.companyName !== undefined && {
+                        companyName: dto.companyName,
+                      }),
+                      ...(dto.gstNumber !== undefined && {
+                        gstNumber: dto.gstNumber,
+                      }),
+                      ...(dto.address !== undefined && {
+                        registeredAddress: dto.address,
+                      }),
+                    },
                   },
                 },
-              },
-            }
-          : {}),
-      },
-    });
-
-    if (dto.address || dto.city || dto.state || dto.pincode) {
-      const defaultAddress = await this.prisma.address.findFirst({
-        where: { customerId: id, isDefault: true, deletedAt: null },
+              }
+            : {}),
+        },
       });
 
-      if (defaultAddress) {
-        await this.prisma.address.update({
-          where: { id: defaultAddress.id },
-          data: {
-            ...(dto.address !== undefined && { line1: dto.address }),
-            ...(dto.city !== undefined && { city: dto.city }),
-            ...(dto.state !== undefined && { state: dto.state }),
-            ...(dto.pincode !== undefined && { pincode: dto.pincode }),
-          },
+      if (dto.address || dto.city || dto.state || dto.pincode) {
+        const defaultAddress = await tx.address.findFirst({
+          where: { customerId: id, isDefault: true, deletedAt: null },
         });
-      } else if (dto.address && dto.city && dto.state && dto.pincode) {
-        await this.prisma.address.create({
-          data: {
-            customerId: id,
-            label: 'Primary',
-            line1: dto.address,
-            city: dto.city,
-            state: dto.state,
-            pincode: dto.pincode,
-            latitude: 0,
-            longitude: 0,
-            isDefault: true,
-          },
-        });
+
+        if (defaultAddress) {
+          await tx.address.update({
+            where: { id: defaultAddress.id },
+            data: {
+              ...(dto.address !== undefined && { line1: dto.address }),
+              ...(dto.city !== undefined && { city: dto.city }),
+              ...(dto.state !== undefined && { state: dto.state }),
+              ...(dto.pincode !== undefined && { pincode: dto.pincode }),
+            },
+          });
+        } else if (dto.address && dto.city && dto.state && dto.pincode) {
+          await tx.address.create({
+            data: {
+              customerId: id,
+              label: 'Primary',
+              line1: dto.address,
+              city: dto.city,
+              state: dto.state,
+              pincode: dto.pincode,
+              latitude: 0,
+              longitude: 0,
+              isDefault: true,
+            },
+          });
+        }
       }
-    }
+    });
 
     await this.auditService.log({
       adminUserId: admin.id,
@@ -853,16 +938,26 @@ export class CustomerExecutiveService {
   ) {
     const searchTerm = query.q ?? query.search;
     const executiveId = this.isSuperAdmin(admin) ? query.executiveId : admin.id;
+    const membersOnly =
+      query.membersOnly === true || query.status?.toUpperCase() === 'VIP';
+    const needsScoped =
+      Boolean(query.city) ||
+      Boolean(query.customerType) ||
+      membersOnly ||
+      query.activeThisMonth === true;
 
-    if (query.city || query.customerType) {
-      return this.searchCustomersScoped(query, admin);
+    if (needsScoped) {
+      return this.searchCustomersScoped(
+        { ...query, membersOnly },
+        admin,
+      );
     }
 
     return this.customersService.findAll({
       page: query.page,
       limit: query.limit,
       search: searchTerm,
-      status: query.status,
+      status: query.status?.toUpperCase() === 'VIP' ? undefined : query.status,
       executiveId,
     });
   }
@@ -888,7 +983,20 @@ export class CustomerExecutiveService {
       ...this.assignedWhere(admin),
     };
 
-    if (query.status) where.status = query.status as never;
+    if (query.status && query.status.toUpperCase() !== 'VIP' && query.status !== 'ALL') {
+      where.status = query.status as never;
+    }
+    if (query.membersOnly || query.status?.toUpperCase() === 'VIP') {
+      where.isMember = true;
+    }
+    if (query.activeThisMonth) {
+      const start = new Date();
+      start.setDate(1);
+      start.setHours(0, 0, 0, 0);
+      where.orders = {
+        some: { deletedAt: null, createdAt: { gte: start } },
+      };
+    }
     if (query.city) {
       where.addresses = {
         some: {
@@ -933,6 +1041,25 @@ export class CustomerExecutiveService {
           assignedExecutive: {
             select: { id: true, fullName: true },
           },
+          assignedHub: { select: { id: true, name: true, city: true, state: true } },
+          addresses: {
+            where: { deletedAt: null },
+            orderBy: { isDefault: 'desc' },
+            take: 1,
+            select: { city: true, state: true, pincode: true, line1: true },
+          },
+          deviceSessions: {
+            orderBy: { lastLogin: 'desc' },
+            take: 1,
+            select: { lastLogin: true },
+          },
+          orders: {
+            where: { deletedAt: null },
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+            select: { createdAt: true },
+          },
+          _count: { select: { orders: true } },
         },
       }),
       this.prisma.customer.count({ where }),
@@ -1143,62 +1270,81 @@ export class CustomerExecutiveService {
       throw new BadRequestException('Delivery address is required');
     }
 
-    if (dto.items?.length) {
-      await this.cartService.clearCart(dto.customerId);
-      for (const item of dto.items) {
-        await this.cartService.addItem(dto.customerId, {
-          productId: item.productId,
-          variantId: item.variantId,
-          quantity: item.quantity,
-        });
+    const noteParts = [
+      dto.notes?.trim(),
+      dto.deliveryDate ? `Requested delivery: ${dto.deliveryDate}` : null,
+    ].filter((part): part is string => Boolean(part));
+
+    try {
+      if (dto.items?.length) {
+        await this.cartService.clearCart(dto.customerId);
+        for (const item of dto.items) {
+          await this.cartService.addItem(dto.customerId, {
+            productId: item.productId,
+            variantId: item.variantId,
+            quantity: item.quantity,
+          });
+        }
+      } else {
+        const cart = await this.cartService.getCartForCheckout(dto.customerId);
+        if (!cart.items?.length) {
+          throw new BadRequestException(
+            'Cart is empty. Add items or provide items in the request.',
+          );
+        }
       }
-    } else {
-      const cart = await this.cartService.getCartForCheckout(dto.customerId);
-      if (!cart.items?.length) {
-        throw new BadRequestException(
-          'Cart is empty. Add items or provide items in the request.',
-        );
+
+      const order = await this.customerOrdersService.placeOrder(dto.customerId, {
+        addressId,
+        paymentMethod: dto.paymentMethod as 'CASH' | 'MANUAL' | undefined,
+        notes: noteParts.join('\n') || undefined,
+        loyaltyPointsToRedeem: dto.loyaltyPointsToRedeem,
+      });
+
+      await this.prisma.order.update({
+        where: { id: order.id },
+        data: {
+          orderSource: 'CUSTOMER_EXECUTIVE',
+          createdByAdminId: admin.id,
+          ...(dto.deliveryDate
+            ? { scheduledDate: new Date(dto.deliveryDate) }
+            : {}),
+        },
+      });
+
+      await this.prisma.orderTimeline.create({
+        data: {
+          orderId: order.id,
+          status: OrderStatus.CONFIRMED,
+          remarks: `Order placed by customer executive (${admin.email})`,
+          updatedBy: admin.id,
+          updatedByRole: admin.role,
+        },
+      });
+
+      await this.auditService.log({
+        adminUserId: admin.id,
+        adminEmail: admin.email,
+        action: AuditAction.CREATE,
+        resource: 'Order',
+        resourceId: order.id,
+        newValue: {
+          customerId: dto.customerId,
+          orderSource: 'CUSTOMER_EXECUTIVE',
+        },
+      });
+
+      return this.findOrder(order.id, admin);
+    } catch (error) {
+      if (dto.items?.length) {
+        try {
+          await this.cartService.clearCart(dto.customerId);
+        } catch {
+          // Best-effort rollback of the CE-owned cart mutation.
+        }
       }
+      throw error;
     }
-
-    const order = await this.customerOrdersService.placeOrder(dto.customerId, {
-      addressId,
-      paymentMethod: dto.paymentMethod as 'CASH' | 'MANUAL' | undefined,
-      notes: dto.notes,
-      loyaltyPointsToRedeem: dto.loyaltyPointsToRedeem,
-    });
-
-    await this.prisma.order.update({
-      where: { id: order.id },
-      data: {
-        orderSource: 'CUSTOMER_EXECUTIVE',
-        createdByAdminId: admin.id,
-      },
-    });
-
-    await this.prisma.orderTimeline.create({
-      data: {
-        orderId: order.id,
-        status: OrderStatus.CONFIRMED,
-        remarks: `Order placed by customer executive (${admin.email})`,
-        updatedBy: admin.id,
-        updatedByRole: admin.role,
-      },
-    });
-
-    await this.auditService.log({
-      adminUserId: admin.id,
-      adminEmail: admin.email,
-      action: AuditAction.CREATE,
-      resource: 'Order',
-      resourceId: order.id,
-      newValue: {
-        customerId: dto.customerId,
-        orderSource: 'CUSTOMER_EXECUTIVE',
-      },
-    });
-
-    return this.ordersService.findOne(order.id);
   }
 
   async cancelOrder(
@@ -1283,6 +1429,24 @@ export class CustomerExecutiveService {
       ...(await this.buildOrderCustomerScope(admin)),
     };
 
+    if (query.customerId) {
+      await this.assertCustomerAccess(query.customerId, admin);
+      where.customerId = query.customerId;
+    }
+
+    if (query.dateFrom) {
+      const from = new Date(query.dateFrom);
+      if (!Number.isNaN(from.getTime())) {
+        where.createdAt = { gte: from };
+      }
+    }
+
+    if (query.linkStatus) {
+      where.paymentLinks = {
+        some: { status: query.linkStatus as PaymentLinkStatus },
+      };
+    }
+
     if (query.q?.trim()) {
       const term = query.q.trim();
       where.OR = [
@@ -1310,17 +1474,12 @@ export class CustomerExecutiveService {
       orderId: o.id,
       orderNumber: o.orderNumber,
       customer: o.customer,
+      customerId: o.customer.id,
       amount: o.grandTotal,
       paymentStatus: o.paymentStatus,
       latestPaymentLink: o.paymentLinks[0] ?? null,
       createdAt: o.createdAt,
     }));
-
-    if (query.linkStatus) {
-      data = data.filter(
-        (row) => row.latestPaymentLink?.status === query.linkStatus,
-      );
-    }
 
     return {
       data,
@@ -1551,11 +1710,20 @@ export class CustomerExecutiveService {
       orderBy: { createdAt: 'desc' },
       include: {
         customer: { select: { id: true, phone: true, fullName: true } },
-        timeline: { orderBy: { createdAt: 'asc' }, take: 10 },
+        hub: { select: { id: true, code: true, name: true } },
+        assignedDriver: { select: { id: true, name: true, phone: true } },
+        assignedVehicle: { select: { id: true, registration: true } },
+        manager: { select: { id: true, fullName: true } },
+        timeline: { orderBy: { createdAt: 'asc' }, take: 20 },
       },
     });
 
-    return { data: orders };
+    return {
+      data: orders.map((order) => ({
+        ...order,
+        liveLocationAvailable: false,
+      })),
+    };
   }
 
   async getActivity(admin: AuthenticatedAdmin, limit = 20) {
@@ -2023,18 +2191,30 @@ export class CustomerExecutiveService {
     return this.bulkService.cancel(id, dto, admin);
   }
 
-  async findEmergencyOrders(query: CePaginationQueryDto) {
+  async findEmergencyOrders(
+    query: CePaginationQueryDto,
+    admin: AuthenticatedAdmin,
+  ) {
+    const customerIds = await this.scopeCustomerIds(admin);
     return this.emergencyService.findAll({
       page: query.page,
       limit: query.limit,
+      customerIds,
     });
   }
 
-  async findEmergencyOrder(id: string) {
-    return this.emergencyService.findOne(id);
+  async findEmergencyOrder(id: string, admin: AuthenticatedAdmin) {
+    const order = await this.emergencyService.findOne(id);
+    await this.assertCustomerAccess(order.customerId, admin);
+    return order;
   }
 
-  async updateEmergencyStatus(id: string, dto: CeEmergencyStatusDto) {
+  async updateEmergencyStatus(
+    id: string,
+    dto: CeEmergencyStatusDto,
+    admin: AuthenticatedAdmin,
+  ) {
+    await this.findEmergencyOrder(id, admin);
     const status = dto.status.toUpperCase();
     if (status === 'APPROVED') return this.emergencyService.approve(id);
     if (status === 'REJECTED') return this.emergencyService.reject(id);
@@ -2092,8 +2272,13 @@ export class CustomerExecutiveService {
     if (scopedCustomerIds !== null) {
       where.customerId = { in: scopedCustomerIds };
     }
+    if (query.customerId) {
+      await this.assertCustomerAccess(query.customerId, admin);
+      where.customerId = query.customerId;
+    }
     if (query.status) where.status = query.status as SupportTicketStatus;
     if (query.priority) where.priority = query.priority as never;
+    if (query.reason) where.reason = query.reason;
     if (query.q?.trim()) {
       const term = query.q.trim();
       where.OR = [
@@ -2103,23 +2288,60 @@ export class CustomerExecutiveService {
       ];
     }
 
-    const [data, total] = await Promise.all([
-      this.prisma.supportTicket.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: { createdAt: 'desc' },
-        include: {
-          customer: { select: { id: true, phone: true, fullName: true } },
-          order: { select: { orderNumber: true } },
-        },
-      }),
-      this.prisma.supportTicket.count({ where }),
-    ]);
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+
+    const openStatuses: SupportTicketStatus[] = [
+      SupportTicketStatus.OPEN,
+      SupportTicketStatus.ASSIGNED,
+      SupportTicketStatus.IN_PROGRESS,
+      SupportTicketStatus.WAITING_FOR_ADMIN,
+      SupportTicketStatus.WAITING_FOR_CUSTOMER,
+      SupportTicketStatus.REOPENED,
+    ];
+
+    const [data, total, openCount, inProgressCount, resolvedTodayCount, escalatedCount] =
+      await Promise.all([
+        this.prisma.supportTicket.findMany({
+          where,
+          skip,
+          take: limit,
+          orderBy: { createdAt: 'desc' },
+          include: {
+            customer: { select: { id: true, phone: true, fullName: true } },
+            order: { select: { orderNumber: true } },
+          },
+        }),
+        this.prisma.supportTicket.count({ where }),
+        this.prisma.supportTicket.count({
+          where: { ...where, status: { in: openStatuses } },
+        }),
+        this.prisma.supportTicket.count({
+          where: { ...where, status: SupportTicketStatus.IN_PROGRESS },
+        }),
+        this.prisma.supportTicket.count({
+          where: {
+            ...where,
+            status: {
+              in: [SupportTicketStatus.RESOLVED, SupportTicketStatus.CLOSED],
+            },
+            resolvedAt: { gte: todayStart },
+          },
+        }),
+        this.prisma.supportTicket.count({
+          where: { ...where, status: SupportTicketStatus.REOPENED },
+        }),
+      ]);
 
     return {
       data,
       meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
+      stats: {
+        open: openCount,
+        inProgress: inProgressCount,
+        resolvedToday: resolvedTodayCount,
+        escalated: escalatedCount,
+      },
     };
   }
 
@@ -2198,6 +2420,19 @@ export class CustomerExecutiveService {
         },
       });
     }
+
+    await this.auditService.log({
+      adminUserId: admin.id,
+      adminEmail: admin.email,
+      action: AuditAction.UPDATE,
+      resource: 'SupportTicket',
+      resourceId: id,
+      oldValue: { status: ticket.status },
+      newValue: {
+        status: updated.status,
+        resolution: dto.resolution,
+      },
+    });
 
     return updated;
   }
@@ -2318,6 +2553,16 @@ export class CustomerExecutiveService {
         customer: { select: { id: true, phone: true, fullName: true } },
         assignedExecutive: { select: { id: true, fullName: true } },
       },
+    });
+
+    await this.auditService.log({
+      adminUserId: admin.id,
+      adminEmail: admin.email,
+      action: AuditAction.UPDATE,
+      resource: 'ExpertCallbackRequest',
+      resourceId: id,
+      oldValue: { status: existing.status },
+      newValue: { status: nextStatus },
     });
 
     return updated;

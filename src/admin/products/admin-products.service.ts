@@ -16,6 +16,7 @@ import type {
   UpdateInventoryDto,
   ProductQueryDto,
 } from './dto/admin-products.dto';
+import { hydrateMissingVariantsFromCommerceMeta } from '../../common/shopping/product-variant-hydrate';
 
 const MAIN_WAREHOUSE_CODE = 'WH-GURUGRAM';
 
@@ -92,12 +93,21 @@ export class AdminProductsService {
             orderBy: { displayOrder: 'asc' },
             select: {
               id: true,
+              attribute: true,
+              value: true,
+              attributes: true,
               label: true,
               displayUnit: true,
               size: true,
               sizeUnit: true,
+              sku: true,
               price: true,
+              mrp: true,
+              stock: true,
               inStock: true,
+              isActive: true,
+              imageUrl: true,
+              displayOrder: true,
             },
           },
         },
@@ -120,7 +130,10 @@ export class AdminProductsService {
           where: { deletedAt: null },
           orderBy: { displayOrder: 'asc' },
         },
-        variants: { where: { deletedAt: null } },
+        variants: {
+          where: { deletedAt: null },
+          orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
+        },
         hubInventory: {
           include: { hub: { select: { id: true, name: true, code: true } } },
         },
@@ -186,6 +199,7 @@ export class AdminProductsService {
           listingType: (dto.listingType as any) ?? 'STANDARD',
           displayOrder: dto.displayOrder ?? 0,
           isVisible: dto.isVisible ?? true,
+          hasVariants: dto.hasVariants ?? false,
           stockLeft: dto.initialStock ?? 0,
           images: dto.imageUrls?.length
             ? {
@@ -246,6 +260,7 @@ export class AdminProductsService {
     });
 
     await this.cache.invalidateProducts();
+    await hydrateMissingVariantsFromCommerceMeta(this.prisma, product);
     return product;
   }
 
@@ -294,6 +309,9 @@ export class AdminProductsService {
         ...(dto.membershipPrice !== undefined && {
           membershipPrice: dto.membershipPrice,
         }),
+        ...(dto.unit !== undefined && {
+          unit: dto.unit.trim() || existing.unit,
+        }),
         ...(dto.isFeatured !== undefined && { isFeatured: dto.isFeatured }),
         ...(dto.displayOrder !== undefined && {
           displayOrder: dto.displayOrder,
@@ -307,9 +325,14 @@ export class AdminProductsService {
           entityStatus: dto.entityStatus as any,
         }),
         ...(dto.isVisible !== undefined && { isVisible: dto.isVisible }),
+        ...(dto.hasVariants !== undefined && { hasVariants: dto.hasVariants }),
       },
     });
     await this.cache.invalidateProducts();
+    await hydrateMissingVariantsFromCommerceMeta(this.prisma, {
+      ...product,
+      description: product.description ?? existing.description,
+    });
     return product;
   }
 

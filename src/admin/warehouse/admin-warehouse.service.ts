@@ -162,7 +162,7 @@ export class AdminWarehouseService {
         value: String(productCount).padStart(2, '0'),
         subtitle: 'Active SKUs in catalog',
         icon: 'inventory' as const,
-        href: '/central-warehouse/products',
+        href: '/central-warehouse/inventory',
       },
       {
         id: 'pending-requisitions',

@@ -2,10 +2,12 @@ import {
   Body,
   Controller,
   Get,
+  Header,
   Param,
   Patch,
   Post,
   Query,
+  StreamableFile,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
@@ -45,6 +47,24 @@ export class AdminHubManagersController {
   async listHubs() {
     const data = await this.hubManagersService.listHubs();
     return { success: true, message: 'Hubs fetched', data };
+  }
+
+  @Get('stats')
+  @ApiOperation({ summary: 'Hub manager dashboard stats' })
+  async stats() {
+    const data = await this.hubManagersService.getStats();
+    return { success: true, message: 'Hub manager stats fetched', data };
+  }
+
+  @Get('export')
+  @Header('Content-Type', 'text/csv')
+  @ApiOperation({ summary: 'Export hub managers CSV' })
+  async export(@Query() query: HubManagerQueryDto) {
+    const csv = await this.hubManagersService.exportCsv(query);
+    return new StreamableFile(Buffer.from(csv, 'utf-8'), {
+      type: 'text/csv',
+      disposition: `attachment; filename="hub-managers-${Date.now()}.csv"`,
+    });
   }
 
   @Get(':id')

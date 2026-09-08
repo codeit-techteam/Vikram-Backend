@@ -5,6 +5,9 @@ export class NotificationResponseDto {
   @ApiProperty({ format: 'uuid' })
   id!: string;
 
+  @ApiPropertyOptional({ format: 'uuid' })
+  campaignId?: string | null;
+
   @ApiProperty({
     enum: NotificationType,
     example: NotificationType.ORDER,
@@ -21,6 +24,9 @@ export class NotificationResponseDto {
     example: 'Your order has been confirmed and is being packed.',
   })
   body!: string;
+
+  @ApiPropertyOptional({ example: 'https://cdn.example.com/notice.png' })
+  imageUrl?: string | null;
 
   @ApiPropertyOptional({ example: 'Track Order' })
   actionLabel?: string | null;

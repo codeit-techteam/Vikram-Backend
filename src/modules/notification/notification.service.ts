@@ -3,7 +3,7 @@ import {
   NotFoundException,
   ForbiddenException,
 } from '@nestjs/common';
-import { NotificationType, Prisma } from '../../../generated/prisma/client';
+import { NotificationType, Prisma, PushDeliveryStatus } from '../../../generated/prisma/client';
 import { PrismaService } from '../../common/database/prisma.service';
 import { CacheService } from '../../common/cache/cache.service';
 import { CACHE_KEYS, CACHE_TTL } from '../../common/cache/cache.constants';
@@ -21,6 +21,7 @@ export interface CreateCustomerNotificationInput {
   label: string;
   title: string;
   body: string;
+  imageUrl?: string | null;
   actionLabel?: string;
   actionRoute?: string;
   actionVariant?: string;
@@ -103,6 +104,7 @@ export class NotificationService {
         label: input.label,
         title: input.title,
         body: input.body,
+        imageUrl: input.imageUrl,
         actionLabel: input.actionLabel,
         actionRoute: input.actionRoute,
         actionVariant: input.actionVariant,
@@ -126,9 +128,27 @@ export class NotificationService {
     }
 
     const updated = await this.prisma.notification.update({
-      where: { id },
-      data: { isRead: true },
+      where: { id: notification.id },
+      data: {
+        isRead: true,
+        openedAt: notification.openedAt ?? new Date(),
+      },
     });
+
+    if (notification.campaignId && !notification.openedAt) {
+      await this.prisma.pushCampaign.update({
+        where: { id: notification.campaignId },
+        data: { totalOpened: { increment: 1 } },
+      });
+      await this.prisma.pushCampaignDelivery.updateMany({
+        where: {
+          campaignId: notification.campaignId,
+          customerId,
+          openedAt: null,
+        },
+        data: { openedAt: new Date(), status: PushDeliveryStatus.OPENED },
+      });
+    }
 
     await this.invalidateCustomerCaches(customerId);
     return this.mapNotification(updated);
@@ -158,7 +178,7 @@ export class NotificationService {
     }
 
     await this.prisma.notification.update({
-      where: { id },
+      where: { id: notification.id },
       data: { deletedAt: new Date() },
     });
 
@@ -169,9 +189,12 @@ export class NotificationService {
   private async findOwnedOrGlobal(customerId: string, id: string) {
     const notification = await this.prisma.notification.findFirst({
       where: {
-        id,
         deletedAt: null,
-        OR: [{ customerId }, { isGlobal: true }],
+        OR: [
+          { id, customerId },
+          { id, isGlobal: true },
+          { campaignId: id, customerId },
+        ],
       },
     });
 
@@ -226,10 +249,12 @@ export class NotificationService {
 
   private mapNotification(n: {
     id: string;
+    campaignId?: string | null;
     type: NotificationResponseDto['type'];
     label: string;
     title: string;
     body: string;
+    imageUrl?: string | null;
     actionLabel: string | null;
     actionRoute: string | null;
     actionVariant: string | null;
@@ -238,10 +263,12 @@ export class NotificationService {
   }): NotificationResponseDto {
     return {
       id: n.id,
+      campaignId: n.campaignId ?? null,
       type: n.type,
       label: n.label,
       title: n.title,
       body: n.body,
+      imageUrl: n.imageUrl ?? null,
       actionLabel: n.actionLabel,
       actionRoute: n.actionRoute,
       actionVariant: n.actionVariant,

@@ -27,6 +27,22 @@ export class ProductVariantResponseDto {
   @ApiProperty()
   label!: string;
 
+  @ApiPropertyOptional({ example: 'Size' })
+  attribute?: string | null;
+
+  @ApiPropertyOptional({ example: '250' })
+  value?: string | null;
+
+  @ApiPropertyOptional({
+    example: { Size: '250' },
+    description:
+      'Generic attribute map. Single-attribute products use one key; combinations use several (e.g. Color + Size).',
+  })
+  attributes?: Record<string, string>;
+
+  @ApiPropertyOptional({ example: 'ml' })
+  unit?: string | null;
+
   @ApiPropertyOptional()
   displayUnit?: string | null;
 
@@ -36,11 +52,23 @@ export class ProductVariantResponseDto {
   @ApiPropertyOptional()
   sizeUnit?: string | null;
 
+  @ApiPropertyOptional()
+  sku?: string | null;
+
   @ApiProperty()
   price!: number;
 
+  @ApiPropertyOptional({ description: 'Alias of price (selling price)' })
+  sellingPrice?: number;
+
   @ApiPropertyOptional()
   mrp?: number | null;
+
+  @ApiPropertyOptional({ description: 'MRP minus selling price' })
+  discount?: number;
+
+  @ApiPropertyOptional()
+  discountAmount?: number;
 
   @ApiPropertyOptional()
   discountPercent?: number;
@@ -53,6 +81,18 @@ export class ProductVariantResponseDto {
 
   @ApiPropertyOptional({ example: 42 })
   stockLeft?: number | null;
+
+  @ApiPropertyOptional({ description: 'Alias of stockLeft' })
+  stock?: number | null;
+
+  @ApiPropertyOptional()
+  isActive?: boolean;
+
+  @ApiPropertyOptional()
+  imageUrl?: string | null;
+
+  @ApiPropertyOptional()
+  displayOrder?: number;
 }
 
 export class BulkPricingTierDto {
@@ -239,6 +279,9 @@ export class ProductResponseDto {
 
   @ApiProperty({ example: 0 })
   variantCount!: number;
+
+  @ApiPropertyOptional({ example: 'Size' })
+  variantAttribute?: string | null;
 
   @ApiPropertyOptional()
   perPiecePrice?: number | null;

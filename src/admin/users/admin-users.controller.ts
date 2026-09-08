@@ -3,10 +3,12 @@ import {
   Controller,
   Delete,
   Get,
+  Header,
   Param,
   Patch,
   Post,
   Query,
+  StreamableFile,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -29,6 +31,7 @@ import { AdminJwtAuthGuard } from '../guards/admin-jwt-auth.guard';
 import { AdminRolesGuard } from '../guards/admin-roles.guard';
 import { AdminUsersService } from './admin-users.service';
 import {
+  AssignAdminUserHubDto,
   AdminUserQueryDto,
   AdminUserResponseDto,
   ChangeAdminUserRoleDto,
@@ -67,6 +70,24 @@ export class AdminUsersController {
   async findAll(@Query() query: AdminUserQueryDto) {
     const data = await this.adminUsersService.findAll(query);
     return { success: true, message: 'Admin users fetched', data };
+  }
+
+  @Get('stats')
+  @ApiOperation({ summary: 'Admin / executive dashboard stats' })
+  async stats(@Query('role') role?: string) {
+    const data = await this.adminUsersService.getStats(role);
+    return { success: true, message: 'Admin user stats fetched', data };
+  }
+
+  @Get('export')
+  @Header('Content-Type', 'text/csv')
+  @ApiOperation({ summary: 'Export admin users CSV' })
+  async export(@Query() query: AdminUserQueryDto) {
+    const csv = await this.adminUsersService.exportCsv(query);
+    return new StreamableFile(Buffer.from(csv, 'utf-8'), {
+      type: 'text/csv',
+      disposition: `attachment; filename="admin-users-${Date.now()}.csv"`,
+    });
   }
 
   @Get(':id')
@@ -136,6 +157,22 @@ export class AdminUsersController {
       admin.email,
     );
     return { success: true, message: 'Admin user updated', data };
+  }
+
+  @Patch(':id/assignment')
+  @ApiOperation({ summary: 'Assign hub (warehouse / region) to an admin user' })
+  async assignHub(
+    @Param('id') id: string,
+    @Body() dto: AssignAdminUserHubDto,
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+  ) {
+    const data = await this.adminUsersService.assignHub(
+      id,
+      dto,
+      admin.id,
+      admin.email,
+    );
+    return { success: true, message: 'Admin user assignment updated', data };
   }
 
   @Patch(':id/status')

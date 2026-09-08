@@ -8,6 +8,7 @@ import {
   IsArray,
   IsEnum,
   Min,
+  MaxLength,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -32,7 +33,7 @@ export class CreateProductDto {
   @ApiPropertyOptional() @IsOptional() @IsNumber() bulkPrice?: number;
   @ApiPropertyOptional() @IsOptional() @IsNumber() membershipPrice?: number;
   @ApiPropertyOptional() @IsOptional() @IsInt() bulkThreshold?: number;
-  @ApiPropertyOptional() @IsOptional() @IsString() unit?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(30) unit?: string;
   @ApiPropertyOptional() @IsOptional() @IsInt() minOrder?: number;
   @ApiPropertyOptional() @IsOptional() @IsInt() maxOrder?: number;
   @ApiPropertyOptional() @IsOptional() @IsNumber() gst?: number;
@@ -46,6 +47,7 @@ export class CreateProductDto {
   @IsString({ each: true })
   imageUrls?: string[];
   @ApiPropertyOptional() @IsOptional() @IsBoolean() isVisible?: boolean;
+  @ApiPropertyOptional() @IsOptional() @IsBoolean() hasVariants?: boolean;
   /** Initial stock to place in Central Warehouse on publish */
   @ApiPropertyOptional()
   @IsOptional()
@@ -81,10 +83,12 @@ export class UpdateProductDto {
   @ApiPropertyOptional() @IsOptional() @IsNumber() bulkPrice?: number;
   @ApiPropertyOptional() @IsOptional() @IsInt() bulkThreshold?: number;
   @ApiPropertyOptional() @IsOptional() @IsNumber() membershipPrice?: number;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(30) unit?: string;
   @ApiPropertyOptional() @IsOptional() @IsBoolean() isFeatured?: boolean;
   @ApiPropertyOptional() @IsOptional() @IsString() entityStatus?: string;
   @ApiPropertyOptional() @IsOptional() @IsInt() displayOrder?: number;
   @ApiPropertyOptional() @IsOptional() @IsBoolean() isVisible?: boolean;
+  @ApiPropertyOptional() @IsOptional() @IsBoolean() hasVariants?: boolean;
 }
 
 export class ProductImageItemDto {

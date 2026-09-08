@@ -1,4 +1,5 @@
 import {
+  Body,
   Controller,
   Delete,
   Get,
@@ -7,6 +8,7 @@ import {
   Param,
   ParseUUIDPipe,
   Patch,
+  Post,
   Query,
 } from '@nestjs/common';
 import {
@@ -29,12 +31,52 @@ import {
   UnreadCountResponseDto,
 } from './dto/notification-response.dto';
 import { NotificationService } from './notification.service';
+import { DeviceTokenService } from '../push/device-token.service';
+import {
+  RegisterDeviceTokenDto,
+  ReleaseDeviceTokenDto,
+} from './dto/device-token.dto';
 
 @ApiTags(SWAGGER_TAGS.NOTIFICATIONS)
 @ApiBearerAuth(SWAGGER_BEARER_AUTH)
 @Controller({ version: '1', path: 'notifications' })
 export class NotificationController {
-  constructor(private readonly notificationService: NotificationService) {}
+  constructor(
+    private readonly notificationService: NotificationService,
+    private readonly deviceTokens: DeviceTokenService,
+  ) {}
+
+  @Post('device-token')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Register or refresh the FCM device token' })
+  async registerDeviceToken(
+    @CurrentUser() user: AuthenticatedCustomer,
+    @Body() dto: RegisterDeviceTokenDto,
+  ) {
+    const data = await this.deviceTokens.register(user.id, dto);
+    return {
+      success: true,
+      message: 'Device token registered',
+      data,
+    };
+  }
+
+  @Post('device-token/release')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Deactivate this device token without deleting it permanently',
+  })
+  async releaseDeviceToken(
+    @CurrentUser() user: AuthenticatedCustomer,
+    @Body() dto: ReleaseDeviceTokenDto,
+  ) {
+    const data = await this.deviceTokens.release(user.id, dto);
+    return {
+      success: true,
+      message: 'Device token released',
+      data,
+    };
+  }
 
   @Get()
   @ApiOperation({
@@ -158,6 +200,22 @@ export class NotificationController {
     message: string;
     data: NotificationResponseDto;
   }> {
+    const data = await this.notificationService.markAsRead(user.id, id);
+    return {
+      success: true,
+      message: 'Notification marked as read',
+      data,
+    };
+  }
+
+  @Post(':id/read')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Mark a notification as read (POST alias)' })
+  @ApiParam({ name: 'id', format: 'uuid' })
+  async markAsReadPost(
+    @CurrentUser() user: AuthenticatedCustomer,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
     const data = await this.notificationService.markAsRead(user.id, id);
     return {
       success: true,

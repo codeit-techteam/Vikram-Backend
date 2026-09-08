@@ -88,6 +88,22 @@ export class CeCustomerSearchQueryDto extends CePaginationQueryDto {
   @IsOptional()
   @IsString()
   sortDir?: 'asc' | 'desc';
+
+  @ApiPropertyOptional({
+    description: 'When true, only BajriPro / membership customers',
+  })
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true' || value === '1')
+  @IsBoolean()
+  membersOnly?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'When true, only customers with an order in the current month',
+  })
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true' || value === '1')
+  @IsBoolean()
+  activeThisMonth?: boolean;
 }
 
 export class CeLookupCustomerDto {
@@ -249,7 +265,7 @@ export class CeUpdateCustomerDto {
 export class CeUpdateCustomerNoteDto {
   @ApiProperty({ description: 'Internal note visible to customer executives' })
   @IsString()
-  @MinLength(1)
+  @MaxLength(5000)
   note: string;
 }
 
@@ -325,6 +341,13 @@ export class CeCreateOrderDto {
   @IsOptional()
   @IsString()
   deliveryState?: string;
+
+  @ApiPropertyOptional({
+    description: 'Requested delivery date (YYYY-MM-DD)',
+  })
+  @IsOptional()
+  @IsDateString()
+  deliveryDate?: string;
 }
 
 export class CeUpdateOrderAddressDto {
@@ -648,6 +671,16 @@ export class CeTicketQueryDto extends CePaginationQueryDto {
   @IsOptional()
   @IsString()
   priority?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  customerId?: string;
+
+  @ApiPropertyOptional({ enum: SupportTicketReason })
+  @IsOptional()
+  @IsEnum(SupportTicketReason)
+  reason?: SupportTicketReason;
 }
 
 export class CeExpertCallbackQueryDto extends CePaginationQueryDto {
@@ -690,6 +723,16 @@ export class CePaymentQueryDto extends CePaginationQueryDto {
   @IsOptional()
   @IsString()
   linkStatus?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  customerId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  dateFrom?: string;
 }
 
 export class CeTrackingSearchQueryDto {
@@ -736,4 +779,11 @@ export class CeOrdersQueryDto extends CePaginationQueryDto {
   @Transform(({ value }) => value === true || value === 'true' || value === '1')
   @IsBoolean()
   unassigned?: boolean;
+}
+
+export class CeCatalogQueryDto extends CePaginationQueryDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  q?: string;
 }

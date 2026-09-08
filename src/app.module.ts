@@ -46,6 +46,7 @@ import { HubModule } from './hub/hub.module';
 import { SchedulerModule } from './modules/scheduler/scheduler.module';
 import { RealtimeModule } from './realtime/realtime.module';
 import { StorageModule } from './storage/storage.module';
+import { PushModule } from './modules/push/push.module';
 
 @Module({
   imports: [
@@ -91,6 +92,7 @@ import { StorageModule } from './storage/storage.module';
     HomeModule,
     SearchModule,
     NotificationModule,
+    PushModule,
     AuthModule,
     CustomerModule,
     CustomerSitesModule,

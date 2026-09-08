@@ -19,6 +19,9 @@ export interface AuthenticatedAdmin {
   email: string;
   role: string;
   permissions: AdminPermission[];
+  phone?: string | null;
+  assignedHubId?: string | null;
+  isActive?: boolean;
 }
 
 @Injectable()
@@ -41,7 +44,14 @@ export class AdminJwtStrategy extends PassportStrategy(Strategy, 'admin-jwt') {
 
     const admin = await this.prisma.adminUser.findFirst({
       where: { id: payload.sub, isActive: true, deletedAt: null },
-      select: { id: true, email: true, role: true },
+      select: {
+        id: true,
+        email: true,
+        role: true,
+        phone: true,
+        assignedHubId: true,
+        isActive: true,
+      },
     });
 
     if (!admin) {
@@ -57,6 +67,9 @@ export class AdminJwtStrategy extends PassportStrategy(Strategy, 'admin-jwt') {
       email: admin.email,
       role: admin.role,
       permissions,
+      phone: admin.phone,
+      assignedHubId: admin.assignedHubId,
+      isActive: admin.isActive,
     };
   }
 }

@@ -85,7 +85,6 @@ const ORDER_ITEM_PRODUCT_SELECT = {
   variants: {
     where: { deletedAt: null },
     orderBy: [{ displayOrder: 'asc' as const }, { createdAt: 'asc' as const }],
-    take: 1,
     select: { id: true, label: true, displayUnit: true },
   },
 } satisfies Prisma.ProductSelect;
@@ -330,6 +329,33 @@ export class OrdersService {
           }
         }
 
+        for (const item of checkout.items) {
+          if (!item.variantId) continue;
+          const variant = await tx.productVariant.findFirst({
+            where: {
+              id: item.variantId,
+              productId: item.productId,
+              deletedAt: null,
+            },
+          });
+          if (!variant) continue;
+          if (variant.stock > 0 || !variant.inStock) {
+            if (variant.stock < item.quantity) {
+              throw new BadRequestException(
+                `Insufficient stock for "${item.product.name}" (${item.product.variant ?? 'variant'})`,
+              );
+            }
+            const remaining = variant.stock - item.quantity;
+            await tx.productVariant.update({
+              where: { id: variant.id },
+              data: {
+                stock: remaining,
+                inStock: remaining > 0 && variant.isActive,
+              },
+            });
+          }
+        }
+
         const created = await tx.order.create({
           data: {
             orderNumber,
@@ -422,6 +448,7 @@ export class OrdersService {
             items: {
               create: checkout.items.map((item) => ({
                 productId: item.productId,
+                variantId: item.variantId ?? null,
                 name: item.product.name,
                 productImage: normalizeMediaUrl(
                   (item.product as { thumbnailUrl?: string | null })
@@ -921,10 +948,13 @@ export class OrdersService {
         ...(product?.images?.map((img) => img.url) ?? []),
       ]),
     );
+    const matchedVariant = item.variantId
+      ? product?.variants?.find((variant) => variant.id === item.variantId)
+      : undefined;
     const variant =
       item.variant ??
-      product?.variants?.[0]?.label ??
-      product?.variants?.[0]?.displayUnit ??
+      matchedVariant?.label ??
+      matchedVariant?.displayUnit ??
       product?.spec ??
       null;
     const unitPrice = decimalToNumber(item.unitPrice);
@@ -938,7 +968,7 @@ export class OrdersService {
     return {
       id: item.id,
       productId: item.productId,
-      variantId: item.variantId ?? product?.variants?.[0]?.id ?? null,
+      variantId: item.variantId ?? matchedVariant?.id ?? null,
       name: productName,
       productName,
       productImage,

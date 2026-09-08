@@ -246,19 +246,32 @@ export async function seedCatalog(
         const found = await client.productVariant.findFirst({
           where: { productId: product.id, label: v.label, deletedAt: null },
         });
+        const inferredValue =
+          v.value ??
+          v.label.replace(/\s*(ml|L|kg|g|m|CFT|Pieces|Bag|Bags|Bucket).*$/i, '').trim() ??
+          v.label;
+        const variantData = {
+          label: v.label,
+          attribute: v.attribute ?? 'Size',
+          value: inferredValue || v.label,
+          displayUnit: v.displayUnit ?? v.sizeUnit ?? null,
+          size: v.size ?? null,
+          sizeUnit: v.sizeUnit,
+          count: v.count ?? null,
+          sku: v.sku ?? null,
+          price: v.price,
+          mrp: v.mrp ?? null,
+          bulkPrice: v.bulkPrice ?? null,
+          stock: v.stock ?? 0,
+          inStock: v.inStock ?? ((v.stock ?? 0) > 0 || v.stock == null),
+          isActive: true,
+          displayOrder: idx,
+        };
         if (!found) {
           await client.productVariant.create({
             data: {
               productId: product.id,
-              label: v.label,
-              displayUnit: v.displayUnit,
-              size: v.size ?? null,
-              sizeUnit: v.sizeUnit,
-              count: v.count ?? null,
-              price: v.price,
-              bulkPrice: v.bulkPrice ?? null,
-              inStock: v.inStock ?? true,
-              displayOrder: idx,
+              ...variantData,
             },
           });
           summary.variantsSynced += 1;
@@ -266,14 +279,8 @@ export async function seedCatalog(
           await client.productVariant.update({
             where: { id: found.id },
             data: {
-              displayUnit: v.displayUnit,
-              size: v.size ?? null,
-              sizeUnit: v.sizeUnit,
-              count: v.count ?? null,
-              price: v.price,
-              bulkPrice: v.bulkPrice ?? null,
-              inStock: v.inStock ?? true,
-              displayOrder: idx,
+              ...variantData,
+              sku: v.sku ?? found.sku,
               deletedAt: null,
             },
           });

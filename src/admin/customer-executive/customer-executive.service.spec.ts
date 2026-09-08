@@ -29,9 +29,25 @@ jest.mock('../../../generated/prisma/client', () => ({
   },
   SupportTicketStatus: {
     OPEN: 'OPEN',
+    ASSIGNED: 'ASSIGNED',
     IN_PROGRESS: 'IN_PROGRESS',
+    WAITING_FOR_ADMIN: 'WAITING_FOR_ADMIN',
+    WAITING_FOR_CUSTOMER: 'WAITING_FOR_CUSTOMER',
     RESOLVED: 'RESOLVED',
+    CLOSED: 'CLOSED',
+    REOPENED: 'REOPENED',
   },
+  BulkEnquiryStatus: {
+    NEW: 'NEW',
+    IN_PROGRESS: 'IN_PROGRESS',
+    CONVERTED: 'CONVERTED',
+    ORDER_CREATED: 'ORDER_CREATED',
+    COMPLETED: 'COMPLETED',
+    REJECTED: 'REJECTED',
+    CANCELLED: 'CANCELLED',
+  },
+  EntityStatus: { ACTIVE: 'ACTIVE' },
+  ExpertCallbackStatus: { NEW: 'NEW', CONTACTED: 'CONTACTED', CLOSED: 'CLOSED' },
   Prisma: {},
 }));
 
@@ -129,6 +145,8 @@ describe('CustomerExecutiveService access control', () => {
     role: { findFirst: jest.fn() },
     emergencyOrder: { count: jest.fn() },
     customerProfile: { update: jest.fn(), create: jest.fn() },
+    otpRecord: { create: jest.fn(), findFirst: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
+    product: { findMany: jest.fn() },
     $transaction: jest.fn((fn: (tx: Record<string, any>) => unknown) =>
       fn(prisma),
     ),
@@ -140,7 +158,10 @@ describe('CustomerExecutiveService access control', () => {
     del: jest.fn(),
   };
 
-  const redisService = { getClient: () => redisClient };
+  const redisService = {
+    isEnabled: () => false,
+    getClient: () => redisClient,
+  };
   const otpService = {
     sendOtp: jest.fn().mockResolvedValue({ expiresIn: 300, otp: '123456' }),
     verifyOtp: jest.fn().mockResolvedValue(undefined),
@@ -303,5 +324,40 @@ describe('CustomerExecutiveService access control', () => {
         executive,
       ),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('scopes emergency list to assigned customers', async () => {
+    prisma.customer.findMany.mockResolvedValue([{ id: 'cust-own' }]);
+    emergencyService.findAll.mockResolvedValue({ data: [], meta: {} });
+    await service.findEmergencyOrders({ page: 1, limit: 20 }, executive);
+    expect(emergencyService.findAll).toHaveBeenCalledWith(
+      expect.objectContaining({ customerIds: ['cust-own'] }),
+    );
+  });
+
+  it('denies emergency detail for another executive customer', async () => {
+    emergencyService.findOne.mockResolvedValue({
+      id: 'em-1',
+      customerId: 'cust-other',
+    });
+    prisma.customer.findFirst.mockResolvedValue(otherExecCustomer);
+    await expect(
+      service.findEmergencyOrder('em-1', executive),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('denies unassigned customer in another hub', async () => {
+    prisma.customer.findFirst.mockResolvedValue({
+      id: 'cust-unassigned',
+      assignedExecutiveId: null,
+      assignedHubId: 'hub-other',
+      deletedAt: null,
+    });
+    await expect(
+      service.findCustomer('cust-unassigned', {
+        ...executive,
+        assignedHubId: 'hub-own',
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
   });
 });

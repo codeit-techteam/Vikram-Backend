@@ -76,6 +76,24 @@ export class AdminMeDto {
 
   @ApiPropertyOptional()
   lastLoginAt?: Date | null;
+
+  @ApiPropertyOptional()
+  phone?: string | null;
+
+  @ApiPropertyOptional()
+  isActive?: boolean;
+
+  @ApiPropertyOptional()
+  assignedHubId?: string | null;
+
+  @ApiPropertyOptional()
+  assignedHub?: {
+    id: string;
+    name: string;
+    code: string;
+    city: string;
+    state: string;
+  } | null;
 }
 
 export class AdminLoginResponseDto extends AdminTokenResponseDto {

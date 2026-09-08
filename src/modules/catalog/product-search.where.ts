@@ -18,6 +18,21 @@ function fieldContains(token: string): Prisma.ProductWhereInput[] {
     { unit: { contains: token, mode: 'insensitive' } },
     { category: { name: { contains: token, mode: 'insensitive' } } },
     { category: { slug: { contains: token, mode: 'insensitive' } } },
+    {
+      variants: {
+        some: {
+          deletedAt: null,
+          OR: [
+            { label: { contains: token, mode: 'insensitive' } },
+            { value: { contains: token, mode: 'insensitive' } },
+            { sku: { contains: token, mode: 'insensitive' } },
+            { attribute: { contains: token, mode: 'insensitive' } },
+            { sizeUnit: { contains: token, mode: 'insensitive' } },
+            { displayUnit: { contains: token, mode: 'insensitive' } },
+          ],
+        },
+      },
+    },
   ];
 }
 

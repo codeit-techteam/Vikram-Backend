@@ -30,6 +30,21 @@ export function toMoney(value: number): number {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
+/** Canonical MRP vs selling-price discount. Never subtract this from the selling subtotal. */
+export function calculateDiscount(
+  mrp: number | null | undefined,
+  sellingPrice: number,
+): { discountAmount: number; discountPercent: number } {
+  const price = Number(sellingPrice);
+  const list = mrp != null ? Number(mrp) : NaN;
+  if (!Number.isFinite(list) || !Number.isFinite(price) || list <= 0 || list <= price) {
+    return { discountAmount: 0, discountPercent: 0 };
+  }
+  const discountAmount = toMoney(list - price);
+  const discountPercent = Math.round((discountAmount / list) * 100);
+  return { discountAmount, discountPercent };
+}
+
 export function decimalToNumber(
   value: { toNumber?: () => number } | number | string,
 ): number {

@@ -4,18 +4,23 @@ import {
   OrderStatus,
 } from '../../../generated/prisma/client';
 import { PrismaService } from '../../common/database/prisma.service';
-import type { EmergencyQueryDto } from './dto/admin-emergency.dto';
+import type { EmergencyListOptions } from './dto/admin-emergency.dto';
 
 @Injectable()
 export class AdminEmergencyService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findAll(query: EmergencyQueryDto) {
+  async findAll(query: EmergencyListOptions) {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
     const skip = (page - 1) * limit;
     const where: Record<string, unknown> = {};
     if (query.status) where['status'] = query.status;
+    if (query.customerIds !== undefined && query.customerIds !== null) {
+      where['customerId'] = {
+        in: query.customerIds.length ? query.customerIds : ['__none__'],
+      };
+    }
 
     const [data, total] = await Promise.all([
       this.prisma.emergencyOrder.findMany({

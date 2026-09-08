@@ -108,6 +108,16 @@ export class HubManagerQueryDto {
   @IsUUID()
   hubId?: string;
 
+  @ApiPropertyOptional({ description: 'Filter by hub state / region' })
+  @IsOptional()
+  @IsString()
+  region?: string;
+
+  @ApiPropertyOptional({ enum: ['ACTIVE', 'INACTIVE'] })
+  @IsOptional()
+  @IsString()
+  status?: string;
+
   @ApiPropertyOptional({ default: 1 })
   @IsOptional()
   page?: number;

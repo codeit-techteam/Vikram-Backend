@@ -34,6 +34,11 @@ export class AdminHubManagersService {
     };
 
     if (query.hubId) where.hubId = query.hubId;
+    if (query.region) {
+      where.hub = { state: { equals: query.region, mode: 'insensitive' } };
+    }
+    if (query.status === 'ACTIVE') where.isActive = true;
+    if (query.status === 'INACTIVE') where.isActive = false;
     if (query.search) {
       where.OR = [
         { fullName: { contains: query.search, mode: 'insensitive' } },
@@ -68,6 +73,57 @@ export class AdminHubManagersService {
       data: data.map((row) => this.mapManager(row)),
       meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
     };
+  }
+
+  async getStats() {
+    const where: Prisma.HubUserWhereInput = {
+      deletedAt: null,
+      role: HubRole.HUB_MANAGER,
+    };
+    const [total, available, inactive] = await Promise.all([
+      this.prisma.hubUser.count({ where }),
+      this.prisma.hubUser.count({ where: { ...where, isActive: true } }),
+      this.prisma.hubUser.count({ where: { ...where, isActive: false } }),
+    ]);
+    return {
+      totalManagers: total,
+      managersAvailable: available,
+      managersOnLeave: inactive,
+      managersNeedAttention: 0,
+    };
+  }
+
+  async exportCsv(query: HubManagerQueryDto): Promise<string> {
+    const result = await this.findAll({ ...query, page: 1, limit: 2000 });
+    const header = [
+      'ID',
+      'Name',
+      'Employee ID',
+      'Email',
+      'Phone',
+      'Hub',
+      'City',
+      'State',
+      'Status',
+      'Created',
+    ];
+    const lines = result.data.map((row) =>
+      [
+        row.id,
+        row.fullName,
+        row.employeeId,
+        row.email ?? '',
+        row.phone ?? '',
+        row.hubName,
+        row.city,
+        row.state,
+        row.status,
+        row.createdAt,
+      ]
+        .map((cell) => `"${String(cell ?? '').replace(/"/g, '""')}"`)
+        .join(','),
+    );
+    return [header.map((h) => `"${h}"`).join(','), ...lines].join('\n');
   }
 
   async findOne(id: string) {
