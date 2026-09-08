@@ -60,6 +60,7 @@ describe('AdminPushCampaignsService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    fcm.isEnabled.mockReturnValue(true);
     service = new AdminPushCampaignsService(
       prisma as never,
       audienceResolver as never,
@@ -104,6 +105,58 @@ describe('AdminPushCampaignsService', () => {
     expect(audienceResolver.resolveCustomerIds).toHaveBeenCalled();
     expect(dispatch.enqueue).toHaveBeenCalledWith('camp-1');
     expect(result.status).toBe('QUEUED');
+  });
+
+  it('rejects send-now when FCM is not configured', async () => {
+    fcm.isEnabled.mockReturnValue(false);
+
+    await expect(
+      service.create('admin-1', {
+        title: 'Test Notification',
+        body: 'Offer is Valid till 10 Sep',
+        audienceType: 'ALL',
+        deepLinkTarget: 'HOME',
+        deliveryMode: 'NOW',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.pushCampaign.create).not.toHaveBeenCalled();
+    expect(dispatch.enqueue).not.toHaveBeenCalled();
+  });
+
+  it('allows drafts when FCM is not configured', async () => {
+    fcm.isEnabled.mockReturnValue(false);
+    prisma.pushCampaign.create.mockResolvedValue({
+      id: 'draft-2',
+      title: 'Draft',
+      body: 'Hold',
+      imageUrl: null,
+      audienceType: 'ALL',
+      deepLinkTarget: 'HOME',
+      deepLinkValue: null,
+      status: 'DRAFT',
+      deliveryMode: 'NOW',
+      scheduledAt: null,
+      sentAt: null,
+      createdAt: new Date(),
+      totalRecipients: 0,
+      totalSent: 0,
+      totalDelivered: 0,
+      totalOpened: 0,
+      totalFailed: 0,
+      audiences: [],
+    });
+
+    await service.create('admin-1', {
+      title: 'Draft',
+      body: 'Hold',
+      audienceType: 'ALL',
+      deepLinkTarget: 'HOME',
+      deliveryMode: 'NOW',
+      saveAsDraft: true,
+    });
+
+    expect(prisma.pushCampaign.create).toHaveBeenCalled();
+    expect(dispatch.enqueue).not.toHaveBeenCalled();
   });
 
   it('saves drafts without queueing FCM', async () => {

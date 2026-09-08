@@ -62,6 +62,15 @@ services:
       - key: OTP_DEV_BYPASS_CODE
         scope: RUN_TIME
         value: "123456"
+      - key: FIREBASE_PROJECT_ID
+        scope: RUN_TIME
+        type: SECRET
+      - key: FIREBASE_CLIENT_EMAIL
+        scope: RUN_TIME
+        type: SECRET
+      - key: FIREBASE_PRIVATE_KEY
+        scope: RUN_TIME
+        type: SECRET
 databases:
   - name: db-pgsql-blr1-63888
     engine: PG

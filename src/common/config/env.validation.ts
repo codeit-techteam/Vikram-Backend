@@ -147,6 +147,22 @@ class EnvironmentVariables {
 
   @IsString()
   @IsOptional()
+  FIREBASE_PROJECT_ID?: string;
+
+  @IsString()
+  @IsOptional()
+  FIREBASE_CLIENT_EMAIL?: string;
+
+  @IsString()
+  @IsOptional()
+  FIREBASE_PRIVATE_KEY?: string;
+
+  @IsString()
+  @IsOptional()
+  FIREBASE_SERVICE_ACCOUNT_JSON?: string;
+
+  @IsString()
+  @IsOptional()
   OTP_DEV_BYPASS_CODE?: string;
 
   @IsString()

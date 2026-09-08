@@ -3,6 +3,32 @@ import { parseCorsOrigins } from './cors.util';
 import { REDIS_BULLMQ_ENABLED } from './redis-bullmq.feature';
 import { resolveRedisFromEnv } from './redis.config';
 
+function resolveFirebaseConfig() {
+  const jsonRaw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON?.trim();
+  if (jsonRaw) {
+    try {
+      const parsed = JSON.parse(jsonRaw) as {
+        project_id?: string;
+        client_email?: string;
+        private_key?: string;
+      };
+      return {
+        projectId: parsed.project_id ?? '',
+        clientEmail: parsed.client_email ?? '',
+        privateKey: parsed.private_key ?? '',
+      };
+    } catch {
+      // Fall through to discrete env vars.
+    }
+  }
+
+  return {
+    projectId: process.env.FIREBASE_PROJECT_ID ?? '',
+    clientEmail: process.env.FIREBASE_CLIENT_EMAIL ?? '',
+    privateKey: (process.env.FIREBASE_PRIVATE_KEY ?? '').replace(/^"|"$/g, ''),
+  };
+}
+
 export default () => ({
   app: {
     name: process.env.APP_NAME ?? 'Bajriwala ERP API',
@@ -182,11 +208,7 @@ export default () => ({
     smtpPass: process.env.SMTP_PASS ?? '',
     smtpSecure: process.env.SMTP_SECURE === 'true',
   },
-  firebase: {
-    projectId: process.env.FIREBASE_PROJECT_ID ?? '',
-    clientEmail: process.env.FIREBASE_CLIENT_EMAIL ?? '',
-    privateKey: process.env.FIREBASE_PRIVATE_KEY ?? '',
-  },
+  firebase: resolveFirebaseConfig(),
   r2: {
     provider: process.env.MEDIA_PROVIDER ?? 'r2',
     accountId: process.env.R2_ACCOUNT_ID ?? '',

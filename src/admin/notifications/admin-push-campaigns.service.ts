@@ -53,6 +53,7 @@ export class AdminPushCampaignsService {
     const audienceRows = this.buildAudienceRows(audienceType, dto);
 
     if (!dto.saveAsDraft) {
+      this.assertFcmReady();
       await this.audienceResolver.resolveCustomerIds(audienceType, {
         hubIds: dto.hubIds,
         cities: dto.cities,
@@ -148,6 +149,7 @@ export class AdminPushCampaignsService {
   }
 
   async sendDraft(id: string) {
+    this.assertFcmReady();
     const campaign = await this.requireDraft(id);
     await this.audienceResolver.resolveCustomerIds(campaign.audienceType, {
       hubIds: campaign.audiences.map((a) => a.hubId).filter((v): v is string => !!v),
@@ -306,6 +308,7 @@ export class AdminPushCampaignsService {
     const cities = [...new Set(hubs.map((h) => h.city).filter(Boolean))].sort();
 
     return {
+      fcmConfigured: this.fcm.isEnabled(),
       hubs: hubs.map((h) => ({
         id: h.id,
         name: h.name,
@@ -412,6 +415,7 @@ export class AdminPushCampaignsService {
   }
 
   async sendTest(admin: { id: string; email: string; phone?: string | null }, dto: SendTestPushDto) {
+    this.assertFcmReady();
     this.validateImage(dto.imageUrl);
     const tokens = await this.resolveAdminTestTokens(admin);
     if (tokens.length === 0) {
@@ -507,6 +511,13 @@ export class AdminPushCampaignsService {
     if (dto.saveAsDraft) return PushCampaignStatus.DRAFT;
     if (dto.deliveryMode === 'SCHEDULED') return PushCampaignStatus.SCHEDULED;
     return PushCampaignStatus.QUEUED;
+  }
+
+  private assertFcmReady() {
+    if (this.fcm.isEnabled()) return;
+    throw new BadRequestException(
+      'Push delivery is not configured. Add FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY on the DigitalOcean vikram-backend app, then redeploy.',
+    );
   }
 
   private validateSchedule(
