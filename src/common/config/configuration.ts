@@ -57,9 +57,13 @@ export default () => ({
     refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN ?? '30d',
   },
   otp: {
-    /** Fixed OTP in non-production for `devPhone` only (SMS bypass). */
+    /**
+     * Fixed login OTP (default 123456). Enabled unless OTP_DEV_BYPASS_ENABLED=false.
+     * Temporary until SMS OTP is wired — turn it off in production after that.
+     */
     devBypassCode: process.env.OTP_DEV_BYPASS_CODE ?? '123456',
-    /** Demo login phone that receives the fixed bypass OTP in development. */
+    devBypassEnabled: process.env.OTP_DEV_BYPASS_ENABLED !== 'false',
+    /** @deprecated Bypass now applies to every phone when enabled. */
     devPhone: process.env.OTP_DEV_PHONE ?? '8240890242',
   },
   shopping: {

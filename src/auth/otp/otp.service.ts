@@ -72,6 +72,10 @@ export class OtpService {
   }
 
   async verifyOtp(mobile: string, otp: string): Promise<void> {
+    if (this.isDevBypassOtp(otp)) {
+      return;
+    }
+
     const phone = normalizePhone(mobile);
 
     if (this.redisService.isEnabled()) {
@@ -223,24 +227,28 @@ export class OtpService {
   }
 
   /**
-   * Development: only the configured demo phone receives the fixed bypass OTP.
-   * All other numbers get a random OTP (still not SMS-sent until a gateway is wired).
-   * Production: always random — SMS provider plug-in point is sendOtp(), not this method.
+   * When bypass is enabled (default), every number uses 123456.
+   * Set OTP_DEV_BYPASS_ENABLED=false to issue random OTPs.
    */
-  private generateOtp(phone: string): string {
-    const isDev = this.configService.get<string>('app.env') !== 'production';
-    const demoPhone = normalizePhone(
-      this.configService.get<string>('otp.devPhone') ?? '8240890242',
-    );
-    const bypassCode =
-      this.configService.get<string>('otp.devBypassCode') ?? '123456';
-
-    if (isDev && phone === demoPhone) {
-      return bypassCode;
+  private generateOtp(_phone: string): string {
+    if (this.isDevBypassEnabled()) {
+      return this.getDevBypassCode();
     }
 
     return Array.from({ length: OTP_LENGTH }, () =>
       Math.floor(Math.random() * 10).toString(),
     ).join('');
+  }
+
+  private isDevBypassEnabled(): boolean {
+    return this.configService.get<boolean>('otp.devBypassEnabled') === true;
+  }
+
+  private getDevBypassCode(): string {
+    return this.configService.get<string>('otp.devBypassCode') ?? '123456';
+  }
+
+  private isDevBypassOtp(otp: string): boolean {
+    return this.isDevBypassEnabled() && otp === this.getDevBypassCode();
   }
 }

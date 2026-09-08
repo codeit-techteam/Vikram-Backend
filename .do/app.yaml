@@ -54,6 +54,14 @@ services:
       - key: DB_SEED_IF_EMPTY
         scope: RUN_TIME
         value: "true"
+      # Temporary login bypass so Expo can reach Home with OTP 123456.
+      # Turn this off once real SMS OTP is live.
+      - key: OTP_DEV_BYPASS_ENABLED
+        scope: RUN_TIME
+        value: "true"
+      - key: OTP_DEV_BYPASS_CODE
+        scope: RUN_TIME
+        value: "123456"
 databases:
   - name: db-pgsql-blr1-63888
     engine: PG

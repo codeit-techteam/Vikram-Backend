@@ -151,6 +151,14 @@ class EnvironmentVariables {
 
   @IsString()
   @IsOptional()
+  OTP_DEV_BYPASS_ENABLED?: string;
+
+  @IsString()
+  @IsOptional()
+  OTP_DEV_PHONE?: string;
+
+  @IsString()
+  @IsOptional()
   MEMBERSHIP_CRON?: string;
 
   @IsString()

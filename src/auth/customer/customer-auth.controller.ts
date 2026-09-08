@@ -46,7 +46,7 @@ export class CustomerAuthController {
   @ApiOperation({
     summary: 'Send OTP to customer mobile number',
     description:
-      'Step 1 of auth. Call this first. In development the response includes `otp` (default 123456). Then call login or verify-otp within 5 minutes.',
+      'Step 1 of auth. Call this first. While OTP bypass is enabled, use 123456 then call login or verify-otp.',
   })
   @ApiResponse({
     status: 200,
