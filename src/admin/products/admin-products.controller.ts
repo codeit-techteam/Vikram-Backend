@@ -23,6 +23,8 @@ import {
   ProductQueryDto,
   SetProductImagesDto,
   ProductImageItemDto,
+  ReorderProductMediaDto,
+  SetProductVideoDto,
 } from './dto/admin-products.dto';
 import { CurrentAdmin } from '../decorators/current-admin.decorator';
 import type { AuthenticatedAdmin } from '../auth/admin-jwt.strategy';
@@ -131,7 +133,9 @@ export class AdminProductsController {
 
   @Patch(':id/images')
   @AdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
-  @ApiOperation({ summary: 'Replace product images gallery' })
+  @ApiOperation({
+    summary: 'Replace product IMAGE gallery (max 6). Preserves product video.',
+  })
   async setImages(
     @Param('id') id: string,
     @Body() dto: SetProductImagesDto,
@@ -151,7 +155,7 @@ export class AdminProductsController {
 
   @Post(':id/images')
   @AdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
-  @ApiOperation({ summary: 'Add a product image' })
+  @ApiOperation({ summary: 'Add a product image (max 6 total)' })
   async addImage(
     @Param('id') id: string,
     @Body() dto: ProductImageItemDto,
@@ -171,7 +175,7 @@ export class AdminProductsController {
 
   @Delete(':id/images/:imageId')
   @AdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
-  @ApiOperation({ summary: 'Remove a product image' })
+  @ApiOperation({ summary: 'Remove a product image or video media item' })
   async removeImage(
     @Param('id') id: string,
     @Param('imageId') imageId: string,
@@ -185,7 +189,108 @@ export class AdminProductsController {
       resource: 'ProductImage',
       resourceId: imageId,
     });
-    return { success: true, message: 'Product image deleted', data };
+    return { success: true, message: 'Product media deleted', data };
+  }
+
+  @Patch(':id/media/reorder')
+  @AdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
+  @ApiOperation({ summary: 'Reorder product media (images + video)' })
+  async reorderMedia(
+    @Param('id') id: string,
+    @Body() dto: ReorderProductMediaDto,
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+  ) {
+    const data = await this.productsService.reorderMedia(id, dto.mediaIds);
+    await this.auditService.log({
+      adminUserId: admin.id,
+      adminEmail: admin.email,
+      action: 'UPDATE',
+      resource: 'Product',
+      resourceId: id,
+      newValue: { mediaIds: dto.mediaIds },
+    });
+    return { success: true, message: 'Product media reordered', data };
+  }
+
+  @Post(':id/media/video')
+  @AdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
+  @ApiOperation({ summary: 'Set or replace the single product video (max 1)' })
+  async setVideo(
+    @Param('id') id: string,
+    @Body() dto: SetProductVideoDto,
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+  ) {
+    const data = await this.productsService.setVideo(id, dto);
+    await this.auditService.log({
+      adminUserId: admin.id,
+      adminEmail: admin.email,
+      action: 'UPDATE',
+      resource: 'Product',
+      resourceId: id,
+      newValue: { videoUrl: dto.url },
+    });
+    return { success: true, message: 'Product video updated', data };
+  }
+
+  @Delete(':id/media/video')
+  @AdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
+  @ApiOperation({ summary: 'Remove product video' })
+  async removeVideo(
+    @Param('id') id: string,
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+  ) {
+    const data = await this.productsService.removeVideo(id);
+    await this.auditService.log({
+      adminUserId: admin.id,
+      adminEmail: admin.email,
+      action: 'DELETE',
+      resource: 'ProductVideo',
+      resourceId: id,
+    });
+    return { success: true, message: 'Product video deleted', data };
+  }
+
+  @Patch(':id/media/:mediaId/primary')
+  @AdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
+  @ApiOperation({ summary: 'Set primary product image' })
+  async setPrimaryMedia(
+    @Param('id') id: string,
+    @Param('mediaId') mediaId: string,
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+  ) {
+    const data = await this.productsService.setPrimaryImage(id, mediaId);
+    await this.auditService.log({
+      adminUserId: admin.id,
+      adminEmail: admin.email,
+      action: 'UPDATE',
+      resource: 'ProductImage',
+      resourceId: mediaId,
+      newValue: { isPrimary: true },
+    });
+    return { success: true, message: 'Primary image updated', data };
+  }
+
+  @Patch(':id/media/:mediaId')
+  @AdminRoles(...ROLE_GROUPS.SUPER_ADMIN_ONLY)
+  @ApiOperation({
+    summary: 'Replace an existing media item URL (preserve order/primary)',
+  })
+  async replaceMedia(
+    @Param('id') id: string,
+    @Param('mediaId') mediaId: string,
+    @Body() dto: ProductImageItemDto,
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+  ) {
+    const data = await this.productsService.replaceMedia(id, mediaId, dto);
+    await this.auditService.log({
+      adminUserId: admin.id,
+      adminEmail: admin.email,
+      action: 'UPDATE',
+      resource: 'ProductImage',
+      resourceId: mediaId,
+      newValue: dto,
+    });
+    return { success: true, message: 'Product media replaced', data };
   }
 
   @Patch(':id/stock')

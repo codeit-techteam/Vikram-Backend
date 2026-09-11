@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../../common/database/prisma.service';
@@ -15,16 +16,24 @@ import type {
   UpdateProductDto,
   UpdateInventoryDto,
   ProductQueryDto,
+  ProductImageItemDto,
+  SetProductVideoDto,
 } from './dto/admin-products.dto';
 import { hydrateMissingVariantsFromCommerceMeta } from '../../common/shopping/product-variant-hydrate';
+import { R2StorageService } from '../../storage/r2.service';
+import { extractStorageKeyFromUrl } from '../../storage/r2';
+import { PRODUCT_MEDIA_LIMITS } from './product-media.constants';
 
 const MAIN_WAREHOUSE_CODE = 'WH-GURUGRAM';
 
 @Injectable()
 export class AdminProductsService {
+  private readonly logger = new Logger(AdminProductsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly cache: CacheService,
+    private readonly storage: R2StorageService,
   ) {}
 
   private async resolveCentralWarehouse() {
@@ -173,6 +182,13 @@ export class AdminProductsService {
         ? await this.resolveCentralWarehouse()
         : null;
 
+    const imageUrls = dto.imageUrls ?? [];
+    if (imageUrls.length > PRODUCT_MEDIA_LIMITS.MAX_IMAGES) {
+      throw new BadRequestException(
+        `Maximum ${PRODUCT_MEDIA_LIMITS.MAX_IMAGES} product images are allowed.`,
+      );
+    }
+
     const product = await this.prisma.$transaction(async (tx) => {
       const created = await tx.product.create({
         data: {
@@ -201,10 +217,11 @@ export class AdminProductsService {
           isVisible: dto.isVisible ?? true,
           hasVariants: dto.hasVariants ?? false,
           stockLeft: dto.initialStock ?? 0,
-          images: dto.imageUrls?.length
+          images: imageUrls.length
             ? {
-                create: dto.imageUrls.map((url, index) => ({
+                create: imageUrls.map((url, index) => ({
                   url,
+                  type: 'IMAGE' as const,
                   displayOrder: index,
                   isPrimary: index === 0,
                 })),
@@ -402,51 +419,103 @@ export class AdminProductsService {
     return inventory;
   }
 
-  async setImages(
-    productId: string,
-    images: Array<{ url: string; altText?: string; isPrimary?: boolean }>,
-  ) {
+  async setImages(productId: string, images: ProductImageItemDto[]) {
     await this.findOne(productId);
-    await this.prisma.productImage.updateMany({
-      where: { productId, deletedAt: null },
-      data: { deletedAt: new Date() },
-    });
-    if (images.length) {
-      await this.prisma.productImage.createMany({
-        data: images.map((img, index) => ({
-          productId,
-          url: img.url,
-          altText: img.altText,
-          displayOrder: index,
-          isPrimary: img.isPrimary ?? index === 0,
-        })),
-      });
+
+    if (images.length > PRODUCT_MEDIA_LIMITS.MAX_IMAGES) {
+      throw new BadRequestException(
+        `Maximum ${PRODUCT_MEDIA_LIMITS.MAX_IMAGES} product images are allowed.`,
+      );
     }
+
+    for (const img of images) {
+      if (img.type === 'VIDEO') {
+        throw new BadRequestException(
+          'Use the product video endpoint for video media.',
+        );
+      }
+      this.assertHttpUrl(img.url);
+    }
+
+    const previous = await this.prisma.productImage.findMany({
+      where: { productId, deletedAt: null, type: 'IMAGE' },
+    });
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.productImage.updateMany({
+        where: { productId, deletedAt: null, type: 'IMAGE' },
+        data: { deletedAt: new Date(), isPrimary: false },
+      });
+
+      if (!images.length) return;
+
+      const primaryIndex = images.findIndex((img) => img.isPrimary);
+      const resolvedPrimary = primaryIndex >= 0 ? primaryIndex : 0;
+
+      for (let index = 0; index < images.length; index++) {
+        const img = images[index];
+        await tx.productImage.create({
+          data: {
+            productId,
+            type: 'IMAGE',
+            url: img.url,
+            storageKey: img.storageKey ?? this.keyFromUrl(img.url),
+            mimeType: img.mimeType,
+            fileSize:
+              img.fileSize != null ? BigInt(img.fileSize) : undefined,
+            thumbnailUrl: img.thumbnailUrl,
+            altText: img.altText,
+            displayOrder: index,
+            isPrimary: index === resolvedPrimary,
+          },
+        });
+      }
+    });
+
+    await this.bestEffortDeleteOrphans(previous, images.map((i) => i.url));
     await this.cache.invalidateProducts();
     return this.findOne(productId);
   }
 
-  async addImage(
-    productId: string,
-    image: { url: string; altText?: string; isPrimary?: boolean },
-  ) {
+  async addImage(productId: string, image: ProductImageItemDto) {
     await this.findOne(productId);
-    if (image.isPrimary) {
+    this.assertHttpUrl(image.url);
+
+    if (image.type === 'VIDEO') {
+      throw new BadRequestException(
+        'Use the product video endpoint for video media.',
+      );
+    }
+
+    const count = await this.prisma.productImage.count({
+      where: { productId, deletedAt: null, type: 'IMAGE' },
+    });
+    if (count >= PRODUCT_MEDIA_LIMITS.MAX_IMAGES) {
+      throw new BadRequestException(
+        `Maximum ${PRODUCT_MEDIA_LIMITS.MAX_IMAGES} product images are allowed.`,
+      );
+    }
+
+    const makePrimary = image.isPrimary ?? count === 0;
+    if (makePrimary) {
       await this.prisma.productImage.updateMany({
-        where: { productId, deletedAt: null },
+        where: { productId, deletedAt: null, type: 'IMAGE' },
         data: { isPrimary: false },
       });
     }
-    const count = await this.prisma.productImage.count({
-      where: { productId, deletedAt: null },
-    });
+
     const created = await this.prisma.productImage.create({
       data: {
         productId,
+        type: 'IMAGE',
         url: image.url,
+        storageKey: image.storageKey ?? this.keyFromUrl(image.url),
+        mimeType: image.mimeType,
+        fileSize: image.fileSize != null ? BigInt(image.fileSize) : undefined,
+        thumbnailUrl: image.thumbnailUrl,
         altText: image.altText,
         displayOrder: count,
-        isPrimary: image.isPrimary ?? count === 0,
+        isPrimary: makePrimary,
       },
     });
     await this.cache.invalidateProducts();
@@ -458,13 +527,202 @@ export class AdminProductsService {
     const image = await this.prisma.productImage.findFirst({
       where: { id: imageId, productId, deletedAt: null },
     });
-    if (!image) throw new NotFoundException('Product image not found');
+    if (!image) throw new NotFoundException('Product media not found');
+
     await this.prisma.productImage.update({
       where: { id: imageId },
-      data: { deletedAt: new Date() },
+      data: { deletedAt: new Date(), isPrimary: false },
     });
+
+    if (image.type === 'IMAGE' && image.isPrimary) {
+      const nextPrimary = await this.prisma.productImage.findFirst({
+        where: { productId, deletedAt: null, type: 'IMAGE' },
+        orderBy: { displayOrder: 'asc' },
+      });
+      if (nextPrimary) {
+        await this.prisma.productImage.update({
+          where: { id: nextPrimary.id },
+          data: { isPrimary: true },
+        });
+      }
+    }
+
+    await this.renumberDisplayOrder(productId);
+    await this.bestEffortDeleteKeys([
+      image.storageKey ?? this.keyFromUrl(image.url),
+    ]);
     await this.cache.invalidateProducts();
     return { deleted: true };
+  }
+
+  async setVideo(productId: string, dto: SetProductVideoDto) {
+    await this.findOne(productId);
+    this.assertHttpUrl(dto.url);
+
+    const existing = await this.prisma.productImage.findMany({
+      where: { productId, deletedAt: null, type: 'VIDEO' },
+    });
+
+    const maxImageOrder = await this.prisma.productImage.aggregate({
+      where: { productId, deletedAt: null, type: 'IMAGE' },
+      _max: { displayOrder: true },
+    });
+    const displayOrder = (maxImageOrder._max.displayOrder ?? -1) + 1;
+
+    await this.prisma.$transaction(async (tx) => {
+      if (existing.length) {
+        await tx.productImage.updateMany({
+          where: { productId, deletedAt: null, type: 'VIDEO' },
+          data: { deletedAt: new Date(), isPrimary: false },
+        });
+      }
+
+      await tx.productImage.create({
+        data: {
+          productId,
+          type: 'VIDEO',
+          url: dto.url,
+          storageKey: dto.storageKey ?? this.keyFromUrl(dto.url),
+          mimeType: dto.mimeType,
+          fileSize: dto.fileSize != null ? BigInt(dto.fileSize) : undefined,
+          thumbnailUrl: dto.thumbnailUrl,
+          altText: dto.altText,
+          displayOrder,
+          isPrimary: false,
+        },
+      });
+    });
+
+    await this.bestEffortDeleteOrphans(
+      existing,
+      [dto.url],
+    );
+    await this.cache.invalidateProducts();
+    return this.findOne(productId);
+  }
+
+  async removeVideo(productId: string) {
+    await this.findOne(productId);
+    const videos = await this.prisma.productImage.findMany({
+      where: { productId, deletedAt: null, type: 'VIDEO' },
+    });
+    if (!videos.length) {
+      throw new NotFoundException('Product video not found');
+    }
+
+    await this.prisma.productImage.updateMany({
+      where: { productId, deletedAt: null, type: 'VIDEO' },
+      data: { deletedAt: new Date(), isPrimary: false },
+    });
+
+    await this.bestEffortDeleteKeys(
+      videos.map((v) => v.storageKey ?? this.keyFromUrl(v.url)),
+    );
+    await this.renumberDisplayOrder(productId);
+    await this.cache.invalidateProducts();
+    return this.findOne(productId);
+  }
+
+  async reorderMedia(productId: string, mediaIds: string[]) {
+    await this.findOne(productId);
+    if (!mediaIds.length) {
+      throw new BadRequestException('mediaIds is required');
+    }
+
+    const existing = await this.prisma.productImage.findMany({
+      where: { productId, deletedAt: null },
+    });
+    const existingIds = new Set(existing.map((m) => m.id));
+    for (const id of mediaIds) {
+      if (!existingIds.has(id)) {
+        throw new BadRequestException(`Unknown media id: ${id}`);
+      }
+    }
+    if (mediaIds.length !== existing.length) {
+      throw new BadRequestException(
+        'mediaIds must include every active media item exactly once',
+      );
+    }
+
+    await this.prisma.$transaction(
+      mediaIds.map((id, index) =>
+        this.prisma.productImage.update({
+          where: { id },
+          data: { displayOrder: index },
+        }),
+      ),
+    );
+
+    await this.cache.invalidateProducts();
+    return this.findOne(productId);
+  }
+
+  async setPrimaryImage(productId: string, mediaId: string) {
+    await this.findOne(productId);
+    const media = await this.prisma.productImage.findFirst({
+      where: { id: mediaId, productId, deletedAt: null },
+    });
+    if (!media) throw new NotFoundException('Product media not found');
+    if (media.type !== 'IMAGE') {
+      throw new BadRequestException('Only images can be set as primary');
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.productImage.updateMany({
+        where: { productId, deletedAt: null, type: 'IMAGE' },
+        data: { isPrimary: false },
+      }),
+      this.prisma.productImage.update({
+        where: { id: mediaId },
+        data: { isPrimary: true },
+      }),
+    ]);
+
+    await this.cache.invalidateProducts();
+    return this.findOne(productId);
+  }
+
+  async replaceMedia(
+    productId: string,
+    mediaId: string,
+    payload: ProductImageItemDto,
+  ) {
+    await this.findOne(productId);
+    this.assertHttpUrl(payload.url);
+
+    const existing = await this.prisma.productImage.findFirst({
+      where: { id: mediaId, productId, deletedAt: null },
+    });
+    if (!existing) throw new NotFoundException('Product media not found');
+
+    const nextType = payload.type ?? existing.type;
+    if (nextType !== existing.type) {
+      throw new BadRequestException('Cannot change media type on replace');
+    }
+
+    const updated = await this.prisma.productImage.update({
+      where: { id: mediaId },
+      data: {
+        url: payload.url,
+        storageKey: payload.storageKey ?? this.keyFromUrl(payload.url),
+        mimeType: payload.mimeType ?? existing.mimeType,
+        fileSize:
+          payload.fileSize != null
+            ? BigInt(payload.fileSize)
+            : existing.fileSize,
+        thumbnailUrl: payload.thumbnailUrl ?? existing.thumbnailUrl,
+        altText: payload.altText ?? existing.altText,
+      },
+    });
+
+    const oldKey = existing.storageKey ?? this.keyFromUrl(existing.url);
+    const newKey = updated.storageKey ?? this.keyFromUrl(updated.url);
+    if (oldKey && oldKey !== newKey) {
+      await this.bestEffortDeleteKeys([oldKey]);
+    }
+
+    await this.cache.invalidateProducts();
+    return updated;
   }
 
   async bulkUpload(products: CreateProductDto[]) {
@@ -474,5 +732,61 @@ export class AdminProductsService {
     const created = results.filter((r) => r.status === 'fulfilled').length;
     const failed = results.filter((r) => r.status === 'rejected').length;
     return { created, failed, total: products.length };
+  }
+
+  private assertHttpUrl(url: string) {
+    if (!/^https?:\/\//i.test(url.trim())) {
+      throw new BadRequestException('Media URL must be an absolute http(s) URL');
+    }
+  }
+
+  private keyFromUrl(url: string): string | undefined {
+    try {
+      return extractStorageKeyFromUrl(url) || undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  private async renumberDisplayOrder(productId: string) {
+    const rows = await this.prisma.productImage.findMany({
+      where: { productId, deletedAt: null },
+      orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
+    });
+    await this.prisma.$transaction(
+      rows.map((row, index) =>
+        this.prisma.productImage.update({
+          where: { id: row.id },
+          data: { displayOrder: index },
+        }),
+      ),
+    );
+  }
+
+  private async bestEffortDeleteOrphans(
+    previous: Array<{ url: string; storageKey: string | null }>,
+    keepUrls: string[],
+  ) {
+    const keep = new Set(keepUrls);
+    const keys = previous
+      .filter((row) => !keep.has(row.url))
+      .map((row) => row.storageKey ?? this.keyFromUrl(row.url))
+      .filter((key): key is string => Boolean(key));
+    await this.bestEffortDeleteKeys(keys);
+  }
+
+  private async bestEffortDeleteKeys(keys: Array<string | null | undefined>) {
+    for (const key of keys) {
+      if (!key) continue;
+      try {
+        await this.storage.deleteFile(key);
+      } catch (error) {
+        this.logger.warn(
+          `Failed to delete R2 object ${key}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+    }
   }
 }

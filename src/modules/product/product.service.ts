@@ -1118,9 +1118,14 @@ export class ProductService {
       images: Array<{
         id: string;
         url: string;
+        type?: 'IMAGE' | 'VIDEO' | string;
         altText: string | null;
         isPrimary: boolean;
         displayOrder: number;
+        thumbnailUrl?: string | null;
+        mimeType?: string | null;
+        fileSize?: bigint | number | null;
+        storageKey?: string | null;
       }>;
       variants?: Array<{
         id: string;
@@ -1156,8 +1161,14 @@ export class ProductService {
     const mrp = product.mrp != null ? Number(product.mrp) : null;
     const bulkPrice = product.bulkPrice ? Number(product.bulkPrice) : null;
     const membershipPrice = null;
+    const imageRows = product.images.filter(
+      (img) => (img.type ?? 'IMAGE') !== 'VIDEO',
+    );
     const preferredUrl = pickPreferredMediaUrl(
-      product.images.map((img) => img.url),
+      [
+        ...imageRows.filter((img) => img.isPrimary).map((img) => img.url),
+        ...imageRows.map((img) => img.url),
+      ],
     );
     const thumbnail =
       normalizeMediaUrl(preferredUrl, {
@@ -1167,7 +1178,7 @@ export class ProductService {
       // Put preferred URL first so adapters picking gallery[0] stay consistent.
       [
         preferredUrl,
-        ...product.images
+        ...imageRows
           .map((img) => img.url)
           .filter((url) => url !== preferredUrl),
       ],
@@ -1276,19 +1287,11 @@ export class ProductService {
       deliveryMessage: etaPreview?.deliveryMessage ?? undefined,
       membershipPrice,
       isBulkAvailable,
-      images: product.images
-        .map((img) => {
-          const url =
-            normalizeMediaUrl(img.url, { updatedAt: product.updatedAt }) ?? '';
-          return {
-            id: img.id,
-            url,
-            imageUrl: url,
-            altText: img.altText,
-            isPrimary: img.isPrimary,
-            displayOrder: img.displayOrder,
-          };
-        })
+      images: imageRows
+        .map((img) => this.mapMediaItem(img, product.updatedAt))
+        .filter((img) => Boolean(img.url)),
+      media: product.images
+        .map((img) => this.mapMediaItem(img, product.updatedAt))
         .filter((img) => Boolean(img.url)),
     };
 
@@ -1302,5 +1305,48 @@ export class ProductService {
     }
 
     return base;
+  }
+
+  private mapMediaItem(
+    img: {
+      id: string;
+      url: string;
+      type?: 'IMAGE' | 'VIDEO' | string;
+      altText: string | null;
+      isPrimary: boolean;
+      displayOrder: number;
+      thumbnailUrl?: string | null;
+      mimeType?: string | null;
+      fileSize?: bigint | number | null;
+      storageKey?: string | null;
+    },
+    updatedAt?: Date | string | null,
+  ) {
+    const url = normalizeMediaUrl(img.url, { updatedAt }) ?? '';
+    const thumbnailUrl = img.thumbnailUrl
+      ? normalizeMediaUrl(img.thumbnailUrl, { updatedAt })
+      : null;
+    const type = (img.type === 'VIDEO' ? 'VIDEO' : 'IMAGE') as
+      | 'IMAGE'
+      | 'VIDEO';
+    return {
+      id: img.id,
+      type,
+      url,
+      imageUrl: url,
+      thumbnailUrl,
+      mimeType: img.mimeType ?? null,
+      fileSize:
+        img.fileSize == null
+          ? null
+          : typeof img.fileSize === 'bigint'
+            ? Number(img.fileSize)
+            : img.fileSize,
+      storageKey: img.storageKey ?? null,
+      altText: img.altText,
+      isPrimary: type === 'IMAGE' ? img.isPrimary : false,
+      displayOrder: img.displayOrder,
+      sortOrder: img.displayOrder,
+    };
   }
 }

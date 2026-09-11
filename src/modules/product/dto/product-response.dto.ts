@@ -4,6 +4,9 @@ export class ProductImageResponseDto {
   @ApiProperty()
   id!: string;
 
+  @ApiProperty({ enum: ['IMAGE', 'VIDEO'], default: 'IMAGE' })
+  type!: 'IMAGE' | 'VIDEO';
+
   @ApiProperty({ description: 'Image URL (imageUrl alias)' })
   url!: string;
 
@@ -11,13 +14,28 @@ export class ProductImageResponseDto {
   imageUrl?: string;
 
   @ApiPropertyOptional()
+  thumbnailUrl?: string | null;
+
+  @ApiPropertyOptional()
+  mimeType?: string | null;
+
+  @ApiPropertyOptional()
+  fileSize?: number | null;
+
+  @ApiPropertyOptional()
+  storageKey?: string | null;
+
+  @ApiPropertyOptional()
   altText?: string | null;
 
   @ApiProperty()
   isPrimary!: boolean;
 
-  @ApiProperty()
+  @ApiProperty({ description: 'Display / sort order' })
   displayOrder!: number;
+
+  @ApiPropertyOptional({ description: 'Alias of displayOrder' })
+  sortOrder?: number;
 }
 
 export class ProductVariantResponseDto {
@@ -315,6 +333,12 @@ export class ProductResponseDto {
 
   @ApiPropertyOptional({ type: [ProductImageResponseDto] })
   images?: ProductImageResponseDto[];
+
+  @ApiPropertyOptional({
+    type: [ProductImageResponseDto],
+    description: 'Full product media collection (images + optional video)',
+  })
+  media?: ProductImageResponseDto[];
 
   @ApiPropertyOptional({ type: [ProductVariantResponseDto] })
   variants?: ProductVariantResponseDto[];

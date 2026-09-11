@@ -41,7 +41,10 @@ export class CreateProductDto {
   @ApiPropertyOptional() @IsOptional() @IsBoolean() isBestSelling?: boolean;
   @ApiPropertyOptional() @IsOptional() @IsString() listingType?: string;
   @ApiPropertyOptional() @IsOptional() @IsInt() displayOrder?: number;
-  @ApiPropertyOptional({ type: [String] })
+  @ApiPropertyOptional({
+    type: [String],
+    description: 'Product image URLs (max 6). First becomes primary.',
+  })
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
@@ -92,15 +95,96 @@ export class UpdateProductDto {
 }
 
 export class ProductImageItemDto {
-  @ApiProperty() @IsString() url!: string;
-  @ApiPropertyOptional() @IsOptional() @IsString() altText?: string;
-  @ApiPropertyOptional() @IsOptional() @IsBoolean() isPrimary?: boolean;
+  @ApiProperty({ description: 'Public or signed media URL from R2 upload' })
+  @IsString()
+  url!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  altText?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  isPrimary?: boolean;
+
+  @ApiPropertyOptional({ description: 'R2 object key from upload response' })
+  @IsOptional()
+  @IsString()
+  storageKey?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  mimeType?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  fileSize?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  thumbnailUrl?: string;
+
+  @ApiPropertyOptional({ enum: ['IMAGE', 'VIDEO'], default: 'IMAGE' })
+  @IsOptional()
+  @IsEnum(['IMAGE', 'VIDEO'] as const)
+  type?: 'IMAGE' | 'VIDEO';
 }
 
 export class SetProductImagesDto {
-  @ApiProperty({ type: [ProductImageItemDto] })
+  @ApiProperty({
+    type: [ProductImageItemDto],
+    description: `Replace product IMAGE gallery (max 6). Does not remove product video.`,
+  })
   @IsArray()
   images!: ProductImageItemDto[];
+}
+
+export class ReorderProductMediaDto {
+  @ApiProperty({
+    type: [String],
+    description: 'Ordered media IDs (images and/or video)',
+  })
+  @IsArray()
+  @IsString({ each: true })
+  mediaIds!: string[];
+}
+
+export class SetProductVideoDto {
+  @ApiProperty()
+  @IsString()
+  url!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  storageKey?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  mimeType?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  fileSize?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  thumbnailUrl?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  altText?: string;
 }
 
 export class UpdateStockDto {
