@@ -1209,6 +1209,7 @@ export class CustomerExecutiveService {
           customer: { select: { id: true, phone: true, fullName: true } },
           hub: { select: { id: true, code: true, name: true } },
           items: { select: { id: true, name: true, quantity: true } },
+          payments: { orderBy: { createdAt: 'desc' }, take: 1 },
         },
       }),
       this.prisma.order.count({ where }),
@@ -1217,6 +1218,10 @@ export class CustomerExecutiveService {
     return {
       data: data.map((order) => ({
         ...order,
+        paymentProvider: order.payments[0]?.provider ?? null,
+        providerPaymentId: order.payments[0]?.providerPaymentId ?? null,
+        providerOrderId: order.payments[0]?.providerOrderId ?? null,
+        paidAt: order.payments[0]?.capturedAt ?? order.paymentCollectedAt ?? null,
         routing: mapAdminRoutingView(order),
       })),
       meta: { page, limit, total, totalPages: Math.ceil(total / limit) },

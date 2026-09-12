@@ -187,6 +187,7 @@ export class AdminOrdersService {
         timeline: { orderBy: { createdAt: 'asc' } },
         invoice: true,
         dispatch: true,
+        payments: { orderBy: { createdAt: 'desc' as const }, take: 1 },
       },
     });
     if (!order) throw new NotFoundException('Order not found');
@@ -197,6 +198,13 @@ export class AdminOrdersService {
 
     return {
       ...safeOrder,
+      paymentProvider: order.payments[0]?.provider ?? null,
+      providerPaymentId: order.payments[0]?.providerPaymentId ?? null,
+      providerOrderId: order.payments[0]?.providerOrderId ?? null,
+      paidAt:
+        order.payments[0]?.capturedAt?.toISOString() ??
+        order.paymentCollectedAt?.toISOString() ??
+        null,
       statusLabel: getOrderStatusLabel(order.orderStatus),
       invoiceId: order.invoice?.id ?? null,
       invoiceNumber: order.invoice?.invoiceNumber ?? null,

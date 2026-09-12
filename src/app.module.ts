@@ -33,6 +33,7 @@ import { ServiceabilityModule } from './modules/serviceability/serviceability.mo
 import { OrdersModule } from './modules/orders/orders.module';
 import { OrderTrackingModule } from './modules/order-tracking/order-tracking.module';
 import { InvoiceModule } from './modules/invoice/invoice.module';
+import { PaymentsModule } from './modules/payments/payments.module';
 import { ReviewsModule } from './modules/reviews/reviews.module';
 import { SupportModule } from './modules/support/support.module';
 import { CustomerProfileModule } from './modules/customer-profile/customer-profile.module';
@@ -71,7 +72,11 @@ import { PushModule } from './modules/push/push.module';
                   options: { singleLine: true, colorize: true },
                 }
               : undefined,
-          redact: ['req.headers.authorization', 'req.headers.cookie'],
+          redact: [
+            'req.headers.authorization',
+            'req.headers.cookie',
+            'req.headers["x-razorpay-signature"]',
+          ],
         },
       }),
     }),
@@ -106,6 +111,7 @@ import { PushModule } from './modules/push/push.module';
     OrdersModule,
     OrderTrackingModule,
     InvoiceModule,
+    PaymentsModule,
     ReviewsModule,
     SupportModule,
     LoyaltyModule,

@@ -45,7 +45,10 @@ export class OrdersController {
   @ApiOperation({
     summary: 'Place order',
     description: `
-Places an order from the customer cart (MVP — Cash/Manual payment only).
+Places an order from the customer cart.
+
+**COD / MANUAL:** order is confirmed and assigned to a hub immediately.
+**RAZORPAY:** creates a pending order. Payment must be verified via \`/payments/razorpay/verify\` (or webhook) before the order is confirmed.
 
 **Flow**
 1. Validate cart & stock

@@ -57,7 +57,7 @@ export class PlaceOrderDto {
   @ApiPropertyOptional({
     enum: PaymentMethod,
     example: PaymentMethod.CASH,
-    description: 'MVP payment placeholder — CASH or MANUAL only (no gateway)',
+    description: 'CASH (COD), MANUAL, or RAZORPAY (online checkout)',
     default: PaymentMethod.CASH,
   })
   @IsOptional()

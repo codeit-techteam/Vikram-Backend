@@ -174,6 +174,14 @@ export default () => ({
       process.env.PAYMENT_LINK_BASE_URL ??
       process.env.FRONTEND_URL ??
       'https://pay.bajriwala.com',
+    razorpay: {
+      keyId: process.env.RAZORPAY_KEY_ID ?? '',
+      keySecret: process.env.RAZORPAY_KEY_SECRET ?? '',
+      webhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET ?? '',
+      mode: (process.env.RAZORPAY_MODE ?? 'test').toLowerCase() === 'live'
+        ? 'live'
+        : 'test',
+    },
   },
   company: {
     name: process.env.COMPANY_NAME ?? 'Bajriwala',

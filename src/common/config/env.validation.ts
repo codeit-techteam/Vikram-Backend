@@ -207,6 +207,22 @@ class EnvironmentVariables {
   @IsNumber()
   @IsOptional()
   SCHEDULER_PROCESSOR_CONCURRENCY?: number;
+
+  @IsString()
+  @IsOptional()
+  RAZORPAY_KEY_ID?: string;
+
+  @IsString()
+  @IsOptional()
+  RAZORPAY_KEY_SECRET?: string;
+
+  @IsString()
+  @IsOptional()
+  RAZORPAY_WEBHOOK_SECRET?: string;
+
+  @IsString()
+  @IsOptional()
+  RAZORPAY_MODE?: string;
 }
 
 const NUMERIC_ENV_KEYS = [

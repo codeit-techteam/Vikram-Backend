@@ -12,7 +12,15 @@ export class HubOrderRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   hubScope(hubId: string): Prisma.OrderWhereInput {
-    return { hubId, deletedAt: null };
+    return {
+      hubId,
+      deletedAt: null,
+      NOT: {
+        paymentMethod: 'RAZORPAY',
+        paymentStatus: { in: ['PENDING', 'FAILED', 'CANCELLED'] },
+        orderStatus: 'PENDING',
+      },
+    };
   }
 
   async findHubOrder(orderId: string, hubId: string) {

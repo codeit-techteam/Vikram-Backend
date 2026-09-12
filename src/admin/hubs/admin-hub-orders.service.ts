@@ -617,6 +617,9 @@ export class AdminHubOrdersService {
   private resolvePaymentMethod(input: string): PaymentMethod {
     const normalized = input.toUpperCase().replace(/\s+/g, '_');
     if (normalized === 'CASH') return PaymentMethod.CASH;
+    if (normalized === 'RAZORPAY' || normalized === 'ONLINE') {
+      return PaymentMethod.RAZORPAY;
+    }
     if (
       normalized === 'UPI' ||
       normalized.startsWith('CREDIT') ||

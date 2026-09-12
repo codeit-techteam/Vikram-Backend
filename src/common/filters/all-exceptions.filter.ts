@@ -69,7 +69,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
       ? message.join(', ')
       : String(message);
 
-    const errorBody = {
+    const errorBody: Record<string, unknown> = {
       success: false,
       message: messageText,
       error: messageText,
@@ -78,6 +78,15 @@ export class AllExceptionsFilter implements ExceptionFilter {
       path: request.url,
       method: request.method,
     };
+
+    if (
+      typeof exceptionResponse === 'object' &&
+      exceptionResponse &&
+      'code' in exceptionResponse &&
+      typeof (exceptionResponse as { code?: unknown }).code === 'string'
+    ) {
+      errorBody.code = (exceptionResponse as { code: string }).code;
+    }
 
     if (status >= HttpStatus.INTERNAL_SERVER_ERROR) {
       this.logger.error(

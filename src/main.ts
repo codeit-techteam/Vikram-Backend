@@ -16,7 +16,10 @@ import { ApiResponseInterceptor } from './common/interceptors/api-response.inter
 dns.setDefaultResultOrder('ipv4first');
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, { bufferLogs: true });
+  const app = await NestFactory.create(AppModule, {
+    bufferLogs: true,
+    rawBody: true,
+  });
   app.useWebSocketAdapter(new IoAdapter(app));
 
   const configService = app.get(ConfigService);

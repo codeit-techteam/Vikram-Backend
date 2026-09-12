@@ -142,6 +142,10 @@ const ORDER_DETAIL_INCLUDE = {
       invoiceNumber: true,
     },
   },
+  payments: {
+    orderBy: { createdAt: 'desc' as const },
+    take: 1,
+  },
 } satisfies Prisma.OrderInclude;
 
 @Injectable()
@@ -165,14 +169,20 @@ export class OrdersService {
     dto: PlaceOrderDto,
   ): Promise<OrderResponseDto> {
     const paymentMethod = dto.paymentMethod ?? PaymentMethod.CASH;
+    const isOnlinePayment = paymentMethod === PaymentMethod.RAZORPAY;
 
     if (
       paymentMethod !== PaymentMethod.CASH &&
-      paymentMethod !== PaymentMethod.MANUAL
+      paymentMethod !== PaymentMethod.MANUAL &&
+      paymentMethod !== PaymentMethod.RAZORPAY
     ) {
       throw new BadRequestException(
-        'Only CASH or MANUAL payment is supported in MVP',
+        'Unsupported payment method. Use CASH, MANUAL, or RAZORPAY.',
       );
+    }
+
+    if (!isOnlinePayment) {
+      await this.releaseUnpaidOnlineCheckouts(customerId);
     }
 
     const checkout = await this.checkoutService.prepareCheckout(customerId, {
@@ -296,9 +306,11 @@ export class OrdersService {
         const assignableHub = routing.assignableHub;
         const hubCanFulfill = assignableHub != null;
         const assignedHubId = hubCanFulfill ? assignableHub.id : null;
-        const finalStatus = hubCanFulfill
-          ? OrderStatus.HUB_ASSIGNED
-          : OrderStatus.AWAITING_HUB_ALLOCATION;
+        const finalStatus = isOnlinePayment
+          ? OrderStatus.PENDING
+          : hubCanFulfill
+            ? OrderStatus.HUB_ASSIGNED
+            : OrderStatus.AWAITING_HUB_ALLOCATION;
         const hubAssignmentReason = hubCanFulfill ? 'ASSIGNED' : routing.reason;
         const hubRoutingSnapshot = routing.snapshot as Prisma.InputJsonValue;
 
@@ -472,39 +484,49 @@ export class OrdersService {
               })),
             },
             timeline: {
-              create: [
-                {
-                  status: OrderStatus.PENDING,
-                  remarks: preferenceSnapshot.etaLabel
-                    ? `Order Placed · ${preferenceSnapshot.label}: ${preferenceSnapshot.etaLabel}`
-                    : 'Order Placed',
-                  message: 'Order Placed',
-                  updatedBy: 'SYSTEM',
-                  updatedByRole: 'SYSTEM',
-                },
-                {
-                  status: OrderStatus.CONFIRMED,
-                  remarks: 'Confirmed',
-                  message: 'Confirmed',
-                  updatedBy: 'SYSTEM',
-                  updatedByRole: 'SYSTEM',
-                },
-                hubCanFulfill
-                  ? {
-                      status: OrderStatus.HUB_ASSIGNED,
-                      remarks: 'Preparing Order',
-                      message: 'Preparing Order',
-                      updatedBy: 'SYSTEM',
-                      updatedByRole: 'SYSTEM',
-                    }
-                  : {
-                      status: OrderStatus.AWAITING_HUB_ALLOCATION,
-                      remarks: 'Preparing Order',
-                      message: 'Preparing Order',
+              create: isOnlinePayment
+                ? [
+                    {
+                      status: OrderStatus.PENDING,
+                      remarks: 'Order placed. Awaiting online payment.',
+                      message: 'Awaiting Payment',
                       updatedBy: 'SYSTEM',
                       updatedByRole: 'SYSTEM',
                     },
-              ],
+                  ]
+                : [
+                    {
+                      status: OrderStatus.PENDING,
+                      remarks: preferenceSnapshot.etaLabel
+                        ? `Order Placed · ${preferenceSnapshot.label}: ${preferenceSnapshot.etaLabel}`
+                        : 'Order Placed',
+                      message: 'Order Placed',
+                      updatedBy: 'SYSTEM',
+                      updatedByRole: 'SYSTEM',
+                    },
+                    {
+                      status: OrderStatus.CONFIRMED,
+                      remarks: 'Confirmed',
+                      message: 'Confirmed',
+                      updatedBy: 'SYSTEM',
+                      updatedByRole: 'SYSTEM',
+                    },
+                    hubCanFulfill
+                      ? {
+                          status: OrderStatus.HUB_ASSIGNED,
+                          remarks: 'Preparing Order',
+                          message: 'Preparing Order',
+                          updatedBy: 'SYSTEM',
+                          updatedByRole: 'SYSTEM',
+                        }
+                      : {
+                          status: OrderStatus.AWAITING_HUB_ALLOCATION,
+                          remarks: 'Preparing Order',
+                          message: 'Preparing Order',
+                          updatedBy: 'SYSTEM',
+                          updatedByRole: 'SYSTEM',
+                        },
+                  ],
             },
           },
           include: {
@@ -567,21 +589,35 @@ export class OrdersService {
       await this.cache.del(CACHE_KEYS.LOYALTY(customerId));
     }
 
-    await this.notificationService.createForCustomer({
-      customerId,
-      type: NotificationType.ORDER,
-      label: 'ORDER PLACED',
-      title: `Order ${order.orderNumber} placed successfully`,
-      body: checkout.serviceable
-        ? `Your order ${order.orderNumber} has been confirmed. Estimated delivery: ${checkout.deliveryMessage}. Grand total ₹${checkout.grandTotal}. Payment: ${paymentMethod}.`
-        : `Your order ${order.orderNumber} has been placed. Grand total ₹${checkout.grandTotal}.`,
-      actionLabel: 'View Order',
-      actionRoute: `/(tabs)/orders`,
-      actionVariant: 'outline',
-      priority: 10,
-    });
+    if (isOnlinePayment) {
+      await this.notificationService.createForCustomer({
+        customerId,
+        type: NotificationType.ORDER,
+        label: 'PAYMENT PENDING',
+        title: `Complete payment for ${order.orderNumber}`,
+        body: `Pay ₹${checkout.grandTotal} to confirm order ${order.orderNumber}.`,
+        actionLabel: 'Pay Now',
+        actionRoute: `/(tabs)/orders`,
+        actionVariant: 'primary',
+        priority: 10,
+      });
+    } else {
+      await this.notificationService.createForCustomer({
+        customerId,
+        type: NotificationType.ORDER,
+        label: 'ORDER PLACED',
+        title: `Order ${order.orderNumber} placed successfully`,
+        body: checkout.serviceable
+          ? `Your order ${order.orderNumber} has been confirmed. Estimated delivery: ${checkout.deliveryMessage}. Grand total ₹${checkout.grandTotal}. Payment: ${paymentMethod}.`
+          : `Your order ${order.orderNumber} has been placed. Grand total ₹${checkout.grandTotal}.`,
+        actionLabel: 'View Order',
+        actionRoute: `/(tabs)/orders`,
+        actionVariant: 'outline',
+        priority: 10,
+      });
+    }
 
-    if (routing.assignableHub) {
+    if (!isOnlinePayment && routing.assignableHub) {
       await this.prisma.hubNotification.create({
         data: {
           hubId: routing.assignableHub.id,
@@ -641,6 +677,146 @@ export class OrdersService {
       createdAt: order.createdAt.toISOString(),
       updatedAt: order.updatedAt.toISOString(),
     };
+  }
+
+  async confirmPaidOrder(orderId: string): Promise<void> {
+    const order = await this.prisma.order.findFirst({
+      where: { id: orderId, deletedAt: null },
+      include: { hub: { select: { id: true, name: true } } },
+    });
+    if (!order) return;
+
+    if (
+      order.paymentStatus === PaymentStatus.PAID &&
+      order.orderStatus !== OrderStatus.PENDING
+    ) {
+      return;
+    }
+
+    const now = new Date();
+    const nextStatus = order.hubId
+      ? OrderStatus.HUB_ASSIGNED
+      : OrderStatus.AWAITING_HUB_ALLOCATION;
+
+    const advanced = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.order.updateMany({
+        where: {
+          id: orderId,
+          paymentStatus: {
+            notIn: [PaymentStatus.PAID, PaymentStatus.COLLECTED],
+          },
+        },
+        data: {
+          paymentStatus: PaymentStatus.PAID,
+          orderStatus: nextStatus,
+          paymentCollectedAt: now,
+        },
+      });
+
+      if (updated.count === 0) {
+        if (
+          order.paymentStatus === PaymentStatus.PAID &&
+          order.orderStatus === OrderStatus.PENDING
+        ) {
+          await tx.order.update({
+            where: { id: orderId },
+            data: { orderStatus: nextStatus },
+          });
+        } else {
+          return false;
+        }
+      }
+
+      const existing = await tx.orderTimeline.findFirst({
+        where: { orderId, status: OrderStatus.CONFIRMED },
+      });
+      if (!existing) {
+        await tx.orderTimeline.createMany({
+          data: [
+            {
+              orderId,
+              status: OrderStatus.CONFIRMED,
+              remarks: 'Online payment confirmed',
+              message: 'Payment Confirmed',
+              updatedBy: 'SYSTEM',
+              updatedByRole: 'SYSTEM',
+            },
+            {
+              orderId,
+              status: nextStatus,
+              remarks: 'Preparing Order',
+              message: 'Preparing Order',
+              updatedBy: 'SYSTEM',
+              updatedByRole: 'SYSTEM',
+            },
+          ],
+        });
+      }
+
+      return true;
+    });
+
+    if (!advanced) return;
+
+    await this.notificationService.createForCustomer({
+      customerId: order.customerId,
+      type: NotificationType.ORDER,
+      label: 'ORDER CONFIRMED',
+      title: `Payment received for ${order.orderNumber}`,
+      body: `Your order ${order.orderNumber} is confirmed. Grand total ₹${decimalToNumber(order.grandTotal)}.`,
+      actionLabel: 'View Order',
+      actionRoute: `/(tabs)/orders`,
+      actionVariant: 'outline',
+      priority: 10,
+    });
+
+    if (order.hubId) {
+      await this.prisma.hubNotification.create({
+        data: {
+          hubId: order.hubId,
+          type: 'ORDER',
+          title: `New Order ${order.orderNumber}`,
+          body: `Online payment received ₹${decimalToNumber(order.grandTotal)}. Accept and assign a driver.`,
+        },
+      });
+    }
+
+    await this.cache.invalidateAfterOrder(order.customerId);
+
+    this.orderEvents.emitOrderUpdated({
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      status: nextStatus,
+      statusLabel: getCustomerOrderStatusLabel(nextStatus),
+      updatedAt: now.toISOString(),
+      hubId: order.hubId,
+      customerId: order.customerId,
+    });
+
+    this.logger.log(
+      `Online payment confirmed | Order: ${order.orderNumber} | Status: ${nextStatus}`,
+    );
+  }
+
+  private async releaseUnpaidOnlineCheckouts(customerId: string): Promise<void> {
+    const pending = await this.prisma.order.findMany({
+      where: {
+        customerId,
+        deletedAt: null,
+        paymentMethod: PaymentMethod.RAZORPAY,
+        paymentStatus: {
+          in: [PaymentStatus.PENDING, PaymentStatus.FAILED, PaymentStatus.CANCELLED],
+        },
+        orderStatus: OrderStatus.PENDING,
+      },
+      select: { id: true },
+    });
+
+    for (const row of pending) {
+      await this.cancel(customerId, row.id, {
+        reason: 'Switched to another payment method',
+      });
+    }
   }
 
   private async nextOrderNumber(tx: Prisma.TransactionClient): Promise<string> {
@@ -1086,6 +1262,10 @@ export class OrdersService {
       payment: {
         method: order.paymentMethod,
         status: order.paymentStatus,
+        provider: order.payments?.[0]?.provider ?? null,
+        providerPaymentId: order.payments?.[0]?.providerPaymentId ?? null,
+        providerOrderId: order.payments?.[0]?.providerOrderId ?? null,
+        capturedAt: order.payments?.[0]?.capturedAt?.toISOString() ?? null,
       },
       timeline: order.timeline.map((event) => this.mapTimelineEvent(event)),
       invoiceStatus: order.invoice?.status ?? null,

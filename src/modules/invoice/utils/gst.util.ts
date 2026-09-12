@@ -118,6 +118,7 @@ export function formatAddress(address: {
 export function formatPaymentMethod(method: string): string {
   if (method === 'CASH') return 'Cash on Delivery';
   if (method === 'MANUAL') return 'Manual / Bank Transfer';
+  if (method === 'RAZORPAY') return 'Paid Online (Razorpay)';
   return method.replace(/_/g, ' ');
 }
 

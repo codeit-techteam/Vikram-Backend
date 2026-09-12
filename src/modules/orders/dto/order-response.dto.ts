@@ -161,6 +161,18 @@ export class OrderPaymentDto {
 
   @ApiProperty({ enum: PaymentStatus })
   status!: PaymentStatus;
+
+  @ApiPropertyOptional()
+  provider?: string | null;
+
+  @ApiPropertyOptional()
+  providerPaymentId?: string | null;
+
+  @ApiPropertyOptional()
+  providerOrderId?: string | null;
+
+  @ApiPropertyOptional()
+  capturedAt?: string | null;
 }
 
 export class OrderListItemDto {

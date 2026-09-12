@@ -221,11 +221,32 @@ enum PaymentStatus {
   COLLECTED
   FAILED
   REFUNDED
+  AUTHORIZED
+  CANCELLED
 }
 
 enum PaymentMethod {
   CASH
   MANUAL
+  RAZORPAY
+}
+
+enum GatewayPaymentStatus {
+  CREATED
+  PENDING
+  AUTHORIZED
+  CAPTURED
+  FAILED
+  CANCELLED
+  REFUNDED
+  VERIFICATION_FAILED
+}
+
+enum WebhookProcessingStatus {
+  RECEIVED
+  PROCESSED
+  IGNORED
+  FAILED
 }
 
 enum InvoiceStatus {
@@ -1261,6 +1282,7 @@ model Customer {
   emergencyOrders    EmergencyOrder[]
   refunds            Refund[]
   paymentLinks       PaymentLink[]
+  payments           Payment[]
   assignedHub        Hub?                @relation("CustomerAssignedHub", fields: [assignedHubId], references: [id], onDelete: SetNull)
   assignedExecutive  AdminUser?          @relation("CustomerAssignedExecutive", fields: [assignedExecutiveId], references: [id], onDelete: SetNull)
   registeredBy       AdminUser?          @relation("CustomerRegisteredBy", fields: [registeredByUserId], references: [id], onDelete: SetNull)
@@ -1840,6 +1862,7 @@ model Order {
   proofOfDelivery ProofOfDelivery?
   refunds         Refund[]
   paymentLinks    PaymentLink[]
+  payments        Payment[]
   bulkEnquiries   BulkEnquiry[] @relation("BulkEnquiryConvertedOrder")
   scheduledSlot   DeliverySlot? @relation(fields: [scheduledSlotId], references: [id], onDelete: SetNull)
   slotReservations DeliverySlotReservation[]
@@ -1936,6 +1959,59 @@ model DeliverySlotReservation {
   @@index([customerId, status])
   @@index([expiresAt])
   @@map("delivery_slot_reservations")
+}
+
+model Payment {
+  id                   String               @id @default(uuid()) @db.Uuid
+  orderId              String               @map("order_id") @db.Uuid
+  customerId           String               @map("customer_id") @db.Uuid
+  provider             String               @default("razorpay") @db.VarChar(40)
+  providerOrderId      String               @unique @map("provider_order_id") @db.VarChar(80)
+  providerPaymentId    String?              @unique @map("provider_payment_id") @db.VarChar(80)
+  providerSignature    String?              @map("provider_signature") @db.VarChar(255)
+  amount               Decimal              @db.Decimal(12, 2)
+  amountPaise          Int                  @map("amount_paise")
+  currency             String               @default("INR") @db.VarChar(10)
+  status               GatewayPaymentStatus @default(CREATED)
+  method               String?              @db.VarChar(40)
+  failureCode          String?              @map("failure_code") @db.VarChar(80)
+  failureDescription   String?              @map("failure_description") @db.VarChar(500)
+  verifiedAt           DateTime?            @map("verified_at")
+  capturedAt           DateTime?            @map("captured_at")
+  metadata             Json?                @db.JsonB
+  createdAt            DateTime             @default(now()) @map("created_at")
+  updatedAt            DateTime             @updatedAt @map("updated_at")
+
+  order    Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([orderId, status])
+  @@index([customerId, status])
+  @@index([provider, status])
+  @@map("payments")
+}
+
+model PaymentWebhookEvent {
+  id                 String                   @id @default(uuid()) @db.Uuid
+  provider           String                   @default("razorpay") @db.VarChar(40)
+  eventType          String                   @map("event_type") @db.VarChar(80)
+  dedupeKey          String                   @unique @map("dedupe_key") @db.VarChar(191)
+  eventId            String?                  @map("event_id") @db.VarChar(80)
+  processingStatus   WebhookProcessingStatus  @default(RECEIVED) @map("processing_status")
+  orderId            String?                  @map("order_id") @db.Uuid
+  paymentId          String?                  @map("payment_id") @db.Uuid
+  providerPaymentId  String?                  @map("provider_payment_id") @db.VarChar(80)
+  providerOrderId    String?                  @map("provider_order_id") @db.VarChar(80)
+  payload            Json?                    @db.JsonB
+  errorMessage       String?                  @map("error_message") @db.VarChar(500)
+  receivedAt         DateTime                 @default(now()) @map("received_at")
+  processedAt        DateTime?                @map("processed_at")
+
+  @@index([eventType, receivedAt(sort: Desc)])
+  @@index([providerOrderId])
+  @@index([providerPaymentId])
+  @@index([processingStatus])
+  @@map("payment_webhook_events")
 }
 
 model PaymentLink {
