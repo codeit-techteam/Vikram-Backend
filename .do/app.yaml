@@ -71,6 +71,19 @@ services:
       - key: FIREBASE_PRIVATE_KEY
         scope: RUN_TIME
         type: SECRET
+      # Razorpay Test Mode. Set values in the App Platform dashboard (never commit secrets).
+      - key: RAZORPAY_KEY_ID
+        scope: RUN_TIME
+        type: SECRET
+      - key: RAZORPAY_KEY_SECRET
+        scope: RUN_TIME
+        type: SECRET
+      - key: RAZORPAY_WEBHOOK_SECRET
+        scope: RUN_TIME
+        type: SECRET
+      - key: RAZORPAY_MODE
+        scope: RUN_TIME
+        value: test
 databases:
   - name: db-pgsql-blr1-63888
     engine: PG
