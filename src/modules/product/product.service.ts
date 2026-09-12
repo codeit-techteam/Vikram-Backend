@@ -1322,13 +1322,18 @@ export class ProductService {
     },
     updatedAt?: Date | string | null,
   ) {
-    const url = normalizeMediaUrl(img.url, { updatedAt }) ?? '';
-    const thumbnailUrl = img.thumbnailUrl
-      ? normalizeMediaUrl(img.thumbnailUrl, { updatedAt })
-      : null;
     const type = (img.type === 'VIDEO' ? 'VIDEO' : 'IMAGE') as
       | 'IMAGE'
       | 'VIDEO';
+    // Cache-bust images only — query params on MP4s break Expo Go / ExoPlayer.
+    const url =
+      normalizeMediaUrl(
+        img.url,
+        type === 'VIDEO' ? undefined : { updatedAt },
+      ) ?? '';
+    const thumbnailUrl = img.thumbnailUrl
+      ? normalizeMediaUrl(img.thumbnailUrl, { updatedAt })
+      : null;
     return {
       id: img.id,
       type,

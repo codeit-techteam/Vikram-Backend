@@ -472,7 +472,10 @@ export class AdminProductsService {
       }
     });
 
-    await this.bestEffortDeleteOrphans(previous, images.map((i) => i.url));
+    await this.bestEffortDeleteOrphans(
+      previous,
+      images.map((i) => i.url),
+    );
     await this.cache.invalidateProducts();
     return this.findOne(productId);
   }
@@ -562,6 +565,27 @@ export class AdminProductsService {
     const existing = await this.prisma.productImage.findMany({
       where: { productId, deletedAt: null, type: 'VIDEO' },
     });
+    const nextKey = dto.storageKey ?? this.keyFromUrl(dto.url);
+    const sameObject = existing.some((row) =>
+      this.isSameMediaObject(row, dto.url, nextKey),
+    );
+
+    if (sameObject && existing.length === 1) {
+      await this.prisma.productImage.update({
+        where: { id: existing[0].id },
+        data: {
+          url: dto.url,
+          storageKey: nextKey ?? existing[0].storageKey,
+          mimeType: dto.mimeType ?? existing[0].mimeType,
+          fileSize:
+            dto.fileSize != null ? BigInt(dto.fileSize) : existing[0].fileSize,
+          thumbnailUrl: dto.thumbnailUrl ?? existing[0].thumbnailUrl,
+          altText: dto.altText ?? existing[0].altText,
+        },
+      });
+      await this.cache.invalidateProducts();
+      return this.findOne(productId);
+    }
 
     const maxImageOrder = await this.prisma.productImage.aggregate({
       where: { productId, deletedAt: null, type: 'IMAGE' },
@@ -582,7 +606,7 @@ export class AdminProductsService {
           productId,
           type: 'VIDEO',
           url: dto.url,
-          storageKey: dto.storageKey ?? this.keyFromUrl(dto.url),
+          storageKey: nextKey,
           mimeType: dto.mimeType,
           fileSize: dto.fileSize != null ? BigInt(dto.fileSize) : undefined,
           thumbnailUrl: dto.thumbnailUrl,
@@ -593,10 +617,7 @@ export class AdminProductsService {
       });
     });
 
-    await this.bestEffortDeleteOrphans(
-      existing,
-      [dto.url],
-    );
+    await this.bestEffortDeleteOrphans(existing, [dto.url], nextKey);
     await this.cache.invalidateProducts();
     return this.findOne(productId);
   }
@@ -748,6 +769,20 @@ export class AdminProductsService {
     }
   }
 
+  private canonicalMediaUrl(url?: string | null): string {
+    return (url ?? '').trim().split('?')[0].split('#')[0];
+  }
+
+  private isSameMediaObject(
+    row: { url: string; storageKey: string | null },
+    nextUrl: string,
+    nextKey?: string | null,
+  ): boolean {
+    const rowKey = row.storageKey ?? this.keyFromUrl(row.url);
+    if (nextKey && rowKey && nextKey === rowKey) return true;
+    return this.canonicalMediaUrl(row.url) === this.canonicalMediaUrl(nextUrl);
+  }
+
   private async renumberDisplayOrder(productId: string) {
     const rows = await this.prisma.productImage.findMany({
       where: { productId, deletedAt: null },
@@ -766,10 +801,21 @@ export class AdminProductsService {
   private async bestEffortDeleteOrphans(
     previous: Array<{ url: string; storageKey: string | null }>,
     keepUrls: string[],
+    keepKey?: string | null,
   ) {
-    const keep = new Set(keepUrls);
+    const keepUrlSet = new Set(keepUrls.map((url) => this.canonicalMediaUrl(url)));
+    const keepKeys = new Set(
+      [
+        keepKey,
+        ...keepUrls.map((url) => this.keyFromUrl(url)),
+      ].filter((key): key is string => Boolean(key)),
+    );
     const keys = previous
-      .filter((row) => !keep.has(row.url))
+      .filter((row) => {
+        const rowKey = row.storageKey ?? this.keyFromUrl(row.url);
+        if (rowKey && keepKeys.has(rowKey)) return false;
+        return !keepUrlSet.has(this.canonicalMediaUrl(row.url));
+      })
       .map((row) => row.storageKey ?? this.keyFromUrl(row.url))
       .filter((key): key is string => Boolean(key));
     await this.bestEffortDeleteKeys(keys);

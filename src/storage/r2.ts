@@ -56,9 +56,12 @@ function sanitizeFilename(name: string): string {
 }
 
 function extensionFromName(filename?: string, mimeType?: string): string {
-  if (filename && filename.includes('.')) {
-    return filename.split('.').pop()!.toLowerCase().slice(0, 10);
-  }
+  const knownExt = filename
+    ?.trim()
+    .toLowerCase()
+    .match(/(\.[a-z0-9]{2,5})$/)?.[1]
+    ?.slice(1);
+  if (knownExt) return knownExt;
   if (!mimeType) return 'bin';
   if (mimeType.includes('mp4')) return 'mp4';
   if (mimeType.includes('webm')) return 'webm';
@@ -110,7 +113,10 @@ export function generateUniqueKey(
   const prefix = resolveMediaFolder(folder).replace(/^\/+|\/+$/g, '');
   const ext = extensionFromName(filename, mimeType);
   const base = filename
-    ? sanitizeFilename(filename.replace(/\.[^.]+$/, ''))
+    ? sanitizeFilename(filename.replace(/\.[a-z0-9]{2,5}$/i, '')).replace(
+        /\./g,
+        '-',
+      )
     : 'file';
   const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
   return `${prefix}/${stamp}-${randomUUID().slice(0, 8)}-${base}.${ext}`;
