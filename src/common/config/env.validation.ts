@@ -223,6 +223,23 @@ class EnvironmentVariables {
   @IsString()
   @IsOptional()
   RAZORPAY_MODE?: string;
+
+  @IsString()
+  @IsOptional()
+  GOOGLE_MAPS_SERVER_API_KEY?: string;
+
+  @IsString()
+  @IsOptional()
+  GOOGLE_MAPS_API_KEY?: string;
+
+  @IsString()
+  @IsOptional()
+  GOOGLE_MAPS_REGION?: string;
+
+  @Type(() => Number)
+  @IsNumber()
+  @IsOptional()
+  GOOGLE_MAPS_TIMEOUT_MS?: number;
 }
 
 const NUMERIC_ENV_KEYS = [
@@ -238,6 +255,7 @@ const NUMERIC_ENV_KEYS = [
   'SCHEDULER_DRAIN_DELAY_MS',
   'SCHEDULER_STALLED_INTERVAL_MS',
   'SCHEDULER_LOCK_DURATION_MS',
+  'GOOGLE_MAPS_TIMEOUT_MS',
 ] as const;
 
 export function validate(config: Record<string, unknown>) {

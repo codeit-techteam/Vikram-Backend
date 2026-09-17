@@ -29,6 +29,11 @@ export const CACHE_TTL = {
   ADS: 600,
   PROMOTIONS: 600,
   HOME_SECTIONS: 600,
+  /** Street layout barely changes; long TTLs are what keep the Google bill flat. */
+  GEOCODE_REVERSE: 86_400,
+  GEOCODE_FORWARD: 86_400,
+  GEOCODE_AUTOCOMPLETE: 21_600,
+  GEOCODE_PLACE: 2_592_000,
 } as const;
 
 export const CACHE_KEYS = {
@@ -82,6 +87,10 @@ export const CACHE_KEYS = {
   BULK: (customerId: string) => `bulk:${customerId}`,
   BULK_DETAIL: (customerId: string, id: string) => `bulk:${customerId}:${id}`,
   TESTIMONIALS: 'testimonials:published',
+  GEOCODE_REVERSE: (lat: string, lng: string) => `geocode:reverse:${lat},${lng}`,
+  GEOCODE_FORWARD: (query: string) => `geocode:forward:${query}`,
+  GEOCODE_AUTOCOMPLETE: (query: string) => `geocode:autocomplete:${query}`,
+  GEOCODE_PLACE: (placeId: string) => `geocode:place:${placeId}`,
 } as const;
 
 export const CACHE_PATTERNS = {

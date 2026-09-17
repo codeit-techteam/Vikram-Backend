@@ -166,6 +166,20 @@ export default () => ({
   internal: {
     apiKey: process.env.INTERNAL_API_KEY,
   },
+  googleMaps: {
+    /**
+     * Server-side key for Geocoding and Places web services. Keep this separate
+     * from the key shipped in the mobile app: this one should be IP-restricted,
+     * the app's key restricted to the Android/iOS Maps SDKs.
+     */
+    apiKey:
+      process.env.GOOGLE_MAPS_SERVER_API_KEY ??
+      process.env.GOOGLE_MAPS_API_KEY ??
+      '',
+    /** Biases Places/Geocoding results; `in` keeps suggestions inside India. */
+    region: process.env.GOOGLE_MAPS_REGION ?? 'in',
+    timeoutMs: parseInt(process.env.GOOGLE_MAPS_TIMEOUT_MS ?? '8000', 10),
+  },
   payment: {
     provider: process.env.PAYMENT_PROVIDER ?? '',
     secret: process.env.PAYMENT_SECRET ?? '',

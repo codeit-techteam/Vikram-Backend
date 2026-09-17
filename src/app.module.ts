@@ -29,6 +29,7 @@ import { CartModule } from './modules/cart/cart.module';
 import { CheckoutModule } from './modules/checkout/checkout.module';
 import { CoverageModule } from './modules/coverage/coverage.module';
 import { DeliveryModule } from './modules/delivery/delivery.module';
+import { GeocodingModule } from './modules/geocoding/geocoding.module';
 import { ServiceabilityModule } from './modules/serviceability/serviceability.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { OrderTrackingModule } from './modules/order-tracking/order-tracking.module';
@@ -107,6 +108,7 @@ import { PushModule } from './modules/push/push.module';
     CheckoutModule,
     CoverageModule,
     DeliveryModule,
+    GeocodingModule,
     ServiceabilityModule,
     OrdersModule,
     OrderTrackingModule,
