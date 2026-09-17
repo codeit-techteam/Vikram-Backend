@@ -3,6 +3,8 @@ export const CACHE_TTL = {
   CMS_HOME: 60,
   CATEGORIES: 600,
   CATEGORY_DETAIL: 600,
+  /** Brand / subcategory rails move only when Admin publishes catalog changes. */
+  CATEGORY_FACETS: 300,
   PRODUCTS: 300,
   PRODUCT_DETAIL: 300,
   OFFERS: 300,
@@ -51,6 +53,7 @@ export const CACHE_KEYS = {
   CATEGORIES_FEATURED: 'categories:featured',
   CATEGORIES_TOP: 'categories:top',
   CATEGORY: (slug: string) => `category:${slug}`,
+  CATEGORY_FACETS: (slug: string) => `category:${slug}:facets`,
   PRODUCTS_PAGE: (page: number) => `products:page:${page}`,
   PRODUCTS: (hash: string) => `products:${hash}`,
   PRODUCTS_HOME: (hubId?: string, limit?: number) =>
@@ -97,6 +100,8 @@ export const CACHE_PATTERNS = {
   HOME: 'home:*',
   CMS: 'cms:*',
   CATEGORIES: 'categor*',
+  /** Derived from product rows, so product writes must clear these too. */
+  CATEGORY_FACETS: 'category:*:facets',
   PRODUCTS: 'product*',
   OFFERS: 'offer*',
   BANNERS: 'banners*',

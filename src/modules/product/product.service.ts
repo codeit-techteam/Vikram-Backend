@@ -40,6 +40,10 @@ import {
 } from '../../common/shopping/catalog-commerce-meta.util';
 import { hydrateMissingVariantsFromCommerceMeta } from '../../common/shopping/product-variant-hydrate';
 import { normalizeAttributesMap } from '../../common/shopping/product-variant.constants';
+import type {
+  CategoryFacetsResponseDto,
+  CategoryFacetValueDto,
+} from '../category/dto/category-facets.dto';
 import { ProductQueryDto } from './dto/product-query.dto';
 import {
   BulkPricingTierDto,
@@ -179,6 +183,213 @@ export class ProductService {
     idOrSlug: string,
     query: ProductQueryDto,
   ): Promise<ProductListResponseDto> {
+    const category = await this.resolveCategory(idOrSlug);
+
+    return this.findAll({
+      ...query,
+      category: category.slug,
+      categoryId: category.id,
+    });
+  }
+
+  /**
+   * Navigation facets for a category screen (brand rail, subcategory rail,
+   * grade / type chips, price bounds).
+   *
+   * Everything is aggregated from live product rows, so the customer app never
+   * needs a hardcoded brand list: publish a product under a new brand in Admin
+   * and it shows up here on the next cache cycle.
+   */
+  async getCategoryFacets(
+    idOrSlug: string,
+  ): Promise<CategoryFacetsResponseDto> {
+    const category = await this.resolveCategory(idOrSlug);
+
+    const cacheKey = CACHE_KEYS.CATEGORY_FACETS(category.slug);
+    const cached = await this.cache.get<CategoryFacetsResponseDto>(cacheKey);
+    if (cached) return cached;
+
+    const where = this.buildWhereClause({ categoryId: category.id });
+
+    const [
+      totalProducts,
+      brandGroups,
+      productTypeGroups,
+      gradeGroups,
+      priceAggregate,
+      brandLogoRows,
+      children,
+    ] = await Promise.all([
+      this.prisma.product.count({ where }),
+      this.prisma.product.groupBy({
+        by: ['brand'],
+        where: { ...where, brand: { not: null } },
+        _count: true,
+        orderBy: { brand: 'asc' },
+      }),
+      this.prisma.product.groupBy({
+        by: ['productType'],
+        where: { ...where, productType: { not: null } },
+        _count: true,
+        orderBy: { productType: 'asc' },
+      }),
+      this.prisma.product.groupBy({
+        by: ['grade'],
+        where: { ...where, grade: { not: null } },
+        _count: true,
+        orderBy: { grade: 'asc' },
+      }),
+      this.prisma.product.aggregate({
+        where,
+        _min: { retailPrice: true },
+        _max: { retailPrice: true },
+      }),
+      this.prisma.product.findMany({
+        where: { ...where, brand: { not: null }, brandLogoUrl: { not: null } },
+        select: { brand: true, brandLogoUrl: true, updatedAt: true },
+        distinct: ['brand'],
+        orderBy: [{ displayOrder: 'asc' }, { priority: 'desc' }],
+      }),
+      this.prisma.category.findMany({
+        where: { parentId: category.id, deletedAt: null, isVisible: true },
+        orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }],
+        select: {
+          id: true,
+          slug: true,
+          name: true,
+          imageUrl: true,
+          iconUrl: true,
+          updatedAt: true,
+          _count: { select: { products: { where: PRODUCT_ACTIVE_WHERE } } },
+        },
+      }),
+    ]);
+
+    const logoByBrand = new Map<string, string | null>();
+    for (const row of brandLogoRows) {
+      const key = row.brand?.trim().toLowerCase();
+      if (!key || logoByBrand.has(key)) continue;
+      logoByBrand.set(
+        key,
+        normalizeMediaUrl(row.brandLogoUrl, { updatedAt: row.updatedAt }),
+      );
+    }
+
+    const brands = this.mergeFacetsByLabel(
+      brandGroups.map((row) => ({
+        raw: row.brand,
+        label: row.brand?.trim() ?? '',
+        count: row._count,
+      })),
+    ).map((facet) => ({
+      ...facet,
+      imageUrl: logoByBrand.get(facet.value.toLowerCase()) ?? null,
+    }));
+
+    const productTypes = this.mergeFacetsByLabel(
+      productTypeGroups.map((row) => ({
+        raw: row.productType,
+        label:
+          displayBrickProductType(row.productType) ??
+          row.productType?.trim() ??
+          '',
+        count: row._count,
+      })),
+    );
+
+    const grades = this.mergeFacetsByLabel(
+      gradeGroups.map((row) => ({
+        raw: row.grade,
+        label: displayBrickGrade(row.grade) ?? row.grade?.trim() ?? '',
+        count: row._count,
+      })),
+    );
+
+    const minPrice = Number(priceAggregate._min.retailPrice ?? 0);
+    const maxPrice = Number(priceAggregate._max.retailPrice ?? 0);
+
+    const result: CategoryFacetsResponseDto = {
+      category: {
+        id: category.id,
+        slug: category.slug,
+        name: category.name,
+        nameHi: category.nameHi,
+        imageUrl: normalizeMediaUrl(category.imageUrl, {
+          updatedAt: category.updatedAt,
+        }),
+      },
+      totalProducts,
+      subcategories: children
+        .filter((child) => child._count.products > 0)
+        .map((child) => ({
+          id: child.id,
+          value: child.slug,
+          label: child.name,
+          productCount: child._count.products,
+          imageUrl: normalizeMediaUrl(child.imageUrl ?? child.iconUrl, {
+            updatedAt: child.updatedAt,
+          }),
+        })),
+      brands,
+      productTypes,
+      grades,
+      priceRange: maxPrice > 0 ? { min: minPrice, max: maxPrice } : null,
+    };
+
+    await this.cache.set(cacheKey, result, CACHE_TTL.CATEGORY_FACETS);
+    return result;
+  }
+
+  /**
+   * Brand strings are free text in Admin, so `UltraTech` and `ultratech` can
+   * both exist. Fold them into one facet and keep the most-used spelling as the
+   * value the app sends back — the `brand` filter matches case-insensitively.
+   */
+  private mergeFacetsByLabel(
+    rows: { raw: string | null; label: string; count: number }[],
+  ): CategoryFacetValueDto[] {
+    const merged = new Map<
+      string,
+      { value: string; label: string; productCount: number; topCount: number }
+    >();
+
+    for (const row of rows) {
+      const label = row.label.trim();
+      const value = row.raw?.trim();
+      if (!label || !value) continue;
+
+      const key = label.toLowerCase();
+      const existing = merged.get(key);
+      if (!existing) {
+        merged.set(key, {
+          value,
+          label,
+          productCount: row.count,
+          topCount: row.count,
+        });
+        continue;
+      }
+      existing.productCount += row.count;
+      if (row.count > existing.topCount) {
+        existing.topCount = row.count;
+        existing.value = value;
+        existing.label = label;
+      }
+    }
+
+    return Array.from(merged.values())
+      .map(({ value, label, productCount }) => ({
+        value,
+        label,
+        productCount,
+      }))
+      .sort(
+        (a, b) =>
+          b.productCount - a.productCount || a.label.localeCompare(b.label),
+      );
+  }
+
+  private async resolveCategory(idOrSlug: string) {
     const isUuid =
       /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
         idOrSlug,
@@ -191,18 +402,21 @@ export class ProductService {
           ? { OR: [{ id: idOrSlug }, { slug: idOrSlug }] }
           : { slug: idOrSlug }),
       },
-      select: { id: true, slug: true },
+      select: {
+        id: true,
+        slug: true,
+        name: true,
+        nameHi: true,
+        imageUrl: true,
+        updatedAt: true,
+      },
     });
 
     if (!category) {
       throw new NotFoundException(`Category "${idOrSlug}" not found`);
     }
 
-    return this.findAll({
-      ...query,
-      category: category.slug,
-      categoryId: category.id,
-    });
+    return category;
   }
 
   async findBySlug(slug: string): Promise<ProductResponseDto> {

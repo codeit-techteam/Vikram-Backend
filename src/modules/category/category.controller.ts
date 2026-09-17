@@ -8,6 +8,7 @@ import { ProductQueryDto } from '../product/dto/product-query.dto';
 import { ProductListResponseDto } from '../product/dto/product-response.dto';
 import { CategoryService } from './category.service';
 import { CategoryQueryDto } from './dto/category-query.dto';
+import { CategoryFacetsResponseDto } from './dto/category-facets.dto';
 import {
   CategoryDetailResponseDto,
   CategoryResponseDto,
@@ -70,6 +71,32 @@ export class CategoryController {
     return {
       success: true,
       message: 'Category products fetched successfully',
+      data,
+    };
+  }
+
+  @Get(':id/facets')
+  @ApiOperation({
+    summary: 'Navigation facets for a category (by UUID or slug)',
+    description:
+      'Brands, subcategories, product types, grades and price bounds aggregated from the live product rows in this category. Powers the customer app category sidebar without any hardcoded brand list.',
+  })
+  @ApiParam({
+    name: 'id',
+    example: 'cement',
+    description: 'Category UUID or slug',
+  })
+  @ApiResponse({ status: 200, description: 'Category facets fetched' })
+  @ApiResponse({ status: 404, description: 'Category not found' })
+  async findFacets(@Param('id') id: string): Promise<{
+    success: boolean;
+    message: string;
+    data: CategoryFacetsResponseDto;
+  }> {
+    const data = await this.productService.getCategoryFacets(id);
+    return {
+      success: true,
+      message: 'Category facets fetched successfully',
       data,
     };
   }

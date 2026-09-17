@@ -97,6 +97,7 @@ export class CacheService {
 
   async invalidateProducts(): Promise<void> {
     await this.invalidatePattern(CACHE_PATTERNS.PRODUCTS);
+    await this.invalidatePattern(CACHE_PATTERNS.CATEGORY_FACETS);
     await this.invalidateHome();
     await this.invalidateSearch();
   }
