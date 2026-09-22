@@ -93,6 +93,12 @@ export class DeliveryDayOptionDto {
 
   @ApiPropertyOptional()
   reason?: string | null;
+
+  @ApiPropertyOptional()
+  isHoliday?: boolean;
+
+  @ApiPropertyOptional()
+  holidayReason?: string | null;
 }
 
 export class DeliveryScheduledDayDto {
@@ -105,8 +111,48 @@ export class DeliveryScheduledDayDto {
   @ApiProperty()
   available!: boolean;
 
+  @ApiPropertyOptional()
+  isHoliday?: boolean;
+
+  @ApiPropertyOptional()
+  holidayReason?: string | null;
+
   @ApiProperty({ type: [DeliverySlotViewDto] })
   slots!: DeliverySlotViewDto[];
+}
+
+export class DeliveryOperatingWindowDto {
+  @ApiProperty({ example: '11:00 AM' })
+  start!: string;
+
+  @ApiProperty({ example: '4:30 PM' })
+  end!: string;
+
+  @ApiProperty({ example: 660 })
+  startMinutes!: number;
+
+  @ApiProperty({ example: 990 })
+  endMinutes!: number;
+
+  @ApiProperty({ example: 30 })
+  slotDurationMinutes!: number;
+}
+
+export class DeliveryCalendarDayDto {
+  @ApiProperty()
+  dateKey!: string;
+
+  @ApiProperty()
+  dateLabel!: string;
+
+  @ApiProperty()
+  isHoliday!: boolean;
+
+  @ApiPropertyOptional()
+  holidayReason?: string | null;
+
+  @ApiProperty({ example: 1, description: 'ISO weekday 1=Mon … 7=Sun' })
+  weekday!: number;
 }
 
 export class DeliveryNextAvailableDto {
@@ -162,6 +208,12 @@ export class DeliveryOptionsResponseDto {
 
   @ApiPropertyOptional()
   timezone?: string;
+
+  @ApiPropertyOptional({ type: DeliveryOperatingWindowDto, nullable: true })
+  operatingWindow?: DeliveryOperatingWindowDto | null;
+
+  @ApiPropertyOptional({ type: [DeliveryCalendarDayDto] })
+  calendar?: DeliveryCalendarDayDto[];
 
   @ApiProperty({ type: DeliveryAsapOptionDto })
   asap!: DeliveryAsapOptionDto;

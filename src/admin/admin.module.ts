@@ -151,6 +151,7 @@ import { AdminDriversController } from './drivers/admin-drivers.controller';
 import { AdminLogisticsController } from './logistics/admin-logistics.controller';
 import { AdminLogisticsService } from './logistics/admin-logistics.service';
 import { AdminDeliveryPricingController } from './delivery-pricing/admin-delivery-pricing.controller';
+import { AdminDeliveryScheduleController } from './delivery-schedule/admin-delivery-schedule.controller';
 
 // Shared modules
 import { RedisModule } from '../common/database/redis.module';
@@ -235,6 +236,7 @@ import { DeliveryModule } from '../modules/delivery/delivery.module';
     AdminDriversController,
     AdminLogisticsController,
     AdminDeliveryPricingController,
+    AdminDeliveryScheduleController,
   ],
   providers: [
     AdminJwtStrategy,

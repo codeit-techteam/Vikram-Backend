@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Headers,
   HttpCode,
   HttpStatus,
   Param,
@@ -69,8 +70,11 @@ export class PaymentsController {
   createOrder(
     @CurrentCustomer() customer: AuthenticatedCustomer,
     @Body() dto: CreateRazorpayOrderDto,
+    @Headers('idempotency-key') idempotencyKey?: string,
   ) {
-    return this.paymentsService.createCheckout(customer.id, dto);
+    return this.paymentsService.createCheckout(customer.id, dto, {
+      idempotencyKey,
+    });
   }
 
   @Post('verify')

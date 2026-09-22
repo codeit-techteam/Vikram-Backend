@@ -289,6 +289,30 @@ export class OrderDetailResponseDto {
   @ApiPropertyOptional()
   deliveryCustomerRemark?: string | null;
 
+  @ApiPropertyOptional()
+  deliveryCallOnArrival?: boolean;
+
+  @ApiPropertyOptional()
+  deliveryLeaveAtSecurity?: boolean;
+
+  @ApiPropertyOptional()
+  deliveryHeavyVehicleAccess?: boolean;
+
+  @ApiPropertyOptional({ nullable: true })
+  openAreaConfirmed?: boolean | null;
+
+  @ApiPropertyOptional()
+  proposedSlotId?: string | null;
+
+  @ApiPropertyOptional()
+  proposedStartAt?: string | null;
+
+  @ApiPropertyOptional()
+  proposedEndAt?: string | null;
+
+  @ApiPropertyOptional()
+  rescheduleReason?: string | null;
+
   @ApiPropertyOptional({ type: Object })
   deliveryPreference?: Record<string, unknown> | null;
 

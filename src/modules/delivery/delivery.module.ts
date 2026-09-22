@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { CartModule } from '../cart/cart.module';
 import { CoverageModule } from '../coverage/coverage.module';
+import { NotificationModule } from '../notification/notification.module';
 import { DeliveryController } from './delivery.controller';
 import { DeliveryService } from './delivery.service';
 import { DeliveryOptionsService } from './delivery-options.service';
@@ -8,12 +9,14 @@ import { DeliverySlotService } from './delivery-slot.service';
 import { DeliveryBenefitService } from './delivery-benefit.service';
 import { DeliveryPricingController } from './delivery-pricing.controller';
 import { DeliveryPricingService } from './delivery-pricing.service';
+import { DeliveryOperatingConfigService } from './delivery-operating-config.service';
+import { DeliveryScheduleService } from './delivery-schedule.service';
 import { DeliveryEtaEngineService } from './engine/delivery-eta-engine.service';
 import { DeliveryLoadService } from './engine/delivery-load.service';
 import { DeliveryVehicleSelectionService } from './engine/delivery-vehicle-selection.service';
 
 @Module({
-  imports: [CoverageModule, CartModule],
+  imports: [CoverageModule, CartModule, NotificationModule],
   controllers: [DeliveryController, DeliveryPricingController],
   providers: [
     DeliveryService,
@@ -24,6 +27,8 @@ import { DeliveryVehicleSelectionService } from './engine/delivery-vehicle-selec
     DeliveryEtaEngineService,
     DeliverySlotService,
     DeliveryOptionsService,
+    DeliveryOperatingConfigService,
+    DeliveryScheduleService,
   ],
   exports: [
     DeliveryService,
@@ -34,6 +39,8 @@ import { DeliveryVehicleSelectionService } from './engine/delivery-vehicle-selec
     DeliveryEtaEngineService,
     DeliverySlotService,
     DeliveryOptionsService,
+    DeliveryOperatingConfigService,
+    DeliveryScheduleService,
   ],
 })
 export class DeliveryModule {}

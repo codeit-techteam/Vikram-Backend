@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
+  IsBoolean,
   IsEnum,
   IsInt,
   IsOptional,
@@ -53,6 +54,29 @@ export class PlaceOrderDto {
   @IsString()
   @MaxLength(250)
   deliveryCustomerRemark?: string;
+
+  @ApiPropertyOptional({ description: 'Structured: call on arrival' })
+  @IsOptional()
+  @IsBoolean()
+  deliveryCallOnArrival?: boolean;
+
+  @ApiPropertyOptional({ description: 'Structured: leave at security' })
+  @IsOptional()
+  @IsBoolean()
+  deliveryLeaveAtSecurity?: boolean;
+
+  @ApiPropertyOptional({ description: 'Structured: heavy vehicle access' })
+  @IsOptional()
+  @IsBoolean()
+  deliveryHeavyVehicleAccess?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      'Required true when the quoted vehicle needs site open-area access',
+  })
+  @IsOptional()
+  @IsBoolean()
+  openAreaConfirmed?: boolean;
 
   @ApiPropertyOptional({
     enum: PaymentMethod,
@@ -227,6 +251,18 @@ export class OrderResponseDto {
 
   @ApiPropertyOptional()
   deliveryCustomerRemark?: string | null;
+
+  @ApiPropertyOptional()
+  deliveryCallOnArrival?: boolean;
+
+  @ApiPropertyOptional()
+  deliveryLeaveAtSecurity?: boolean;
+
+  @ApiPropertyOptional()
+  deliveryHeavyVehicleAccess?: boolean;
+
+  @ApiPropertyOptional({ nullable: true })
+  openAreaConfirmed?: boolean | null;
 
   @ApiPropertyOptional({ type: Object })
   deliveryPreference?: Record<string, unknown> | null;

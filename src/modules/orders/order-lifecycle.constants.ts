@@ -34,6 +34,7 @@ export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
   DISPATCHED: 'Out For Delivery',
   DELIVERED: 'Delivered',
   CANCELLED: 'Cancelled',
+  RESCHEDULE_REQUESTED: 'Reschedule Requested',
 };
 
 /** Normalize legacy statuses to the canonical lifecycle values. */

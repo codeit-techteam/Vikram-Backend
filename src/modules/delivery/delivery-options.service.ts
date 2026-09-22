@@ -15,20 +15,24 @@ import type {
   DeliverySlotViewDto,
 } from './dto/delivery-options.dto';
 import { DeliverySlotService } from './delivery-slot.service';
+import { DeliveryOperatingConfigService } from './delivery-operating-config.service';
+import { parseWorkingHours, formatClockFromMinutes } from './engine/delivery-eta.logic';
 import {
   addDateKeyDays,
   formatDateLabel,
   generateScheduleWindows,
+  isDeliveryHoliday,
   isHubOpenAt,
   isRmcOrder,
   istWallTimeToUtc,
+  nextAvailableDeliveryDate,
   remainingMinutesUntilClose,
+  resolveEffectiveHours,
   resolveHubHours,
   resolveLeadMinutes,
   utcToIst,
   type GeneratedSlotWindow,
 } from './delivery-slot.logic';
-import { parseWorkingHours } from './engine/delivery-eta.logic';
 
 export type DeliveryOptionsContext = {
   serviceable: boolean;
@@ -54,6 +58,7 @@ export class DeliveryOptionsService {
     private readonly cartService: CartService,
     private readonly coverageService: CoverageService,
     private readonly deliveryService: DeliveryService,
+    private readonly operatingConfig: DeliveryOperatingConfigService,
   ) {}
 
   async getOptionsForCustomer(
@@ -130,7 +135,8 @@ export class DeliveryOptionsService {
     now: Date = new Date(),
   ): Promise<DeliveryOptionsResponseDto> {
     const clock = utcToIst(now);
-    const empty = this.emptyOptions(context, clock.dateKey);
+    const operating = await this.operatingConfig.getConfig();
+    const empty = this.emptyOptions(context, clock.dateKey, operating.timezone);
 
     if (!context.serviceable || !context.hubId) {
       return {
@@ -147,7 +153,8 @@ export class DeliveryOptionsService {
       logisticsType: context.logisticsType,
       vehicleType: context.vehicleType,
     });
-    const hours = resolveHubHours(parseWorkingHours(context.workingHours));
+    const hubHours = resolveHubHours(parseWorkingHours(context.workingHours));
+    const hours = resolveEffectiveHours(hubHours, operating);
     const hubOpen = isHubOpenAt(hours, clock.minutesFromMidnight);
     const remainingToday = remainingMinutesUntilClose(
       hours,
@@ -172,6 +179,7 @@ export class DeliveryOptionsService {
       nowMinutes: clock.minutesFromMidnight,
       hours,
       leadMinutes,
+      operating,
     });
 
     const allWindows = windows.scheduled.flatMap((day) => day.slots);
@@ -233,6 +241,10 @@ export class DeliveryOptionsService {
       };
     };
 
+    const todayHoliday = isDeliveryHoliday(clock.dateKey, operating);
+    const tomorrowKey = addDateKeyDays(clock.dateKey, 1);
+    const tomorrowHoliday = isDeliveryHoliday(tomorrowKey, operating);
+
     const todaySlots = windows.today
       .map(toView)
       .filter((slot): slot is DeliverySlotViewDto =>
@@ -243,39 +255,45 @@ export class DeliveryOptionsService {
       .filter((slot): slot is DeliverySlotViewDto =>
         Boolean(slot && slot.available),
       );
-    const scheduled = windows.scheduled
-      .map((day) => {
-        const slots = day.slots
-          .map(toView)
-          .filter((slot): slot is DeliverySlotViewDto =>
-            Boolean(slot && slot.available),
-          );
-        return {
-          date: day.dateKey,
-          dateLabel: day.dateLabel,
-          available: slots.length > 0,
-          slots,
-        };
-      })
-      .filter((day) => day.available);
+    const scheduled = windows.scheduled.map((day) => {
+      const slots = day.slots
+        .map(toView)
+        .filter((slot): slot is DeliverySlotViewDto =>
+          Boolean(slot && slot.available),
+        );
+      return {
+        date: day.dateKey,
+        dateLabel: day.dateLabel,
+        available: slots.length > 0,
+        isHoliday: day.isHoliday,
+        holidayReason: day.holidayReason,
+        slots,
+      };
+    });
 
-    const hubClosed = !hubOpen;
-    const hubClosedMessage = hubClosed
-      ? `${context.hubName ?? 'Hub'} is currently closed.`
-      : null;
+    const hubClosed = !hubOpen || todayHoliday.isHoliday;
+    const hubClosedMessage = todayHoliday.isHoliday
+      ? 'Delivery holiday — no deliveries today.'
+      : !hubOpen
+        ? `${context.hubName ?? 'Hub'} is currently closed.`
+        : null;
 
     const asapFitsToday = remainingToday > etaMax;
-    const asapAvailable = isRmc
-      ? hubOpen && asapFitsToday && Boolean(context.vehicleType)
-      : Boolean(context.vehicleType) &&
-        (hubOpen ? asapFitsToday || todaySlots.length > 0 : true);
+    const asapAvailable =
+      !todayHoliday.isHoliday &&
+      (isRmc
+        ? hubOpen && asapFitsToday && Boolean(context.vehicleType)
+        : Boolean(context.vehicleType) &&
+          (hubOpen ? asapFitsToday || todaySlots.length > 0 : false));
 
     const asapReason = !asapAvailable
-      ? isRmc
-        ? 'RMC needs a scheduled production slot.'
-        : hubClosed
-          ? hubClosedMessage
-          : 'Fastest delivery is not available right now.'
+      ? todayHoliday.isHoliday
+        ? 'Delivery holiday — no deliveries today.'
+        : isRmc
+          ? 'RMC needs a scheduled production slot.'
+          : hubClosed
+            ? hubClosedMessage
+            : 'Fastest delivery is not available right now.'
       : null;
 
     const nextAvailable = todaySlots[0]
@@ -292,14 +310,22 @@ export class DeliveryOptionsService {
             slotId: tomorrowSlots[0].slotId,
             slotLabel: tomorrowSlots[0].label,
           }
-        : scheduled[0]?.slots[0]
-          ? {
-              date: scheduled[0].date,
-              dateLabel: scheduled[0].dateLabel,
-              slotId: scheduled[0].slots[0].slotId,
-              slotLabel: scheduled[0].slots[0].label,
-            }
+        : scheduled.find((d) => d.available)?.slots[0]
+          ? (() => {
+              const day = scheduled.find((d) => d.available)!;
+              return {
+                date: day.date,
+                dateLabel: day.dateLabel,
+                slotId: day.slots[0].slotId,
+                slotLabel: day.slots[0].label,
+              };
+            })()
           : null;
+
+    const nextOpenDate = nextAvailableDeliveryDate(
+      todayHoliday.isHoliday ? tomorrowKey : clock.dateKey,
+      operating,
+    );
 
     const defaultPreference = asapAvailable
       ? 'ASAP'
@@ -307,7 +333,7 @@ export class DeliveryOptionsService {
         ? 'TODAY'
         : tomorrowSlots.length > 0
           ? 'TOMORROW'
-          : scheduled.length > 0
+          : scheduled.some((d) => d.available)
             ? 'SCHEDULED'
             : undefined;
 
@@ -334,7 +360,15 @@ export class DeliveryOptionsService {
       splitDeliveryMessage: context.splitDelivery
         ? 'Items may arrive in multiple deliveries.'
         : null,
-      timezone: DEFAULT_DELIVERY_TIMEZONE,
+      timezone: operating.timezone || DEFAULT_DELIVERY_TIMEZONE,
+      operatingWindow: {
+        start: formatClockFromMinutes(operating.openMinutes),
+        end: formatClockFromMinutes(operating.closeMinutes),
+        startMinutes: operating.openMinutes,
+        endMinutes: operating.closeMinutes,
+        slotDurationMinutes: operating.slotDurationMinutes,
+      },
+      calendar: windows.calendar,
       asap: {
         available: Boolean(asapAvailable),
         etaMinMinutes: etaMin || null,
@@ -346,22 +380,35 @@ export class DeliveryOptionsService {
         available: todaySlots.length > 0,
         date: clock.dateKey,
         dateLabel: formatDateLabel(clock.dateKey),
+        isHoliday: todayHoliday.isHoliday,
+        holidayReason: todayHoliday.reason,
         slots: todaySlots,
         reason:
           todaySlots.length > 0
             ? null
-            : hubClosed
-              ? hubClosedMessage
+            : todayHoliday.isHoliday
+              ? 'Delivery holiday — no deliveries today.'
               : nextAvailable
-                ? `Next available delivery: ${nextAvailable.dateLabel}, ${nextAvailable.slotLabel}`
-                : 'No same-day slots left.',
+                ? `No delivery slots are available today. Next available: ${nextAvailable.dateLabel}, ${nextAvailable.slotLabel}`
+                : 'No delivery slots are available today.',
       },
       tomorrow: {
         available: tomorrowSlots.length > 0,
-        date: addDateKeyDays(clock.dateKey, 1),
-        dateLabel: formatDateLabel(addDateKeyDays(clock.dateKey, 1)),
+        date: tomorrowKey,
+        dateLabel: formatDateLabel(tomorrowKey),
+        isHoliday: tomorrowHoliday.isHoliday,
+        holidayReason: tomorrowHoliday.reason,
         slots: tomorrowSlots,
-        reason: tomorrowSlots.length > 0 ? null : 'No delivery slots tomorrow.',
+        reason:
+          tomorrowSlots.length > 0
+            ? null
+            : tomorrowHoliday.isHoliday
+              ? `Tomorrow is a delivery holiday. Please choose the next available delivery day${
+                  nextOpenDate && nextOpenDate !== tomorrowKey
+                    ? ` (${formatDateLabel(nextOpenDate)})`
+                    : ''
+                }.`
+              : 'No delivery slots tomorrow.',
       },
       scheduled,
       nextAvailable,
@@ -399,6 +446,7 @@ export class DeliveryOptionsService {
   private emptyOptions(
     context: DeliveryOptionsContext,
     todayKey: string,
+    timezone: string = DEFAULT_DELIVERY_TIMEZONE,
   ): DeliveryOptionsResponseDto {
     return {
       serviceable: false,
@@ -413,7 +461,9 @@ export class DeliveryOptionsService {
       logisticsType: context.logisticsType ?? null,
       splitDelivery: Boolean(context.splitDelivery),
       splitDeliveryMessage: null,
-      timezone: DEFAULT_DELIVERY_TIMEZONE,
+      timezone,
+      operatingWindow: null,
+      calendar: [],
       asap: {
         available: false,
         etaMinMinutes: null,
@@ -425,6 +475,8 @@ export class DeliveryOptionsService {
         available: false,
         date: todayKey,
         dateLabel: formatDateLabel(todayKey),
+        isHoliday: false,
+        holidayReason: null,
         slots: [],
         reason: null,
       },
@@ -432,6 +484,8 @@ export class DeliveryOptionsService {
         available: false,
         date: addDateKeyDays(todayKey, 1),
         dateLabel: formatDateLabel(addDateKeyDays(todayKey, 1)),
+        isHoliday: false,
+        holidayReason: null,
         slots: [],
         reason: null,
       },

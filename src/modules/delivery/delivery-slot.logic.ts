@@ -1,16 +1,19 @@
 import { formatClockFromMinutes } from './engine/delivery-eta.logic';
 import type { DeliveryVehicleType } from './delivery-pricing.constants';
 import {
+  DEFAULT_DELIVERY_OPERATING_CONFIG,
   DEFAULT_DELIVERY_TIMEZONE,
   DEFAULT_HUB_CLOSE_MINUTES,
   DEFAULT_HUB_OPEN_MINUTES,
   DEFAULT_SLOT_CAPACITY,
+  DEFAULT_SLOT_DURATION_MINUTES,
   DEFAULT_SLOT_WINDOWS,
   IST_OFFSET_MINUTES,
   MAX_DELIVERY_REMARK_LENGTH,
   RMC_MIN_LEAD_MINUTES,
   RMC_SLOT_CAPACITY,
   SCHEDULE_HORIZON_DAYS,
+  type DeliveryOperatingConfigValues,
   type DeliveryPreferenceType,
 } from './delivery-preference.constants';
 
@@ -23,6 +26,14 @@ export type GeneratedSlotWindow = {
   cutoffMinutes: number;
   label: string;
   dateLabel: string;
+};
+
+export type DayAvailabilityMeta = {
+  dateKey: string;
+  dateLabel: string;
+  isHoliday: boolean;
+  holidayReason: string | null;
+  weekday: number;
 };
 
 export function utcToIst(now: Date = new Date()) {
@@ -52,6 +63,13 @@ export function addDateKeyDays(dateKey: string, days: number): string {
 
 export function dateKeyToUtcDate(dateKey: string): Date {
   return new Date(`${dateKey}T00:00:00.000Z`);
+}
+
+/** ISO weekday 1=Mon … 7=Sun for a YYYY-MM-DD date key (calendar date in IST). */
+export function isoWeekdayFromDateKey(dateKey: string): number {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  const utcDay = new Date(Date.UTC(year, month - 1, day)).getUTCDay(); // 0=Sun
+  return utcDay === 0 ? 7 : utcDay;
 }
 
 export function istWallTimeToUtc(
@@ -103,6 +121,25 @@ export function resolveHubHours(parsed: HubHours | null | undefined): HubHours {
   };
 }
 
+/** Intersect hub hours with global operating window. */
+export function resolveEffectiveHours(
+  hubHours: HubHours,
+  operating: Pick<
+    DeliveryOperatingConfigValues,
+    'openMinutes' | 'closeMinutes'
+  > = DEFAULT_DELIVERY_OPERATING_CONFIG,
+): HubHours {
+  const openMinutes = Math.max(hubHours.openMinutes, operating.openMinutes);
+  const closeMinutes = Math.min(hubHours.closeMinutes, operating.closeMinutes);
+  if (closeMinutes <= openMinutes) {
+    return {
+      openMinutes: operating.openMinutes,
+      closeMinutes: operating.closeMinutes,
+    };
+  }
+  return { openMinutes, closeMinutes };
+}
+
 export function isHubOpenAt(
   hours: HubHours,
   minutesFromMidnight: number,
@@ -152,17 +189,69 @@ export function resolveSlotCapacity(input: {
   return input.isRmc ? RMC_SLOT_CAPACITY : DEFAULT_SLOT_CAPACITY;
 }
 
+export function isDeliveryHoliday(
+  dateKey: string,
+  operating: Pick<
+    DeliveryOperatingConfigValues,
+    'workingWeekdays' | 'holidayDates'
+  > = DEFAULT_DELIVERY_OPERATING_CONFIG,
+): { isHoliday: boolean; reason: string | null } {
+  const weekday = isoWeekdayFromDateKey(dateKey);
+  if (operating.holidayDates.includes(dateKey)) {
+    return { isHoliday: true, reason: 'DELIVERY_HOLIDAY' };
+  }
+  if (!operating.workingWeekdays.includes(weekday)) {
+    return {
+      isHoliday: true,
+      reason: weekday === 7 ? 'DELIVERY_HOLIDAY' : 'DELIVERY_HOLIDAY',
+    };
+  }
+  return { isHoliday: false, reason: null };
+}
+
+export function nextAvailableDeliveryDate(
+  fromDateKey: string,
+  operating: DeliveryOperatingConfigValues = DEFAULT_DELIVERY_OPERATING_CONFIG,
+  maxLookahead = 21,
+): string | null {
+  for (let offset = 0; offset <= maxLookahead; offset += 1) {
+    const dateKey = addDateKeyDays(fromDateKey, offset);
+    if (!isDeliveryHoliday(dateKey, operating).isHoliday) {
+      return dateKey;
+    }
+  }
+  return null;
+}
+
 export function intersectWindowWithHours(
   window: { startMinutes: number; endMinutes: number },
   hours: HubHours,
+  minDurationMinutes = DEFAULT_SLOT_DURATION_MINUTES,
 ): { startMinutes: number; endMinutes: number } | null {
   if (hours.closeMinutes < hours.openMinutes) {
     return window;
   }
   const start = Math.max(window.startMinutes, hours.openMinutes);
   const end = Math.min(window.endMinutes, hours.closeMinutes);
-  if (end - start < 60) return null;
+  if (end - start < minDurationMinutes) return null;
   return { startMinutes: start, endMinutes: end };
+}
+
+/** Build fixed-duration slots within effective hours. */
+export function buildDurationSlots(
+  hours: HubHours,
+  slotDurationMinutes: number,
+): Array<{ startMinutes: number; endMinutes: number }> {
+  const duration = Math.max(5, Math.round(slotDurationMinutes));
+  const slots: Array<{ startMinutes: number; endMinutes: number }> = [];
+  for (
+    let start = hours.openMinutes;
+    start + duration <= hours.closeMinutes;
+    start += duration
+  ) {
+    slots.push({ startMinutes: start, endMinutes: start + duration });
+  }
+  return slots;
 }
 
 export function generateSlotWindowsForDate(input: {
@@ -171,10 +260,28 @@ export function generateSlotWindowsForDate(input: {
   isToday: boolean;
   nowMinutes: number;
   leadMinutes: number;
+  slotDurationMinutes?: number;
+  operating?: DeliveryOperatingConfigValues;
 }): GeneratedSlotWindow[] {
+  const operating = input.operating ?? DEFAULT_DELIVERY_OPERATING_CONFIG;
+  if (isDeliveryHoliday(input.dateKey, operating).isHoliday) {
+    return [];
+  }
+
+  const duration =
+    input.slotDurationMinutes ?? operating.slotDurationMinutes;
+  const candidateWindows =
+    duration > 0
+      ? buildDurationSlots(input.hours, duration)
+      : [...DEFAULT_SLOT_WINDOWS];
+
   const slots: GeneratedSlotWindow[] = [];
-  for (const window of DEFAULT_SLOT_WINDOWS) {
-    const clipped = intersectWindowWithHours(window, input.hours);
+  for (const window of candidateWindows) {
+    const clipped = intersectWindowWithHours(
+      window,
+      input.hours,
+      duration,
+    );
     if (!clipped) continue;
     const cutoffMinutes = Math.max(
       input.hours.openMinutes,
@@ -208,6 +315,7 @@ export function generateScheduleWindows(input: {
   hours: HubHours;
   leadMinutes: number;
   horizonDays?: number;
+  operating?: DeliveryOperatingConfigValues;
 }): {
   today: GeneratedSlotWindow[];
   tomorrow: GeneratedSlotWindow[];
@@ -215,8 +323,12 @@ export function generateScheduleWindows(input: {
     dateKey: string;
     dateLabel: string;
     slots: GeneratedSlotWindow[];
+    isHoliday: boolean;
+    holidayReason: string | null;
   }>;
+  calendar: DayAvailabilityMeta[];
 } {
+  const operating = input.operating ?? DEFAULT_DELIVERY_OPERATING_CONFIG;
   const horizon = input.horizonDays ?? SCHEDULE_HORIZON_DAYS;
   const today = generateSlotWindowsForDate({
     dateKey: input.todayKey,
@@ -224,6 +336,7 @@ export function generateScheduleWindows(input: {
     isToday: true,
     nowMinutes: input.nowMinutes,
     leadMinutes: input.leadMinutes,
+    operating,
   });
   const tomorrowKey = addDateKeyDays(input.todayKey, 1);
   const tomorrow = generateSlotWindowsForDate({
@@ -232,29 +345,79 @@ export function generateScheduleWindows(input: {
     isToday: false,
     nowMinutes: input.nowMinutes,
     leadMinutes: input.leadMinutes,
+    operating,
   });
   const scheduled: Array<{
     dateKey: string;
     dateLabel: string;
     slots: GeneratedSlotWindow[];
+    isHoliday: boolean;
+    holidayReason: string | null;
   }> = [];
+  const calendar: DayAvailabilityMeta[] = [];
   for (let offset = 0; offset < horizon; offset += 1) {
     const dateKey = addDateKeyDays(input.todayKey, offset);
+    const holiday = isDeliveryHoliday(dateKey, operating);
+    calendar.push({
+      dateKey,
+      dateLabel: formatDateLabel(dateKey),
+      isHoliday: holiday.isHoliday,
+      holidayReason: holiday.reason,
+      weekday: isoWeekdayFromDateKey(dateKey),
+    });
     const slots = generateSlotWindowsForDate({
       dateKey,
       hours: input.hours,
       isToday: offset === 0,
       nowMinutes: input.nowMinutes,
       leadMinutes: input.leadMinutes,
+      operating,
     });
-    if (slots.length === 0) continue;
     scheduled.push({
       dateKey,
       dateLabel: formatDateLabel(dateKey),
       slots,
+      isHoliday: holiday.isHoliday,
+      holidayReason: holiday.reason,
     });
   }
-  return { today, tomorrow, scheduled };
+  return { today, tomorrow, scheduled, calendar };
+}
+
+/**
+ * Validate a proposed slot against operating rules (backend authority).
+ * Returns null when valid; otherwise a machine-readable error code.
+ */
+export function validateSlotAgainstOperatingRules(input: {
+  dateKey: string;
+  startMinutes: number;
+  endMinutes: number;
+  operating?: DeliveryOperatingConfigValues;
+}): string | null {
+  const operating = input.operating ?? DEFAULT_DELIVERY_OPERATING_CONFIG;
+  const holiday = isDeliveryHoliday(input.dateKey, operating);
+  if (holiday.isHoliday) {
+    return 'DELIVERY_SLOT_UNAVAILABLE';
+  }
+  if (
+    input.startMinutes < operating.openMinutes ||
+    input.endMinutes > operating.closeMinutes ||
+    input.endMinutes <= input.startMinutes
+  ) {
+    return 'DELIVERY_SLOT_UNAVAILABLE';
+  }
+  if (operating.slotDurationMinutes > 0) {
+    const duration = input.endMinutes - input.startMinutes;
+    const offset = input.startMinutes - operating.openMinutes;
+    if (
+      duration !== operating.slotDurationMinutes ||
+      offset < 0 ||
+      offset % operating.slotDurationMinutes !== 0
+    ) {
+      return 'DELIVERY_SLOT_UNAVAILABLE';
+    }
+  }
+  return null;
 }
 
 export function sanitizeDeliveryRemark(raw?: string | null): string | null {
@@ -293,5 +456,17 @@ export function isRmcOrder(input: {
 }): boolean {
   return (
     input.logisticsType === 'RMC' || input.vehicleType === 'RMC_TRANSIT_MIXER'
+  );
+}
+
+export function requiresOpenAreaConfirmation(
+  vehicleType?: DeliveryVehicleType | string | null,
+): boolean {
+  if (!vehicleType) return false;
+  return (
+    vehicleType === 'THREE_WHEELER_LOADER' ||
+    vehicleType === 'FULL_TRUCK' ||
+    vehicleType === 'HEAVY_LOADER' ||
+    vehicleType === 'RMC_TRANSIT_MIXER'
   );
 }

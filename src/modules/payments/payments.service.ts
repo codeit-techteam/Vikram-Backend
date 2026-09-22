@@ -59,13 +59,14 @@ export class PaymentsService {
   async createCheckout(
     customerId: string,
     dto: CreateRazorpayOrderDto,
+    options?: { idempotencyKey?: string | null },
   ) {
     this.razorpay.assertConfigured();
 
     const order = dto.internalOrderId
       ? await this.loadReusableOrder(customerId, dto.internalOrderId)
       : ((await this.findPendingOnlineOrder(customerId)) ??
-        (await this.placePendingOnlineOrder(customerId, dto)));
+        (await this.placePendingOnlineOrder(customerId, dto, options)));
 
     if (
       order.paymentStatus === PaymentStatus.PAID ||
@@ -625,6 +626,7 @@ export class PaymentsService {
   private async placePendingOnlineOrder(
     customerId: string,
     dto: CreateRazorpayOrderDto,
+    options?: { idempotencyKey?: string | null },
   ) {
     const placeDto: PlaceOrderDto = {
       addressId: dto.addressId,
@@ -632,10 +634,18 @@ export class PaymentsService {
       deliveryPreferenceType: dto.deliveryPreferenceType,
       scheduledSlotId: dto.scheduledSlotId,
       deliveryCustomerRemark: dto.deliveryCustomerRemark,
+      deliveryCallOnArrival: dto.deliveryCallOnArrival,
+      deliveryLeaveAtSecurity: dto.deliveryLeaveAtSecurity,
+      deliveryHeavyVehicleAccess: dto.deliveryHeavyVehicleAccess,
+      openAreaConfirmed: dto.openAreaConfirmed,
       loyaltyPointsToRedeem: dto.loyaltyPointsToRedeem,
       paymentMethod: PaymentMethod.RAZORPAY,
     };
-    const placed = await this.ordersService.placeOrder(customerId, placeDto);
+    const placed = await this.ordersService.placeOrder(
+      customerId,
+      placeDto,
+      options,
+    );
     const order = await this.prisma.order.findUniqueOrThrow({
       where: { id: placed.id },
     });

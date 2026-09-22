@@ -29,17 +29,21 @@ import { LoyaltyTransactionService } from '../loyalty/loyalty-transaction.servic
 import { DeliveryBenefitService } from '../delivery/delivery-benefit.service';
 import { DeliveryOptionsService } from '../delivery/delivery-options.service';
 import { DeliverySlotService } from '../delivery/delivery-slot.service';
+import { DeliveryOperatingConfigService } from '../delivery/delivery-operating-config.service';
 import {
   DEFAULT_DELIVERY_TIMEZONE,
   DELIVERY_PREFERENCE_LABELS,
+  DELIVERY_SLOT_UNAVAILABLE,
 } from '../delivery/delivery-preference.constants';
 import type { DeliveryPreferenceType } from '../delivery/delivery-preference.constants';
 import { mapDeliveryPreferenceView } from '../delivery/delivery-preference.view';
 import {
   preferenceRequiresSlot,
+  requiresOpenAreaConfirmation,
   sanitizeDeliveryRemark,
   slotMatchesPreference,
   utcToIst,
+  validateSlotAgainstOperatingRules,
 } from '../delivery/delivery-slot.logic';
 import type { DeliveryPreferenceSnapshot } from '../delivery/delivery-preference.view';
 import { CancelOrderDto } from './dto/cancel-order.dto';
@@ -59,11 +63,16 @@ import {
   decimalToNumber,
 } from './orders.constants';
 import { getOrderStatusLabel } from './order-lifecycle.constants';
+import { DeliveryScheduleService } from '../delivery/delivery-schedule.service';
 import { OrderEventsService } from './order-events.service';
 import {
   normalizeMediaUrl,
   pickPreferredMediaUrl,
 } from '../../common/utils/media-url';
+
+export type PlaceOrderOptions = {
+  idempotencyKey?: string | null;
+};
 
 const ORDER_ITEM_PRODUCT_SELECT = {
   id: true,
@@ -161,13 +170,69 @@ export class OrdersService {
     private readonly deliveryBenefitService: DeliveryBenefitService,
     private readonly deliveryOptionsService: DeliveryOptionsService,
     private readonly deliverySlotService: DeliverySlotService,
+    private readonly deliveryOperatingConfig: DeliveryOperatingConfigService,
+    private readonly deliveryScheduleService: DeliveryScheduleService,
     private readonly orderEvents: OrderEventsService,
   ) {}
 
   async placeOrder(
     customerId: string,
     dto: PlaceOrderDto,
+    options?: PlaceOrderOptions,
   ): Promise<OrderResponseDto> {
+    const idempotencyKey =
+      options?.idempotencyKey?.trim()?.slice(0, 120) || null;
+
+    if (idempotencyKey) {
+      const existing = await this.prisma.order.findFirst({
+        where: {
+          customerId,
+          idempotencyKey,
+          deletedAt: null,
+        },
+        include: ORDER_DETAIL_INCLUDE,
+      });
+      if (existing) {
+        return {
+          id: existing.id,
+          orderNumber: existing.orderNumber,
+          orderStatus: existing.orderStatus,
+          paymentMethod: existing.paymentMethod,
+          paymentStatus: existing.paymentStatus,
+          subtotal: decimalToNumber(existing.subtotal),
+          gstAmount: decimalToNumber(existing.gstAmount),
+          deliveryCharge: decimalToNumber(existing.deliveryCharge),
+          grandTotal: decimalToNumber(existing.grandTotal),
+          notes: existing.notes,
+          deliveryPreferenceType: existing.deliveryPreferenceType,
+          scheduledDate: existing.scheduledDate
+            ? existing.scheduledDate.toISOString().slice(0, 10)
+            : null,
+          scheduledSlotId: existing.scheduledSlotId,
+          scheduledStartAt: existing.scheduledStartAt?.toISOString() ?? null,
+          scheduledEndAt: existing.scheduledEndAt?.toISOString() ?? null,
+          deliveryCustomerRemark: existing.deliveryCustomerRemark,
+          deliveryCallOnArrival: existing.deliveryCallOnArrival,
+          deliveryLeaveAtSecurity: existing.deliveryLeaveAtSecurity,
+          deliveryHeavyVehicleAccess: existing.deliveryHeavyVehicleAccess,
+          openAreaConfirmed: existing.openAreaConfirmed,
+          deliveryPreference: mapDeliveryPreferenceView(existing),
+          address: {
+            id: existing.address.id,
+            line1: existing.address.line1,
+            line2: existing.address.line2,
+            city: existing.address.city,
+            state: existing.address.state,
+            pincode: existing.address.pincode,
+          },
+          items: existing.items.map((item) => this.mapOrderItem(item)),
+          timeline: existing.timeline.map((t) => this.mapTimelineEvent(t)),
+          createdAt: existing.createdAt.toISOString(),
+          updatedAt: existing.updatedAt.toISOString(),
+        };
+      }
+    }
+
     const paymentMethod = dto.paymentMethod ?? PaymentMethod.CASH;
     const isOnlinePayment = paymentMethod === PaymentMethod.RAZORPAY;
 
@@ -204,28 +269,61 @@ export class OrdersService {
     const preferenceType = (dto.deliveryPreferenceType ??
       checkout.deliveryOptions?.defaultPreference ??
       'ASAP') as DeliveryPreferenceType;
-    const options = checkout.deliveryOptions;
+    const deliveryOptions = checkout.deliveryOptions;
     const customerRemark = sanitizeDeliveryRemark(
       dto.deliveryCustomerRemark ?? dto.notes,
     );
+    const callOnArrival = Boolean(dto.deliveryCallOnArrival);
+    const leaveAtSecurity = Boolean(dto.deliveryLeaveAtSecurity);
+    const heavyVehicleAccess = Boolean(dto.deliveryHeavyVehicleAccess);
+    const openAreaConfirmed =
+      dto.openAreaConfirmed === undefined ? null : Boolean(dto.openAreaConfirmed);
+
+    if (
+      requiresOpenAreaConfirmation(checkout.deliveryVehicleType) &&
+      openAreaConfirmed !== true
+    ) {
+      throw new BadRequestException(
+        'Please confirm there is an open/accessible area for delivery.',
+      );
+    }
+
+    const operating = await this.deliveryOperatingConfig.getConfig();
 
     if (preferenceRequiresSlot(preferenceType)) {
       if (!dto.scheduledSlotId) {
         throw new BadRequestException('Please choose a delivery time.');
       }
-      if (!options?.serviceable) {
+      if (!deliveryOptions?.serviceable) {
         throw new BadRequestException(
           "We currently don't deliver to this location.",
         );
       }
       const selectedSlot = this.deliveryOptionsService.findSlot(
-        options,
+        deliveryOptions,
         dto.scheduledSlotId,
       );
       if (!selectedSlot?.available) {
-        throw new BadRequestException(
-          'Your selected delivery slot is no longer available.',
-        );
+        throw new BadRequestException({
+          message:
+            'Your selected delivery slot is no longer available. Please choose another slot.',
+          code: DELIVERY_SLOT_UNAVAILABLE,
+        });
+      }
+      const slotRuleError = validateSlotAgainstOperatingRules({
+        dateKey: selectedSlot.date,
+        startMinutes: selectedSlot.startMinutes,
+        endMinutes: selectedSlot.endMinutes,
+        operating,
+      });
+      if (slotRuleError) {
+        throw new BadRequestException({
+          message:
+            `This delivery time is outside our delivery hours. Available delivery time is ${
+              deliveryOptions.operatingWindow?.start ?? '11:00 AM'
+            } – ${deliveryOptions.operatingWindow?.end ?? '4:30 PM'}.`,
+          code: DELIVERY_SLOT_UNAVAILABLE,
+        });
       }
       const todayKey = utcToIst().dateKey;
       if (
@@ -241,18 +339,23 @@ export class OrdersService {
       }
     } else if (
       preferenceType === 'ASAP' &&
-      options &&
-      !options.asap.available
+      deliveryOptions &&
+      !deliveryOptions.asap.available
     ) {
       throw new BadRequestException(
-        options.asap.reason ||
+        deliveryOptions.asap.reason ||
           'Fastest delivery is not available right now. Please choose another time.',
       );
     }
 
     const selectedSlot =
-      preferenceRequiresSlot(preferenceType) && dto.scheduledSlotId && options
-        ? this.deliveryOptionsService.findSlot(options, dto.scheduledSlotId)
+      preferenceRequiresSlot(preferenceType) &&
+      dto.scheduledSlotId &&
+      deliveryOptions
+        ? this.deliveryOptionsService.findSlot(
+            deliveryOptions,
+            dto.scheduledSlotId,
+          )
         : null;
 
     const selectedAt = new Date();
@@ -266,6 +369,14 @@ export class OrdersService {
           ? new Date(selectedAt.getTime() + checkout.deliveryETA * 60_000)
           : null;
 
+    const instructionsJson = {
+      text: customerRemark,
+      callOnArrival,
+      leaveAtSecurity,
+      heavyVehicleAccess,
+      openAreaConfirmed,
+    };
+
     const preferenceSnapshot: DeliveryPreferenceSnapshot = {
       type: preferenceType,
       label: DELIVERY_PREFERENCE_LABELS[preferenceType],
@@ -277,19 +388,19 @@ export class OrdersService {
       scheduledEndAt: selectedSlot?.endAt ?? null,
       customerRemark,
       selectedAt: selectedAt.toISOString(),
-      timezone: DEFAULT_DELIVERY_TIMEZONE,
+      timezone: operating.timezone || DEFAULT_DELIVERY_TIMEZONE,
       etaMinMinutes: checkout.deliveryEtaMinMinutes ?? null,
       etaMaxMinutes: checkout.deliveryEtaMaxMinutes ?? null,
       etaLabel:
         preferenceType === 'ASAP'
-          ? (checkout.deliveryMessage ?? options?.asap.etaLabel ?? null)
+          ? (checkout.deliveryMessage ?? deliveryOptions?.asap.etaLabel ?? null)
           : selectedSlot
             ? `${selectedSlot.dateLabel}, ${selectedSlot.label}`
             : null,
       vehicleType: checkout.deliveryVehicleType ?? null,
       vehicleDisplayName: checkout.deliveryVehicleDisplayName ?? null,
-      hubId: options?.hubId ?? null,
-      hubName: checkout.fulfillmentHubName ?? options?.hubName ?? null,
+      hubId: deliveryOptions?.hubId ?? null,
+      hubName: checkout.fulfillmentHubName ?? deliveryOptions?.hubName ?? null,
     };
 
     const routing = await this.checkoutService.routeHubForAddress(
@@ -425,8 +536,14 @@ export class OrdersService {
               : null,
             scheduledEndAt: selectedSlot ? new Date(selectedSlot.endAt) : null,
             deliveryCustomerRemark: customerRemark,
+            deliveryCallOnArrival: callOnArrival,
+            deliveryLeaveAtSecurity: leaveAtSecurity,
+            deliveryHeavyVehicleAccess: heavyVehicleAccess,
+            openAreaConfirmed,
+            deliveryInstructionsJson: instructionsJson,
+            idempotencyKey,
             deliveryPreferenceSelectedAt: selectedAt,
-            deliveryTimezone: DEFAULT_DELIVERY_TIMEZONE,
+            deliveryTimezone: operating.timezone || DEFAULT_DELIVERY_TIMEZONE,
             deliveryPreferenceSnapshot: preferenceSnapshot,
             expectedDeliveryAt,
             deliveryAddress: {
@@ -644,6 +761,19 @@ export class OrdersService {
       `HUB_ROUTING | Order: ${order.orderNumber} | Status: ${order.orderStatus} | Hub: ${routing.assignableHub?.name ?? 'none'} | Reason: ${routing.reason}`,
     );
 
+    return this.mapPlaceOrderResponse(order);
+  }
+
+  private mapPlaceOrderResponse(
+    order: Prisma.OrderGetPayload<{
+      include: {
+        items: typeof ORDER_ITEMS_WITH_PRODUCT;
+        timeline: true;
+        hub: true;
+        address: true;
+      };
+    }>,
+  ): OrderResponseDto {
     return {
       id: order.id,
       orderNumber: order.orderNumber,
@@ -663,6 +793,10 @@ export class OrdersService {
       scheduledStartAt: order.scheduledStartAt?.toISOString() ?? null,
       scheduledEndAt: order.scheduledEndAt?.toISOString() ?? null,
       deliveryCustomerRemark: order.deliveryCustomerRemark,
+      deliveryCallOnArrival: order.deliveryCallOnArrival,
+      deliveryLeaveAtSecurity: order.deliveryLeaveAtSecurity,
+      deliveryHeavyVehicleAccess: order.deliveryHeavyVehicleAccess,
+      openAreaConfirmed: order.openAreaConfirmed,
       deliveryPreference: mapDeliveryPreferenceView(order),
       address: {
         id: order.address.id,
@@ -1040,6 +1174,42 @@ export class OrdersService {
     return this.findOne(customerId, orderId);
   }
 
+  async acceptReschedule(customerId: string, orderId: string) {
+    const data = await this.deliveryScheduleService.acceptReschedule(
+      customerId,
+      orderId,
+    );
+    this.orderEvents.emitOrderUpdated({
+      orderId: data.id,
+      orderNumber: data.orderNumber,
+      status: data.orderStatus,
+      statusLabel: getCustomerOrderStatusLabel(data.orderStatus),
+      updatedAt: new Date().toISOString(),
+      hubId: data.hubId,
+      customerId: data.customerId,
+    });
+    await this.cache.invalidateOrders(customerId);
+    return data;
+  }
+
+  async declineReschedule(customerId: string, orderId: string) {
+    const data = await this.deliveryScheduleService.declineReschedule(
+      customerId,
+      orderId,
+    );
+    this.orderEvents.emitOrderUpdated({
+      orderId: data.id,
+      orderNumber: data.orderNumber,
+      status: data.orderStatus,
+      statusLabel: getCustomerOrderStatusLabel(data.orderStatus),
+      updatedAt: new Date().toISOString(),
+      hubId: data.hubId,
+      customerId: data.customerId,
+    });
+    await this.cache.invalidateOrders(customerId);
+    return data;
+  }
+
   async ensureOwnedOrder(customerId: string, orderId: string) {
     const order = await this.prisma.order.findFirst({
       where: { id: orderId, customerId, deletedAt: null },
@@ -1232,6 +1402,14 @@ export class OrdersService {
       scheduledStartAt: order.scheduledStartAt?.toISOString() ?? null,
       scheduledEndAt: order.scheduledEndAt?.toISOString() ?? null,
       deliveryCustomerRemark: order.deliveryCustomerRemark,
+      deliveryCallOnArrival: order.deliveryCallOnArrival,
+      deliveryLeaveAtSecurity: order.deliveryLeaveAtSecurity,
+      deliveryHeavyVehicleAccess: order.deliveryHeavyVehicleAccess,
+      openAreaConfirmed: order.openAreaConfirmed,
+      proposedSlotId: order.proposedSlotId,
+      proposedStartAt: order.proposedStartAt?.toISOString() ?? null,
+      proposedEndAt: order.proposedEndAt?.toISOString() ?? null,
+      rescheduleReason: order.rescheduleReason,
       deliveryPreference: mapDeliveryPreferenceView(order),
       cancelReason: order.cancelReason,
       cancelledAt: order.cancelledAt?.toISOString() ?? null,

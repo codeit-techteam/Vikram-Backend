@@ -213,6 +213,7 @@ enum OrderStatus {
   DISPATCHED
   DELIVERED
   CANCELLED
+  RESCHEDULE_REQUESTED
 }
 
 enum PaymentStatus {
@@ -1827,10 +1828,26 @@ model Order {
   scheduledStartAt       DateTime? @map("scheduled_start_at")
   scheduledEndAt         DateTime? @map("scheduled_end_at")
   deliveryCustomerRemark String?   @map("delivery_customer_remark") @db.VarChar(250)
+  deliveryCallOnArrival      Boolean  @default(false) @map("delivery_call_on_arrival")
+  deliveryLeaveAtSecurity    Boolean  @default(false) @map("delivery_leave_at_security")
+  deliveryHeavyVehicleAccess Boolean  @default(false) @map("delivery_heavy_vehicle_access")
+  openAreaConfirmed          Boolean? @map("open_area_confirmed")
+  /// Structured delivery instructions snapshot { text, callOnArrival, ... }.
+  deliveryInstructionsJson   Json?    @map("delivery_instructions_json") @db.JsonB
+  /// Client Idempotency-Key for place-order / create-order (unique per customer).
+  idempotencyKey             String?  @map("idempotency_key") @db.VarChar(120)
   deliveryPreferenceSelectedAt DateTime? @map("delivery_preference_selected_at")
   deliveryTimezone       String?   @map("delivery_timezone") @db.VarChar(60)
   /// Immutable snapshot of what the customer selected at checkout.
   deliveryPreferenceSnapshot Json? @map("delivery_preference_snapshot") @db.JsonB
+  /// Hub-proposed reschedule (customer must accept).
+  proposedSlotId         String?   @map("proposed_slot_id") @db.Uuid
+  proposedDate           DateTime? @map("proposed_date") @db.Date
+  proposedStartAt        DateTime? @map("proposed_start_at")
+  proposedEndAt          DateTime? @map("proposed_end_at")
+  rescheduleReason       String?   @map("reschedule_reason") @db.VarChar(500)
+  rescheduleRequestedAt  DateTime? @map("reschedule_requested_at")
+  rescheduleRequestedBy  String?   @map("reschedule_requested_by") @db.VarChar(120)
   /// Internal ops note — never overwrite customer remarks with this.
   adminInternalNote      String?   @map("admin_internal_note") @db.Text
   cancelReason    String?       @map("cancel_reason") @db.VarChar(500)
@@ -1864,9 +1881,11 @@ model Order {
   paymentLinks    PaymentLink[]
   payments        Payment[]
   bulkEnquiries   BulkEnquiry[] @relation("BulkEnquiryConvertedOrder")
-  scheduledSlot   DeliverySlot? @relation(fields: [scheduledSlotId], references: [id], onDelete: SetNull)
+  scheduledSlot   DeliverySlot? @relation("OrderScheduledSlot", fields: [scheduledSlotId], references: [id], onDelete: SetNull)
+  proposedSlot    DeliverySlot? @relation("OrderProposedSlot", fields: [proposedSlotId], references: [id], onDelete: SetNull)
   slotReservations DeliverySlotReservation[]
 
+  @@unique([customerId, idempotencyKey])
   @@index([customerId, orderStatus, createdAt(sort: Desc)])
   @@index([customerId, createdAt(sort: Desc)])
   @@index([hubId, orderStatus])
@@ -1881,6 +1900,7 @@ model Order {
   @@index([deliveryPreferenceType])
   @@index([scheduledSlotId])
   @@index([scheduledDate])
+  @@index([idempotencyKey])
   @@map("orders")
 }
 
@@ -1933,7 +1953,8 @@ model DeliverySlot {
   updatedAt     DateTime @updatedAt @map("updated_at")
 
   hub          Hub                       @relation(fields: [hubId], references: [id], onDelete: Cascade)
-  orders       Order[]
+  orders       Order[]                   @relation("OrderScheduledSlot")
+  proposedOrders Order[]                 @relation("OrderProposedSlot")
   reservations DeliverySlotReservation[]
 
   @@unique([hubId, slotDate, startMinutes, endMinutes])
@@ -3520,6 +3541,28 @@ model DeliveryVehicleConfig {
 
   @@index([active, priority])
   @@map("delivery_vehicle_configs")
+}
+
+/// Global delivery operating window / calendar (Admin-configurable).
+/// Defaults: Asia/Kolkata, 11:00–16:30, 30-min slots, Mon–Sat (Sunday holiday).
+model DeliveryOperatingConfig {
+  id                   String   @id @default(uuid()) @db.Uuid
+  configKey            String   @unique @default("DEFAULT") @map("config_key") @db.VarChar(40)
+  timezone             String   @default("Asia/Kolkata") @db.VarChar(60)
+  /// Minutes from midnight IST.
+  openMinutes          Int      @default(660) @map("open_minutes")
+  closeMinutes         Int      @default(990) @map("close_minutes")
+  slotDurationMinutes  Int      @default(30) @map("slot_duration_minutes")
+  /// ISO weekdays 1=Mon … 7=Sun. Default Mon–Sat.
+  workingWeekdays      Int[]    @default([1, 2, 3, 4, 5, 6]) @map("working_weekdays")
+  /// Extra closed calendar dates as YYYY-MM-DD strings.
+  holidayDates         String[] @default([]) @map("holiday_dates")
+  updatedBy            String?  @map("updated_by") @db.Uuid
+  updatedByName        String?  @map("updated_by_name") @db.VarChar(120)
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  @@map("delivery_operating_configs")
 }
 
 /// Engine behaviour toggles (multi-vehicle, bulk quote, qty-tier fallback).

@@ -90,6 +90,7 @@ import { HubRequisitionTrackingController } from '../modules/requisitions/requis
 import { HubSearchController } from './search/hub-search.controller';
 import { HubSearchService } from './search/hub-search.service';
 import { HubDeliveryPricingController } from './delivery-pricing/hub-delivery-pricing.controller';
+import { HubDeliveryScheduleController } from './delivery-schedule/hub-delivery-schedule.controller';
 import { RequisitionsModule } from '../modules/requisitions/requisitions.module';
 import { VehiclesModule } from '../modules/vehicles/vehicles.module';
 import { DriversModule } from '../modules/drivers/drivers.module';
@@ -136,6 +137,7 @@ import { DriversModule } from '../modules/drivers/drivers.module';
     HubMaterialReceiptsController,
     HubRequisitionTrackingController,
     HubDeliveryPricingController,
+    HubDeliveryScheduleController,
   ],
   providers: [
     HubJwtStrategy,

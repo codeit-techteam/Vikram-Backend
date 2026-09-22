@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
+  IsBoolean,
   IsEnum,
   IsInt,
   IsOptional,
@@ -49,6 +50,26 @@ export class CreateRazorpayOrderDto {
   @IsString()
   @MaxLength(250)
   deliveryCustomerRemark?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  deliveryCallOnArrival?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  deliveryLeaveAtSecurity?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  deliveryHeavyVehicleAccess?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  openAreaConfirmed?: boolean;
 
   @ApiPropertyOptional()
   @IsOptional()

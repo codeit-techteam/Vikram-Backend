@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Headers,
   HttpCode,
   HttpStatus,
   Param,
@@ -94,8 +95,11 @@ Does **not** charge online payment, apply coupons, EMI, or credit. Supports loya
   async placeOrder(
     @CurrentCustomer() customer: AuthenticatedCustomer,
     @Body() dto: PlaceOrderDto,
+    @Headers('idempotency-key') idempotencyKey?: string,
   ): Promise<{ success: boolean; message: string; data: OrderResponseDto }> {
-    const data = await this.ordersService.placeOrder(customer.id, dto);
+    const data = await this.ordersService.placeOrder(customer.id, dto, {
+      idempotencyKey,
+    });
     return {
       success: true,
       message: 'Order placed successfully',
@@ -223,5 +227,33 @@ Does **not** charge online payment, apply coupons, EMI, or credit. Supports loya
       message: 'Order cancelled successfully',
       data,
     };
+  }
+
+  @Post(':orderId/reschedule/accept')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Accept hub-proposed delivery reschedule' })
+  async acceptReschedule(
+    @CurrentCustomer() customer: AuthenticatedCustomer,
+    @Param('orderId', ParseUUIDPipe) orderId: string,
+  ) {
+    const data = await this.ordersService.acceptReschedule(
+      customer.id,
+      orderId,
+    );
+    return { success: true, message: 'Reschedule accepted', data };
+  }
+
+  @Post(':orderId/reschedule/decline')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Decline hub-proposed delivery reschedule' })
+  async declineReschedule(
+    @CurrentCustomer() customer: AuthenticatedCustomer,
+    @Param('orderId', ParseUUIDPipe) orderId: string,
+  ) {
+    const data = await this.ordersService.declineReschedule(
+      customer.id,
+      orderId,
+    );
+    return { success: true, message: 'Reschedule declined', data };
   }
 }

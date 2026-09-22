@@ -87,6 +87,7 @@ export const CUSTOMER_ORDER_STATUS_LABELS: Record<string, string> = {
   DISPATCHED: 'Out for Delivery',
   DELIVERED: 'Delivered',
   CANCELLED: 'Cancelled',
+  RESCHEDULE_REQUESTED: 'Reschedule Requested',
 };
 
 export function getCustomerOrderStatusLabel(status: string): string {
