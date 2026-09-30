@@ -545,6 +545,13 @@ export class OrdersService {
             deliveryPreferenceSelectedAt: selectedAt,
             deliveryTimezone: operating.timezone || DEFAULT_DELIVERY_TIMEZONE,
             deliveryPreferenceSnapshot: preferenceSnapshot,
+            deliveryTermsAccepted: dto.deliveryTermsAccepted === true,
+            deliveryTermsVersion:
+              dto.deliveryTermsAccepted === true
+                ? (dto.deliveryTermsVersion ?? null)
+                : null,
+            deliveryTermsAcceptedAt:
+              dto.deliveryTermsAccepted === true ? selectedAt : null,
             expectedDeliveryAt,
             deliveryAddress: {
               id: checkout.address.id,
@@ -809,6 +816,9 @@ export class OrdersService {
       items: order.items.map((item) => this.mapOrderItem(item)),
       timeline: order.timeline.map((t) => this.mapTimelineEvent(t)),
       createdAt: order.createdAt.toISOString(),
+      deliveryTermsAccepted: order.deliveryTermsAccepted,
+      deliveryTermsVersion: order.deliveryTermsVersion,
+      deliveryTermsAcceptedAt: order.deliveryTermsAcceptedAt?.toISOString() ?? null,
       updatedAt: order.updatedAt.toISOString(),
     };
   }

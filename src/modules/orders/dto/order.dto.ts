@@ -79,6 +79,19 @@ export class PlaceOrderDto {
   openAreaConfirmed?: boolean;
 
   @ApiPropertyOptional({
+    description: 'Customer accepted the delivery terms shown at checkout',
+  })
+  @IsOptional()
+  @IsBoolean()
+  deliveryTermsAccepted?: boolean;
+
+  @ApiPropertyOptional({ example: '2026-09-30', maxLength: 40 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  deliveryTermsVersion?: string;
+
+  @ApiPropertyOptional({
     enum: PaymentMethod,
     example: PaymentMethod.CASH,
     description: 'CASH (COD), MANUAL, or RAZORPAY (online checkout)',
@@ -257,6 +270,15 @@ export class OrderResponseDto {
 
   @ApiPropertyOptional()
   deliveryLeaveAtSecurity?: boolean;
+
+  @ApiPropertyOptional()
+  deliveryTermsAccepted?: boolean;
+
+  @ApiPropertyOptional()
+  deliveryTermsVersion?: string | null;
+
+  @ApiPropertyOptional()
+  deliveryTermsAcceptedAt?: string | null;
 
   @ApiPropertyOptional()
   deliveryHeavyVehicleAccess?: boolean;

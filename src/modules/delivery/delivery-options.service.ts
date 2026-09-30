@@ -34,6 +34,8 @@ import {
   type GeneratedSlotWindow,
 } from './delivery-slot.logic';
 
+const SLOT_UPSERT_CONCURRENCY = 8;
+
 export type DeliveryOptionsContext = {
   serviceable: boolean;
   unavailableReason?: string | null;
@@ -183,17 +185,23 @@ export class DeliveryOptionsService {
     });
 
     const allWindows = windows.scheduled.flatMap((day) => day.slots);
-    const persisted = await Promise.all(
-      allWindows.map((window) =>
-        this.slotService.upsertSlot({
-          hubId: context.hubId!,
-          window,
-          capacity,
-          vehicleType: context.vehicleType,
-          logisticsType: context.logisticsType,
-        }),
-      ),
-    );
+    const persisted: Awaited<ReturnType<DeliverySlotService['upsertSlot']>>[] =
+      [];
+    // Bounded so one checkout cannot exhaust the Prisma connection pool.
+    for (let i = 0; i < allWindows.length; i += SLOT_UPSERT_CONCURRENCY) {
+      const batch = await Promise.all(
+        allWindows.slice(i, i + SLOT_UPSERT_CONCURRENCY).map((window) =>
+          this.slotService.upsertSlot({
+            hubId: context.hubId!,
+            window,
+            capacity,
+            vehicleType: context.vehicleType,
+            logisticsType: context.logisticsType,
+          }),
+        ),
+      );
+      persisted.push(...batch);
+    }
     const slotByKey = new Map(
       persisted.map((slot, index) => {
         const window = allWindows[index];

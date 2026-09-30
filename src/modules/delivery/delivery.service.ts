@@ -29,6 +29,8 @@ import type {
 } from './engine/delivery-load.types';
 import { selectVehicleForLoad } from './engine/delivery-vehicle-selection.logic';
 import { DeliveryVehicleSelectionService } from './engine/delivery-vehicle-selection.service';
+import { DEFAULT_DELIVERY_TIMEZONE } from './delivery-preference.constants';
+import { addDateKeyDays, utcToIst } from './delivery-slot.logic';
 
 /** Cap same-day window (minutes from now) */
 const SAME_DAY_CUTOFF_MINUTES = 18 * 60;
@@ -425,19 +427,17 @@ export class DeliveryService {
     deliverAt: Date,
     estimatedMinutes: number,
   ): 'Today' | 'Tomorrow' | 'Later' {
-    const endOfToday = new Date(now);
-    endOfToday.setHours(23, 59, 59, 999);
+    const todayKey = utcToIst(now).dateKey;
+    const deliverKey = utcToIst(deliverAt).dateKey;
 
     if (
-      deliverAt.getTime() <= endOfToday.getTime() &&
+      deliverKey === todayKey &&
       estimatedMinutes < SAME_DAY_CUTOFF_MINUTES
     ) {
       return 'Today';
     }
 
-    const endOfTomorrow = new Date(endOfToday);
-    endOfTomorrow.setDate(endOfTomorrow.getDate() + 1);
-    if (deliverAt.getTime() <= endOfTomorrow.getTime()) {
+    if (deliverKey <= addDateKeyDays(todayKey, 1)) {
       return 'Tomorrow';
     }
     return 'Later';
@@ -448,6 +448,7 @@ export class DeliveryService {
       hour: 'numeric',
       minute: '2-digit',
       hour12: true,
+      timeZone: DEFAULT_DELIVERY_TIMEZONE,
     });
   }
 }

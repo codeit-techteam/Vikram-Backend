@@ -1840,6 +1840,9 @@ model Order {
   deliveryTimezone       String?   @map("delivery_timezone") @db.VarChar(60)
   /// Immutable snapshot of what the customer selected at checkout.
   deliveryPreferenceSnapshot Json? @map("delivery_preference_snapshot") @db.JsonB
+  deliveryTermsAccepted   Boolean   @default(false) @map("delivery_terms_accepted")
+  deliveryTermsVersion    String?   @map("delivery_terms_version") @db.VarChar(40)
+  deliveryTermsAcceptedAt DateTime? @map("delivery_terms_accepted_at")
   /// Hub-proposed reschedule (customer must accept).
   proposedSlotId         String?   @map("proposed_slot_id") @db.Uuid
   proposedDate           DateTime? @map("proposed_date") @db.Date

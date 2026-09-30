@@ -639,6 +639,8 @@ export class PaymentsService {
       deliveryHeavyVehicleAccess: dto.deliveryHeavyVehicleAccess,
       openAreaConfirmed: dto.openAreaConfirmed,
       loyaltyPointsToRedeem: dto.loyaltyPointsToRedeem,
+      deliveryTermsAccepted: dto.deliveryTermsAccepted,
+      deliveryTermsVersion: dto.deliveryTermsVersion,
       paymentMethod: PaymentMethod.RAZORPAY,
     };
     const placed = await this.ordersService.placeOrder(

@@ -73,6 +73,17 @@ export class CreateRazorpayOrderDto {
 
   @ApiPropertyOptional()
   @IsOptional()
+  @IsBoolean()
+  deliveryTermsAccepted?: boolean;
+
+  @ApiPropertyOptional({ maxLength: 40 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  deliveryTermsVersion?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(0)
