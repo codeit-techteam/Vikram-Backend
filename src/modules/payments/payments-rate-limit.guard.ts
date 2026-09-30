@@ -25,6 +25,7 @@ export class PaymentsRateLimitGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest<Request>();
     const client = this.clientKey(request);
+    if (!client) return true;
     const now = Date.now();
 
     this.evictExpired(now);
@@ -51,12 +52,15 @@ export class PaymentsRateLimitGuard implements CanActivate {
     return true;
   }
 
-  private clientKey(request: Request): string {
+  /**
+   * Keyed by customer only: behind the App Platform proxy `request.ip` is shared
+   * by every client, and the only anonymous route here (config) never calls Razorpay.
+   */
+  private clientKey(request: Request): string | null {
     const user = (request as Request & { user?: { sub?: string; id?: string } })
       .user;
     const userId = user?.sub ?? user?.id;
-    if (userId) return `user:${userId}`;
-    return `ip:${request.ip ?? 'unknown'}`;
+    return userId ? `user:${userId}` : null;
   }
 
   private evictExpired(now: number): void {
