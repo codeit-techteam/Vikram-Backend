@@ -224,6 +224,16 @@ class EnvironmentVariables {
   @IsOptional()
   RAZORPAY_MODE?: string;
 
+  @Type(() => Number)
+  @IsNumber()
+  @IsOptional()
+  PAYMENT_PENDING_EXPIRY_MINUTES?: number;
+
+  @Type(() => Number)
+  @IsNumber()
+  @IsOptional()
+  PAYMENT_RECONCILE_INTERVAL_MS?: number;
+
   @IsString()
   @IsOptional()
   GOOGLE_MAPS_SERVER_API_KEY?: string;

@@ -5,7 +5,8 @@ export class PaymentException extends HttpException {
     code: string,
     message: string,
     status: HttpStatus = HttpStatus.BAD_REQUEST,
+    retryable = false,
   ) {
-    super({ success: false, code, message }, status);
+    super({ success: false, code, message, retryable }, status);
   }
 }

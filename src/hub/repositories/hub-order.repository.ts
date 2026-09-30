@@ -18,7 +18,7 @@ export class HubOrderRepository {
       NOT: {
         paymentMethod: 'RAZORPAY',
         paymentStatus: { in: ['PENDING', 'FAILED', 'CANCELLED'] },
-        orderStatus: 'PENDING',
+        orderStatus: { in: ['PENDING', 'CANCELLED'] },
       },
     };
   }

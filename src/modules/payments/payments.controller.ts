@@ -8,12 +8,9 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  UseGuards,
 } from '@nestjs/common';
-import {
-  ApiBearerAuth,
-  ApiOperation,
-  ApiTags,
-} from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   SWAGGER_BEARER_AUTH,
   SWAGGER_TAGS,
@@ -27,9 +24,11 @@ import {
   VerifyRazorpayPaymentDto,
 } from './dto/razorpay-payment.dto';
 import { PaymentsService } from './payments.service';
+import { PaymentsRateLimitGuard } from './payments-rate-limit.guard';
 
 @ApiTags(SWAGGER_TAGS.PAYMENTS)
 @ApiBearerAuth(SWAGGER_BEARER_AUTH)
+@UseGuards(PaymentsRateLimitGuard)
 @Controller({ version: '1', path: 'payments/razorpay' })
 export class PaymentsController {
   constructor(private readonly paymentsService: PaymentsService) {}
@@ -46,13 +45,19 @@ export class PaymentsController {
   }
 
   @Get('pending')
-  @ApiOperation({ summary: 'Latest unpaid Razorpay checkout for this customer' })
+  @ApiOperation({
+    summary: 'Latest unpaid Razorpay checkout for this customer',
+  })
   getPending(@CurrentCustomer() customer: AuthenticatedCustomer) {
     return this.paymentsService.getPending(customer.id);
   }
 
   @Get('status/:orderId')
-  @ApiOperation({ summary: 'Authoritative payment status for an internal order' })
+  @ApiOperation({
+    summary: 'Authoritative payment status for an internal order',
+    description:
+      'Reconciles with Razorpay before answering. `state` is one of PAID, PROCESSING, AWAITING_PAYMENT, FAILED, CANCELLED, ORDER_CANCELLED, REFUND_PENDING.',
+  })
   getStatus(
     @CurrentCustomer() customer: AuthenticatedCustomer,
     @Param('orderId', ParseUUIDPipe) orderId: string,
@@ -91,11 +96,16 @@ export class PaymentsController {
 
   @Post('cancel')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Mark a checkout attempt as cancelled by the customer' })
+  @ApiOperation({
+    summary: 'Mark a checkout attempt as cancelled by the customer',
+  })
   cancel(
     @CurrentCustomer() customer: AuthenticatedCustomer,
     @Body() dto: CancelRazorpayPaymentDto,
   ) {
-    return this.paymentsService.cancelCheckout(customer.id, dto.internalOrderId);
+    return this.paymentsService.cancelCheckout(
+      customer.id,
+      dto.internalOrderId,
+    );
   }
 }

@@ -82,7 +82,9 @@ export function expectedWebhookSignature(
   rawBody: string | Buffer,
   webhookSecret: string,
 ): string {
-  const body = Buffer.isBuffer(rawBody) ? rawBody : Buffer.from(rawBody, 'utf8');
+  const body = Buffer.isBuffer(rawBody)
+    ? rawBody
+    : Buffer.from(rawBody, 'utf8');
   return createHmac('sha256', webhookSecret).update(body).digest('hex');
 }
 
@@ -95,7 +97,10 @@ export function verifyWebhookSignature(input: {
   return safeEqual(expected, input.signature);
 }
 
-export function assertKeyMatchesMode(keyId: string, mode: 'test' | 'live'): void {
+export function assertKeyMatchesMode(
+  keyId: string,
+  mode: 'test' | 'live',
+): void {
   const id = keyId.trim();
   if (!id) return;
   if (mode === 'test' && id.startsWith('rzp_live_')) {
@@ -122,17 +127,52 @@ export function webhookDedupeKey(input: {
   ].join(':');
 }
 
-export function sanitizeWebhookPayload(eventType: string, body: unknown): object {
+const REMOTE_STATUS_PRIORITY: Record<string, number> = {
+  captured: 4,
+  authorized: 3,
+  created: 2,
+  failed: 1,
+};
+
+/**
+ * One Razorpay order can carry several attempts (e.g. a failed UPI try, then a
+ * card). Money that moved wins; otherwise the most recent attempt decides.
+ */
+export function pickAuthoritativePayment<
+  T extends { status: string; created_at?: number | null },
+>(payments: T[]): T | null {
+  let best: T | null = null;
+  for (const payment of payments) {
+    if (!best) {
+      best = payment;
+      continue;
+    }
+    const rank = REMOTE_STATUS_PRIORITY[payment.status] ?? 0;
+    const bestRank = REMOTE_STATUS_PRIORITY[best.status] ?? 0;
+    const moneyMoved = rank >= 3 || bestRank >= 3;
+    if (
+      moneyMoved
+        ? rank > bestRank
+        : (payment.created_at ?? 0) > (best.created_at ?? 0)
+    ) {
+      best = payment;
+    }
+  }
+  return best;
+}
+
+export function sanitizeWebhookPayload(
+  eventType: string,
+  body: unknown,
+): object {
   const root = (body ?? {}) as Record<string, unknown>;
   const payload = (root.payload ?? {}) as Record<string, unknown>;
-  const paymentEntity = (
-    (payload.payment as { entity?: Record<string, unknown> } | undefined)
-      ?.entity ?? {}
-  ) as Record<string, unknown>;
-  const orderEntity = (
-    (payload.order as { entity?: Record<string, unknown> } | undefined)
-      ?.entity ?? {}
-  ) as Record<string, unknown>;
+  const paymentEntity = ((
+    payload.payment as { entity?: Record<string, unknown> } | undefined
+  )?.entity ?? {}) as Record<string, unknown>;
+  const orderEntity = ((
+    payload.order as { entity?: Record<string, unknown> } | undefined
+  )?.entity ?? {}) as Record<string, unknown>;
 
   return {
     eventType,

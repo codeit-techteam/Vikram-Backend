@@ -1,12 +1,20 @@
-import { HttpStatus, Injectable, Logger } from '@nestjs/common';
+import {
+  HttpStatus,
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   GatewayPaymentStatus,
+  OrderStatus,
   PaymentMethod,
   PaymentStatus,
   Prisma,
   WebhookProcessingStatus,
 } from '../../../generated/prisma/client';
+import type { Order, Payment } from '../../../generated/prisma/client';
 import { PrismaService } from '../../common/database/prisma.service';
 import { PlaceOrderDto } from '../orders/dto/order.dto';
 import { OrdersService } from '../orders/orders.service';
@@ -14,6 +22,7 @@ import { decimalToNumber } from '../orders/orders.constants';
 import { PaymentException } from './payment.exceptions';
 import {
   canTransitionGatewayStatus,
+  pickAuthoritativePayment,
   RAZORPAY_CURRENCY,
   RAZORPAY_PROVIDER,
   rupeesToPaise,
@@ -37,9 +46,41 @@ const UNPAID_ORDER_STATUSES: PaymentStatus[] = [
   PaymentStatus.CANCELLED,
 ];
 
+/** Gateway rows that need no further contact with Razorpay. */
+const SETTLED_GATEWAY_STATUSES: GatewayPaymentStatus[] = [
+  'CAPTURED',
+  'REFUNDED',
+  'VERIFICATION_FAILED',
+];
+
+/** Gateway rows where money may already have moved; never release these orders. */
+const IN_FLIGHT_GATEWAY_STATUSES: GatewayPaymentStatus[] = [
+  'AUTHORIZED',
+  'CAPTURED',
+];
+
+/** Customer-facing payment state the app renders directly. */
+export type CustomerPaymentState =
+  | 'PAID'
+  | 'PROCESSING'
+  | 'AWAITING_PAYMENT'
+  | 'FAILED'
+  | 'CANCELLED'
+  | 'ORDER_CANCELLED'
+  | 'REFUND_PENDING';
+
+const REFUND_REQUIRED_CODE = 'ORDER_CANCELLED_REFUND_REQUIRED';
+const RECONCILE_MIN_AGE_MS = 2 * 60_000;
+const RECONCILE_BATCH_SIZE = 50;
+
+type OrderRow = Order;
+type PaymentRow = Payment;
+
 @Injectable()
-export class PaymentsService {
+export class PaymentsService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(PaymentsService.name);
+  private reconcileTimer: NodeJS.Timeout | null = null;
+  private reconcileRunning = false;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -47,6 +88,29 @@ export class PaymentsService {
     private readonly ordersService: OrdersService,
     private readonly configService: ConfigService,
   ) {}
+
+  onModuleInit(): void {
+    const intervalMs =
+      this.configService.get<number>('payment.razorpay.reconcileIntervalMs') ??
+      0;
+    if (
+      process.env.NODE_ENV === 'test' ||
+      !Number.isFinite(intervalMs) ||
+      intervalMs <= 0 ||
+      !this.razorpay.isConfigured()
+    ) {
+      return;
+    }
+    this.reconcileTimer = setInterval(() => {
+      void this.reconcileStalePendingOrders();
+    }, intervalMs);
+    this.reconcileTimer.unref();
+    this.logger.log(`Razorpay reconciliation every ${intervalMs}ms`);
+  }
+
+  onModuleDestroy(): void {
+    if (this.reconcileTimer) clearInterval(this.reconcileTimer);
+  }
 
   getPublicConfig() {
     return {
@@ -65,8 +129,7 @@ export class PaymentsService {
 
     const order = dto.internalOrderId
       ? await this.loadReusableOrder(customerId, dto.internalOrderId)
-      : ((await this.findPendingOnlineOrder(customerId)) ??
-        (await this.placePendingOnlineOrder(customerId, dto, options)));
+      : await this.resolveCheckoutOrder(customerId, dto, options);
 
     if (
       order.paymentStatus === PaymentStatus.PAID ||
@@ -141,12 +204,17 @@ export class PaymentsService {
         'PAYMENT_CREATE_FAILED',
         'We could not start this payment. Please try again.',
         HttpStatus.SERVICE_UNAVAILABLE,
+        true,
       );
     }
 
-    this.logger.log(
-      `Razorpay order created internalOrder=${order.orderNumber} providerOrder=${payment.providerOrderId} amountPaise=${amountPaise}`,
-    );
+    this.logPayment('checkout_created', {
+      internalOrderId: order.id,
+      orderNumber: order.orderNumber,
+      paymentId: payment.id,
+      razorpayOrderId: payment.providerOrderId,
+      amountPaise,
+    });
 
     return this.toCheckoutResponse(order, payment, { alreadyPaid: false });
   }
@@ -183,21 +251,15 @@ export class PaymentsService {
       );
     }
 
-    if (payment.providerOrderId !== input.razorpay_order_id) {
-      throw new PaymentException(
-        'PAYMENT_ORDER_MISMATCH',
-        'We could not verify this payment.',
-      );
-    }
-
     if (
       payment.status === 'CAPTURED' &&
       (payment.order.paymentStatus === PaymentStatus.PAID ||
         payment.order.paymentStatus === PaymentStatus.COLLECTED)
     ) {
-      return this.toVerifyResponse(payment.order, payment, true);
+      return this.toVerifyResponse(customerId, payment.orderId, true);
     }
 
+    // The trusted Razorpay order id comes from our DB row, never from the client.
     const signatureOk = this.razorpay.verifyCheckoutSignature({
       razorpayOrderId: payment.providerOrderId,
       razorpayPaymentId: input.razorpay_payment_id,
@@ -206,11 +268,16 @@ export class PaymentsService {
 
     if (!signatureOk) {
       this.logger.warn(
-        `SECURITY payment signature mismatch internalOrder=${payment.order.orderNumber}`,
+        `SECURITY payment signature mismatch internalOrder=${payment.order.orderNumber} razorpayOrder=${payment.providerOrderId}`,
       );
-      await this.transitionPayment(payment.id, payment.status, 'VERIFICATION_FAILED', {
-        failureCode: 'SIGNATURE_MISMATCH',
-        failureDescription: 'Checkout signature verification failed',
+      // Record the event but keep the row reconcilable: a forged callback must not
+      // block a genuine capture that arrives later through the webhook.
+      await this.prisma.payment.update({
+        where: { id: payment.id },
+        data: {
+          failureCode: 'SIGNATURE_MISMATCH',
+          failureDescription: 'Checkout signature verification failed',
+        },
       });
       throw new PaymentException(
         'PAYMENT_VERIFICATION_FAILED',
@@ -240,26 +307,29 @@ export class PaymentsService {
         providerPaymentId: input.razorpay_payment_id,
         providerSignature: input.razorpay_signature,
         verifiedAt: new Date(),
-        status: canTransitionGatewayStatus(payment.status, 'PENDING')
-          ? 'PENDING'
-          : payment.status,
       },
+    });
+    await this.transitionPayment(payment.id, payment.status, 'PENDING', {
+      event: 'checkout_callback',
     });
 
     const remote = await this.razorpay.fetchPayment(input.razorpay_payment_id);
     await this.assertRemoteMatches(payment, remote);
+    await this.applyRemotePayment(payment.id, remote, 'checkout_verify');
 
-    const captured = await this.ensureCaptured(payment.id, remote);
-    await this.ordersService.confirmPaidOrder(payment.orderId);
-
-    this.logger.log(
-      `Payment verified internalOrder=${payment.order.orderNumber} providerPayment=${captured.providerPaymentId}`,
-    );
-
-    const order = await this.prisma.order.findUniqueOrThrow({
-      where: { id: payment.orderId },
+    const current = await this.prisma.payment.findUniqueOrThrow({
+      where: { id: payment.id },
     });
-    return this.toVerifyResponse(order, captured, false);
+    if (current.status === 'FAILED') {
+      throw new PaymentException(
+        'PAYMENT_FAILED',
+        current.failureDescription || 'Your payment was not completed.',
+        HttpStatus.BAD_REQUEST,
+        true,
+      );
+    }
+
+    return this.toVerifyResponse(customerId, payment.orderId, false);
   }
 
   async cancelCheckout(customerId: string, internalOrderId: string) {
@@ -281,29 +351,36 @@ export class PaymentsService {
       );
     }
 
-    if (payment.status === 'CAPTURED' || payment.order.paymentStatus === 'PAID') {
-      return this.getStatus(customerId, internalOrderId);
+    if (payment.status === 'CREATED' || payment.status === 'PENDING') {
+      // Razorpay may have captured the payment even though checkout reported a close.
+      await this.syncOrderPayment(internalOrderId).catch((error) =>
+        this.logger.warn(
+          `Cancel reconcile skipped for ${payment.order.orderNumber}: ${errorMessage(error)}`,
+        ),
+      );
+      const latest = await this.prisma.payment.findUniqueOrThrow({
+        where: { id: payment.id },
+      });
+      if (latest.status === 'CREATED' || latest.status === 'PENDING') {
+        await this.transitionPayment(latest.id, latest.status, 'CANCELLED', {
+          event: 'checkout_cancelled',
+        });
+      }
     }
 
-    if (
-      payment.status === 'CREATED' ||
-      payment.status === 'PENDING' ||
-      payment.status === 'FAILED'
-    ) {
-      await this.transitionPayment(payment.id, payment.status, 'CANCELLED');
-    }
-
-    return this.getStatus(customerId, internalOrderId);
+    return this.getStatus(customerId, internalOrderId, { reconcile: false });
   }
 
-  async getStatus(customerId: string, orderId: string) {
-    const order = await this.prisma.order.findFirst({
+  async getStatus(
+    customerId: string,
+    orderId: string,
+    options: { reconcile?: boolean } = {},
+  ) {
+    const owned = await this.prisma.order.findFirst({
       where: { id: orderId, customerId, deletedAt: null },
-      include: {
-        payments: { orderBy: { createdAt: 'desc' }, take: 1 },
-      },
+      select: { id: true },
     });
-    if (!order) {
+    if (!owned) {
       throw new PaymentException(
         'ORDER_NOT_FOUND',
         'Order not found.',
@@ -311,60 +388,25 @@ export class PaymentsService {
       );
     }
 
-    let payment = order.payments[0] ?? null;
-    if (
-      payment &&
-      payment.status !== 'CAPTURED' &&
-      payment.providerPaymentId
-    ) {
+    let reconcileFailed = false;
+    if (options.reconcile !== false) {
       try {
-        const remote = await this.razorpay.fetchPayment(payment.providerPaymentId);
-        if (remote.status === 'captured' || remote.status === 'authorized') {
-          await this.assertRemoteMatches(payment, remote);
-          payment = await this.ensureCaptured(payment.id, remote);
-          await this.ordersService.confirmPaidOrder(order.id);
-        } else if (remote.status === 'failed') {
-          payment = await this.transitionPayment(
-            payment.id,
-            payment.status,
-            'FAILED',
-            {
-              failureCode: remote.error_code,
-              failureDescription: remote.error_description,
-            },
-          );
-        }
+        await this.syncOrderPayment(orderId);
       } catch (error) {
+        reconcileFailed = true;
         this.logger.warn(
-          `Payment status reconcile skipped for ${order.orderNumber}: ${
-            error instanceof Error ? error.message : 'unknown'
-          }`,
+          `Payment status reconcile failed for order=${orderId}: ${errorMessage(error)}`,
         );
       }
     }
 
-    const refreshed = await this.prisma.order.findUniqueOrThrow({
-      where: { id: order.id },
+    const order = await this.prisma.order.findUniqueOrThrow({
+      where: { id: orderId },
       include: { payments: { orderBy: { createdAt: 'desc' }, take: 1 } },
     });
-    const latest = refreshed.payments[0] ?? payment;
-
-    return {
-      internalOrderId: refreshed.id,
-      orderNumber: refreshed.orderNumber,
-      orderStatus: refreshed.orderStatus,
-      paymentStatus: refreshed.paymentStatus,
-      paymentMethod: refreshed.paymentMethod,
-      provider: latest?.provider ?? RAZORPAY_PROVIDER,
-      providerOrderId: latest?.providerOrderId ?? null,
-      providerPaymentId: latest?.providerPaymentId ?? null,
-      gatewayStatus: latest?.status ?? null,
-      amount: decimalToNumber(refreshed.grandTotal),
-      amountPaise: latest?.amountPaise ?? rupeesToPaise(decimalToNumber(refreshed.grandTotal)),
-      currency: latest?.currency ?? RAZORPAY_CURRENCY,
-      paid: refreshed.paymentStatus === PaymentStatus.PAID,
-      capturedAt: latest?.capturedAt?.toISOString() ?? null,
-    };
+    return this.toStatusResponse(order, order.payments[0] ?? null, {
+      reconcileFailed,
+    });
   }
 
   async getPending(customerId: string) {
@@ -374,7 +416,7 @@ export class PaymentsService {
         deletedAt: null,
         paymentMethod: PaymentMethod.RAZORPAY,
         paymentStatus: { in: UNPAID_ORDER_STATUSES },
-        orderStatus: 'PENDING',
+        orderStatus: OrderStatus.PENDING,
       },
       orderBy: { createdAt: 'desc' },
       include: { payments: { orderBy: { createdAt: 'desc' }, take: 1 } },
@@ -390,20 +432,93 @@ export class PaymentsService {
         internalOrderId: order.id,
         orderNumber: order.orderNumber,
         amount: decimalToNumber(order.grandTotal),
-        amountPaise: payment?.amountPaise ?? rupeesToPaise(decimalToNumber(order.grandTotal)),
+        amountPaise:
+          payment?.amountPaise ??
+          rupeesToPaise(decimalToNumber(order.grandTotal)),
         currency: payment?.currency ?? RAZORPAY_CURRENCY,
         razorpayOrderId: payment?.providerOrderId ?? null,
         keyId: this.razorpay.getKeyId(),
         gatewayStatus: payment?.status ?? null,
         paymentStatus: order.paymentStatus,
         orderStatus: order.orderStatus,
+        state: derivePaymentState(order, payment),
+        expiresAt: this.expiresAt(order).toISOString(),
       },
     };
   }
 
+  /**
+   * Brings one internal order in line with Razorpay (the source of truth) and
+   * releases it when the payment window has passed without money moving.
+   */
+  async syncOrderPayment(orderId: string): Promise<void> {
+    const order = await this.prisma.order.findFirst({
+      where: { id: orderId, deletedAt: null },
+      include: { payments: { orderBy: { createdAt: 'desc' } } },
+    });
+    if (!order || order.paymentMethod !== PaymentMethod.RAZORPAY) return;
+    if (!this.razorpay.isConfigured()) return;
+
+    for (const payment of order.payments) {
+      if (payment.provider !== RAZORPAY_PROVIDER) continue;
+      await this.reconcilePayment(payment);
+    }
+
+    const refreshed = await this.prisma.order.findUniqueOrThrow({
+      where: { id: orderId },
+      include: { payments: { orderBy: { createdAt: 'desc' } } },
+    });
+    const moneyMoved = refreshed.payments.some((p) =>
+      IN_FLIGHT_GATEWAY_STATUSES.includes(p.status),
+    );
+    if (
+      !moneyMoved &&
+      refreshed.orderStatus === OrderStatus.PENDING &&
+      UNPAID_ORDER_STATUSES.includes(refreshed.paymentStatus) &&
+      this.expiresAt(refreshed).getTime() <= Date.now()
+    ) {
+      await this.ordersService.releaseUnpaidOnlineOrder(
+        refreshed.id,
+        'Payment not completed in time',
+      );
+    }
+  }
+
+  async reconcileStalePendingOrders(): Promise<void> {
+    if (this.reconcileRunning) return;
+    this.reconcileRunning = true;
+    try {
+      const candidates = await this.prisma.order.findMany({
+        where: {
+          deletedAt: null,
+          paymentMethod: PaymentMethod.RAZORPAY,
+          paymentStatus: { in: UNPAID_ORDER_STATUSES },
+          orderStatus: OrderStatus.PENDING,
+          createdAt: { lte: new Date(Date.now() - RECONCILE_MIN_AGE_MS) },
+        },
+        orderBy: { createdAt: 'asc' },
+        take: RECONCILE_BATCH_SIZE,
+        select: { id: true, orderNumber: true },
+      });
+      for (const candidate of candidates) {
+        try {
+          await this.syncOrderPayment(candidate.id);
+        } catch (error) {
+          this.logger.warn(
+            `Background reconcile failed for ${candidate.orderNumber}: ${errorMessage(error)}`,
+          );
+        }
+      }
+    } finally {
+      this.reconcileRunning = false;
+    }
+  }
+
   async handleWebhook(rawBody: Buffer | string, signature: string | undefined) {
     if (!this.razorpay.verifyWebhook(rawBody, signature)) {
-      this.logger.warn('SECURITY Razorpay webhook signature verification failed');
+      this.logger.warn(
+        'SECURITY Razorpay webhook signature verification failed',
+      );
       throw new PaymentException(
         'WEBHOOK_SIGNATURE_INVALID',
         'Invalid webhook signature.',
@@ -425,14 +540,12 @@ export class PaymentsService {
 
     const eventType = String(parsed.event ?? '');
     const payload = (parsed.payload ?? {}) as Record<string, unknown>;
-    const paymentEntity = (
-      (payload.payment as { entity?: Record<string, unknown> } | undefined)
-        ?.entity ?? {}
-    ) as Record<string, unknown>;
-    const orderEntity = (
-      (payload.order as { entity?: Record<string, unknown> } | undefined)
-        ?.entity ?? {}
-    ) as Record<string, unknown>;
+    const paymentEntity = ((
+      payload.payment as { entity?: Record<string, unknown> } | undefined
+    )?.entity ?? {}) as Record<string, unknown>;
+    const orderEntity = ((
+      payload.order as { entity?: Record<string, unknown> } | undefined
+    )?.entity ?? {}) as Record<string, unknown>;
 
     const providerPaymentId =
       typeof paymentEntity.id === 'string' ? paymentEntity.id : null;
@@ -454,7 +567,11 @@ export class PaymentsService {
       where: { dedupeKey },
     });
     if (existing?.processingStatus === WebhookProcessingStatus.PROCESSED) {
-      this.logger.log(`Webhook duplicate ignored event=${eventType} key=${dedupeKey}`);
+      this.logPayment('webhook_duplicate', {
+        event: eventType,
+        razorpayOrderId: providerOrderId,
+        razorpayPaymentId: providerPaymentId,
+      });
       return { duplicate: true, eventType };
     }
 
@@ -469,7 +586,10 @@ export class PaymentsService {
             eventId,
             providerPaymentId,
             providerOrderId,
-            payload: sanitizeWebhookPayload(eventType, parsed) as Prisma.InputJsonValue,
+            payload: sanitizeWebhookPayload(
+              eventType,
+              parsed,
+            ) as Prisma.InputJsonValue,
             processingStatus: WebhookProcessingStatus.RECEIVED,
           },
         });
@@ -492,8 +612,14 @@ export class PaymentsService {
       await this.processWebhookEvent(eventType, {
         providerPaymentId,
         providerOrderId,
-        status: typeof paymentEntity.status === 'string' ? paymentEntity.status : null,
-        method: typeof paymentEntity.method === 'string' ? paymentEntity.method : null,
+        status:
+          typeof paymentEntity.status === 'string'
+            ? paymentEntity.status
+            : null,
+        method:
+          typeof paymentEntity.method === 'string'
+            ? paymentEntity.method
+            : null,
         errorCode:
           typeof paymentEntity.error_code === 'string'
             ? paymentEntity.error_code
@@ -511,15 +637,18 @@ export class PaymentsService {
           processedAt: new Date(),
         },
       });
-      this.logger.log(`Webhook processed event=${eventType} order=${providerOrderId}`);
+      this.logPayment('webhook_processed', {
+        event: eventType,
+        razorpayOrderId: providerOrderId,
+        razorpayPaymentId: providerPaymentId,
+      });
       return { duplicate: false, eventType };
     } catch (error) {
       await this.prisma.paymentWebhookEvent.update({
         where: { id: eventRow.id },
         data: {
           processingStatus: WebhookProcessingStatus.FAILED,
-          errorMessage:
-            error instanceof Error ? error.message.slice(0, 500) : 'Webhook failed',
+          errorMessage: errorMessage(error).slice(0, 500),
         },
       });
       throw error;
@@ -538,13 +667,14 @@ export class PaymentsService {
     },
   ) {
     if (!payload.providerOrderId) {
-      this.logger.warn(`Webhook ${eventType} ignored — missing Razorpay order id`);
+      this.logger.warn(
+        `Webhook ${eventType} ignored — missing Razorpay order id`,
+      );
       return;
     }
 
     const payment = await this.prisma.payment.findUnique({
       where: { providerOrderId: payload.providerOrderId },
-      include: { order: true },
     });
     if (!payment) {
       this.logger.warn(
@@ -553,74 +683,229 @@ export class PaymentsService {
       return;
     }
 
-    if (payload.providerPaymentId && !payment.providerPaymentId) {
-      const duplicate = await this.prisma.payment.findFirst({
-        where: {
-          providerPaymentId: payload.providerPaymentId,
-          NOT: { id: payment.id },
+    const isFailure =
+      eventType === 'payment.failed' || payload.status === 'failed';
+    const isSuccess =
+      eventType === 'payment.authorized' ||
+      eventType === 'payment.captured' ||
+      eventType === 'order.paid' ||
+      payload.status === 'authorized' ||
+      payload.status === 'captured';
+    if (!isFailure && !isSuccess) return;
+
+    const providerPaymentId =
+      payload.providerPaymentId ?? payment.providerPaymentId;
+    if (!providerPaymentId) return;
+
+    if (isFailure) {
+      // Only the payment named in the event failed; another attempt on the same
+      // Razorpay order may still succeed, so apply it without re-fetching.
+      await this.applyRemotePayment(
+        payment.id,
+        {
+          id: providerPaymentId,
+          order_id: payload.providerOrderId,
+          amount: payment.amountPaise,
+          currency: payment.currency,
+          status: 'failed',
+          method: payload.method,
+          error_code: payload.errorCode,
+          error_description: payload.errorDescription,
         },
-      });
-      if (duplicate) {
-        this.logger.warn(
-          `SECURITY webhook duplicate payment id ${payload.providerPaymentId}`,
-        );
-        return;
-      }
-      await this.prisma.payment.update({
-        where: { id: payment.id },
-        data: { providerPaymentId: payload.providerPaymentId },
-      });
+        `webhook:${eventType}`,
+      );
+      return;
     }
 
-    if (
-      eventType === 'payment.failed' ||
-      payload.status === 'failed'
-    ) {
-      await this.transitionPayment(payment.id, payment.status, 'FAILED', {
-        failureCode: payload.errorCode,
-        failureDescription: payload.errorDescription,
-        method: payload.method,
+    // Never trust the webhook body for money: re-read the payment from Razorpay.
+    const remote = await this.razorpay.fetchPayment(providerPaymentId);
+    await this.assertRemoteMatches(payment, remote);
+    await this.applyRemotePayment(payment.id, remote, `webhook:${eventType}`);
+  }
+
+  private async reconcilePayment(payment: PaymentRow): Promise<void> {
+    if (SETTLED_GATEWAY_STATUSES.includes(payment.status)) {
+      if (payment.status === 'CAPTURED') {
+        await this.confirmOrderForPayment(payment.id);
+      }
+      return;
+    }
+
+    const remotes = await this.razorpay.fetchOrderPayments(
+      payment.providerOrderId,
+    );
+    const remote = pickAuthoritativePayment(remotes);
+    if (!remote) return;
+
+    if (remote.status === 'captured' || remote.status === 'authorized') {
+      await this.assertRemoteMatches(payment, remote);
+    }
+    await this.applyRemotePayment(payment.id, remote, 'reconcile');
+  }
+
+  /** Applies a Razorpay payment record to our row and, if captured, confirms the order. */
+  private async applyRemotePayment(
+    paymentId: string,
+    remote: RazorpayPaymentRecord,
+    event: string,
+  ): Promise<void> {
+    const current = await this.prisma.payment.findUniqueOrThrow({
+      where: { id: paymentId },
+    });
+
+    if (remote.status === 'captured' || remote.status === 'authorized') {
+      if (remote.id !== current.providerPaymentId) {
+        const duplicate = await this.prisma.payment.findFirst({
+          where: { providerPaymentId: remote.id, NOT: { id: current.id } },
+        });
+        if (duplicate) {
+          this.logger.warn(
+            `SECURITY duplicate provider payment id ${remote.id}`,
+          );
+          return;
+        }
+      }
+      await this.ensureCaptured(current.id, remote, event);
+      await this.confirmOrderForPayment(current.id);
+      return;
+    }
+
+    if (remote.status === 'failed') {
+      // An older failed attempt must not overwrite a newer attempt in progress.
+      if (
+        current.providerPaymentId &&
+        current.providerPaymentId !== remote.id &&
+        current.status === 'PENDING'
+      ) {
+        return;
+      }
+      await this.transitionPayment(current.id, current.status, 'FAILED', {
+        event,
+        providerPaymentId: remote.id,
+        method: remote.method,
+        failureCode: remote.error_code,
+        failureDescription: remote.error_description,
       });
       await this.prisma.order.updateMany({
         where: {
-          id: payment.orderId,
-          paymentStatus: { notIn: [PaymentStatus.PAID, PaymentStatus.COLLECTED] },
+          id: current.orderId,
+          orderStatus: { not: OrderStatus.CANCELLED },
+          paymentStatus: {
+            notIn: [PaymentStatus.PAID, PaymentStatus.COLLECTED],
+          },
         },
         data: { paymentStatus: PaymentStatus.FAILED },
       });
       return;
     }
 
-    if (
-      eventType === 'payment.authorized' ||
-      eventType === 'payment.captured' ||
-      eventType === 'order.paid' ||
-      payload.status === 'authorized' ||
-      payload.status === 'captured'
-    ) {
-      if (!payload.providerPaymentId && !payment.providerPaymentId) {
-        return;
-      }
-      const remote = await this.razorpay.fetchPayment(
-        payload.providerPaymentId ?? payment.providerPaymentId!,
-      );
-      await this.assertRemoteMatches(payment, remote);
-      await this.ensureCaptured(payment.id, remote);
-      await this.ordersService.confirmPaidOrder(payment.orderId);
+    if (remote.status === 'created' && current.status === 'CREATED') {
+      await this.transitionPayment(current.id, current.status, 'PENDING', {
+        event,
+        providerPaymentId: remote.id,
+        method: remote.method,
+      });
     }
   }
 
-  private async findPendingOnlineOrder(customerId: string) {
-    return this.prisma.order.findFirst({
+  private async confirmOrderForPayment(paymentId: string): Promise<void> {
+    const payment = await this.prisma.payment.findUniqueOrThrow({
+      where: { id: paymentId },
+    });
+    if (payment.status !== 'CAPTURED' && payment.status !== 'AUTHORIZED') {
+      return;
+    }
+    const result = await this.ordersService.confirmPaidOrder(payment.orderId);
+    if (
+      result === 'ORDER_CANCELLED' &&
+      payment.failureCode !== REFUND_REQUIRED_CODE
+    ) {
+      await this.prisma.payment.update({
+        where: { id: payment.id },
+        data: {
+          failureCode: REFUND_REQUIRED_CODE,
+          failureDescription:
+            'Payment captured after the order was cancelled. Refund required.',
+        },
+      });
+      this.logPayment('refund_required', {
+        internalOrderId: payment.orderId,
+        paymentId: payment.id,
+        razorpayOrderId: payment.providerOrderId,
+        razorpayPaymentId: payment.providerPaymentId,
+      });
+    } else if (result === 'CONFIRMED') {
+      this.logPayment('order_confirmed', {
+        internalOrderId: payment.orderId,
+        paymentId: payment.id,
+        razorpayOrderId: payment.providerOrderId,
+        razorpayPaymentId: payment.providerPaymentId,
+      });
+    }
+  }
+
+  private async resolveCheckoutOrder(
+    customerId: string,
+    dto: CreateRazorpayOrderDto,
+    options?: { idempotencyKey?: string | null },
+  ) {
+    const idempotencyKey =
+      options?.idempotencyKey?.trim()?.slice(0, 120) || null;
+    if (idempotencyKey) {
+      const existing = await this.prisma.order.findFirst({
+        where: { customerId, idempotencyKey, deletedAt: null },
+        select: { id: true },
+      });
+      if (existing) {
+        return this.loadReusableOrder(customerId, existing.id);
+      }
+    }
+
+    await this.releaseSupersededCheckouts(customerId);
+    return this.placePendingOnlineOrder(customerId, dto, options);
+  }
+
+  /**
+   * A fresh "Pay Online" tap is for the current cart. Older unpaid online orders
+   * are reconciled first (in case Razorpay did capture them) and otherwise
+   * released so their stock, slot and loyalty points return to the customer.
+   */
+  private async releaseSupersededCheckouts(customerId: string): Promise<void> {
+    const stale = await this.prisma.order.findMany({
       where: {
         customerId,
         deletedAt: null,
         paymentMethod: PaymentMethod.RAZORPAY,
         paymentStatus: { in: UNPAID_ORDER_STATUSES },
-        orderStatus: 'PENDING',
+        orderStatus: OrderStatus.PENDING,
       },
-      orderBy: { createdAt: 'desc' },
+      select: { id: true, orderNumber: true },
     });
+
+    for (const row of stale) {
+      try {
+        await this.syncOrderPayment(row.id);
+      } catch (error) {
+        this.logger.warn(
+          `Skipping release of ${row.orderNumber}; Razorpay reconcile failed: ${errorMessage(error)}`,
+        );
+        continue;
+      }
+      const latest = await this.prisma.order.findUniqueOrThrow({
+        where: { id: row.id },
+        include: { payments: true },
+      });
+      const moneyMoved = latest.payments.some(
+        (p) =>
+          IN_FLIGHT_GATEWAY_STATUSES.includes(p.status) ||
+          (p.status === 'PENDING' && p.providerPaymentId),
+      );
+      if (moneyMoved) continue;
+      await this.ordersService.releaseUnpaidOnlineOrder(
+        row.id,
+        'Replaced by a new checkout',
+      );
+    }
   }
 
   private async placePendingOnlineOrder(
@@ -638,9 +923,9 @@ export class PaymentsService {
       deliveryLeaveAtSecurity: dto.deliveryLeaveAtSecurity,
       deliveryHeavyVehicleAccess: dto.deliveryHeavyVehicleAccess,
       openAreaConfirmed: dto.openAreaConfirmed,
-      loyaltyPointsToRedeem: dto.loyaltyPointsToRedeem,
       deliveryTermsAccepted: dto.deliveryTermsAccepted,
       deliveryTermsVersion: dto.deliveryTermsVersion,
+      loyaltyPointsToRedeem: dto.loyaltyPointsToRedeem,
       paymentMethod: PaymentMethod.RAZORPAY,
     };
     const placed = await this.ordersService.placeOrder(
@@ -648,10 +933,9 @@ export class PaymentsService {
       placeDto,
       options,
     );
-    const order = await this.prisma.order.findUniqueOrThrow({
+    return this.prisma.order.findUniqueOrThrow({
       where: { id: placed.id },
     });
-    return order;
   }
 
   private async loadReusableOrder(customerId: string, orderId: string) {
@@ -671,64 +955,75 @@ export class PaymentsService {
         'This order is not an online payment order.',
       );
     }
-    if (order.orderStatus === 'CANCELLED') {
+    if (
+      order.paymentStatus === PaymentStatus.PAID ||
+      order.paymentStatus === PaymentStatus.COLLECTED
+    ) {
+      return order;
+    }
+
+    if (this.expiresAt(order).getTime() <= Date.now()) {
+      await this.syncOrderPayment(order.id);
+    }
+    const latest = await this.prisma.order.findUniqueOrThrow({
+      where: { id: order.id },
+    });
+    if (latest.orderStatus === OrderStatus.CANCELLED) {
       throw new PaymentException(
         'ORDER_CANCELLED',
-        'This order was cancelled.',
+        'This order is no longer payable. Please place the order again.',
       );
     }
-    return order;
+    return latest;
   }
 
   private async assertRemoteMatches(
     payment: {
       id: string;
-      orderId: string;
+      status: GatewayPaymentStatus;
       providerOrderId: string;
       amountPaise: number;
       currency: string;
     },
     remote: RazorpayPaymentRecord,
   ) {
+    let failureCode: string | null = null;
     if (remote.order_id !== payment.providerOrderId) {
-      this.logger.warn(
-        `SECURITY Razorpay order mismatch payment=${payment.id}`,
-      );
-      await this.transitionPayment(payment.id, 'PENDING', 'VERIFICATION_FAILED', {
-        failureCode: 'ORDER_MISMATCH',
-      });
-      throw new PaymentException(
-        'PAYMENT_ORDER_MISMATCH',
-        'We could not verify this payment.',
-      );
+      failureCode = 'ORDER_MISMATCH';
+    } else if (Number(remote.amount) !== payment.amountPaise) {
+      failureCode = 'AMOUNT_MISMATCH';
+    } else if (String(remote.currency).toUpperCase() !== payment.currency) {
+      failureCode = 'CURRENCY_MISMATCH';
     }
-    if (Number(remote.amount) !== payment.amountPaise) {
-      this.logger.warn(
-        `SECURITY amount mismatch payment=${payment.id} expected=${payment.amountPaise} actual=${remote.amount}`,
-      );
-      await this.transitionPayment(payment.id, 'PENDING', 'VERIFICATION_FAILED', {
-        failureCode: 'AMOUNT_MISMATCH',
-      });
-      throw new PaymentException(
-        'PAYMENT_AMOUNT_MISMATCH',
-        'We could not verify this payment.',
-      );
-    }
-    if (String(remote.currency).toUpperCase() !== payment.currency) {
-      this.logger.warn(`SECURITY currency mismatch payment=${payment.id}`);
-      await this.transitionPayment(payment.id, 'PENDING', 'VERIFICATION_FAILED', {
-        failureCode: 'CURRENCY_MISMATCH',
-      });
-      throw new PaymentException(
-        'PAYMENT_AMOUNT_MISMATCH',
-        'We could not verify this payment.',
-      );
-    }
+    if (!failureCode) return;
+
+    this.logger.warn(
+      `SECURITY ${failureCode} payment=${payment.id} expectedPaise=${payment.amountPaise} actualPaise=${remote.amount}`,
+    );
+    const current = await this.prisma.payment.findUniqueOrThrow({
+      where: { id: payment.id },
+    });
+    await this.transitionPayment(
+      current.id,
+      current.status,
+      'VERIFICATION_FAILED',
+      {
+        event: 'remote_mismatch',
+        failureCode,
+      },
+    );
+    throw new PaymentException(
+      failureCode === 'ORDER_MISMATCH'
+        ? 'PAYMENT_ORDER_MISMATCH'
+        : 'PAYMENT_AMOUNT_MISMATCH',
+      'We could not verify this payment.',
+    );
   }
 
   private async ensureCaptured(
     paymentId: string,
     remote: RazorpayPaymentRecord,
+    event: string,
   ) {
     const current = await this.prisma.payment.findUniqueOrThrow({
       where: { id: paymentId },
@@ -744,9 +1039,7 @@ export class PaymentsService {
         status = captured.status;
       } catch (error) {
         this.logger.warn(
-          `Capture skipped for ${remote.id}: ${
-            error instanceof Error ? error.message : 'already captured or unavailable'
-          }`,
+          `Capture skipped for ${remote.id}: ${errorMessage(error)}`,
         );
       }
     }
@@ -755,6 +1048,8 @@ export class PaymentsService {
       throw new PaymentException(
         'PAYMENT_NOT_CAPTURED',
         'Payment is not completed yet. Please wait a moment and retry.',
+        HttpStatus.CONFLICT,
+        true,
       );
     }
 
@@ -762,6 +1057,7 @@ export class PaymentsService {
       status === 'captured' ? 'CAPTURED' : 'AUTHORIZED';
 
     return this.transitionPayment(current.id, current.status, nextStatus, {
+      event,
       providerPaymentId: remote.id,
       method: remote.method,
       captured: nextStatus === 'CAPTURED',
@@ -773,6 +1069,7 @@ export class PaymentsService {
     from: GatewayPaymentStatus,
     to: GatewayPaymentStatus,
     extra?: {
+      event?: string;
       providerPaymentId?: string | null;
       method?: string | null;
       failureCode?: string | null;
@@ -784,14 +1081,13 @@ export class PaymentsService {
       this.logger.warn(
         `Rejected invalid payment transition ${from} → ${to} payment=${paymentId}`,
       );
-      const current = await this.prisma.payment.findUniqueOrThrow({
+      return this.prisma.payment.findUniqueOrThrow({
         where: { id: paymentId },
       });
-      return current;
     }
 
     const now = new Date();
-    return this.prisma.payment.update({
+    const updated = await this.prisma.payment.update({
       where: { id: paymentId },
       data: {
         status: to,
@@ -807,6 +1103,79 @@ export class PaymentsService {
         ...(to === 'AUTHORIZED' ? { verifiedAt: now } : {}),
       },
     });
+
+    if (from !== to) {
+      this.logPayment('status_changed', {
+        event: extra?.event ?? null,
+        internalOrderId: updated.orderId,
+        paymentId: updated.id,
+        razorpayOrderId: updated.providerOrderId,
+        razorpayPaymentId: updated.providerPaymentId,
+        from,
+        to,
+      });
+    }
+    return updated;
+  }
+
+  private expiresAt(order: { createdAt: Date }): Date {
+    const minutes =
+      this.configService.get<number>('payment.razorpay.pendingExpiryMinutes') ??
+      30;
+    const safeMinutes = Number.isFinite(minutes) && minutes > 0 ? minutes : 30;
+    return new Date(order.createdAt.getTime() + safeMinutes * 60_000);
+  }
+
+  private logPayment(event: string, fields: Record<string, unknown>): void {
+    this.logger.log(
+      `PAYMENT ${JSON.stringify({ event, at: new Date().toISOString(), ...fields })}`,
+    );
+  }
+
+  private toStatusResponse(
+    order: OrderRow,
+    payment: PaymentRow | null,
+    extra: { reconcileFailed: boolean },
+  ) {
+    const state = derivePaymentState(order, payment);
+    return {
+      internalOrderId: order.id,
+      orderNumber: order.orderNumber,
+      orderStatus: order.orderStatus,
+      paymentStatus: order.paymentStatus,
+      paymentMethod: order.paymentMethod,
+      state,
+      retryable:
+        state === 'AWAITING_PAYMENT' ||
+        state === 'FAILED' ||
+        state === 'CANCELLED',
+      paid: state === 'PAID',
+      provider: payment?.provider ?? RAZORPAY_PROVIDER,
+      providerOrderId: payment?.providerOrderId ?? null,
+      providerPaymentId: payment?.providerPaymentId ?? null,
+      gatewayStatus: payment?.status ?? null,
+      method: payment?.method ?? null,
+      failureReason:
+        state === 'FAILED' || state === 'REFUND_PENDING'
+          ? (payment?.failureDescription ?? null)
+          : null,
+      cancelReason: order.cancelReason ?? null,
+      amount: decimalToNumber(order.grandTotal),
+      amountPaise:
+        payment?.amountPaise ??
+        rupeesToPaise(decimalToNumber(order.grandTotal)),
+      currency: payment?.currency ?? RAZORPAY_CURRENCY,
+      capturedAt: payment?.capturedAt?.toISOString() ?? null,
+      expiresAt:
+        state === 'AWAITING_PAYMENT' ||
+        state === 'FAILED' ||
+        state === 'CANCELLED'
+          ? this.expiresAt(order).toISOString()
+          : null,
+      expectedDeliveryAt: order.expectedDeliveryAt?.toISOString() ?? null,
+      deliveryPreferenceType: order.deliveryPreferenceType,
+      reconcileFailed: extra.reconcileFailed,
+    };
   }
 
   private async toCheckoutResponse(
@@ -816,7 +1185,11 @@ export class PaymentsService {
       grandTotal: unknown;
       customerId: string;
     },
-    payment: { providerOrderId: string; amountPaise: number; currency: string } | null,
+    payment: {
+      providerOrderId: string;
+      amountPaise: number;
+      currency: string;
+    } | null,
     extra: { alreadyPaid: boolean },
   ) {
     const customer = await this.prisma.customer.findUnique({
@@ -829,7 +1202,9 @@ export class PaymentsService {
     return {
       keyId: this.razorpay.getKeyId(),
       razorpayOrderId: payment?.providerOrderId ?? null,
-      amount: payment?.amountPaise ?? rupeesToPaise(decimalToNumber(order.grandTotal)),
+      amount:
+        payment?.amountPaise ??
+        rupeesToPaise(decimalToNumber(order.grandTotal)),
       currency: payment?.currency ?? RAZORPAY_CURRENCY,
       internalOrderId: order.id,
       orderNumber: order.orderNumber,
@@ -844,37 +1219,61 @@ export class PaymentsService {
     };
   }
 
-  private toVerifyResponse(
-    order: {
-      id: string;
-      orderNumber: string;
-      orderStatus: string;
-      paymentStatus: PaymentStatus;
-      grandTotal: unknown;
-    },
-    payment: {
-      providerPaymentId: string | null;
-      providerOrderId: string;
-      status: GatewayPaymentStatus;
-      capturedAt: Date | null;
-      amountPaise: number;
-    },
+  private async toVerifyResponse(
+    customerId: string,
+    orderId: string,
     replay: boolean,
   ) {
-    return {
-      success: true,
-      replay,
-      internalOrderId: order.id,
-      orderNumber: order.orderNumber,
-      orderStatus: order.orderStatus,
-      paymentStatus: order.paymentStatus,
-      gatewayStatus: payment.status,
-      providerPaymentId: payment.providerPaymentId,
-      providerOrderId: payment.providerOrderId,
-      amount: decimalToNumber(order.grandTotal),
-      amountPaise: payment.amountPaise,
-      currency: RAZORPAY_CURRENCY,
-      capturedAt: payment.capturedAt?.toISOString() ?? null,
-    };
+    const status = await this.getStatus(customerId, orderId, {
+      reconcile: false,
+    });
+    return { success: true, replay, ...status };
   }
+}
+
+export function derivePaymentState(
+  order: Pick<OrderRow, 'orderStatus' | 'paymentStatus'>,
+  payment: Pick<PaymentRow, 'status' | 'providerPaymentId'> | null,
+): CustomerPaymentState {
+  const orderCancelled = order.orderStatus === OrderStatus.CANCELLED;
+  if (
+    !orderCancelled &&
+    (order.paymentStatus === PaymentStatus.PAID ||
+      order.paymentStatus === PaymentStatus.COLLECTED)
+  ) {
+    return 'PAID';
+  }
+  if (orderCancelled) {
+    return payment &&
+      (payment.status === 'CAPTURED' || payment.status === 'AUTHORIZED')
+      ? 'REFUND_PENDING'
+      : 'ORDER_CANCELLED';
+  }
+  switch (payment?.status) {
+    case 'CAPTURED':
+    case 'AUTHORIZED':
+      return 'PROCESSING';
+    case 'PENDING':
+      return payment.providerPaymentId ? 'PROCESSING' : 'AWAITING_PAYMENT';
+    case 'FAILED':
+    case 'VERIFICATION_FAILED':
+      return 'FAILED';
+    case 'CANCELLED':
+      return 'CANCELLED';
+    case 'REFUNDED':
+      return 'ORDER_CANCELLED';
+    case 'CREATED':
+    default:
+      return 'AWAITING_PAYMENT';
+  }
+}
+
+function errorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === 'object') {
+    const described = (error as { error?: { description?: unknown } }).error
+      ?.description;
+    if (typeof described === 'string') return described;
+  }
+  return 'unknown error';
 }

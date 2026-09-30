@@ -88,6 +88,17 @@ export class AllExceptionsFilter implements ExceptionFilter {
       errorBody.code = (exceptionResponse as { code: string }).code;
     }
 
+    if (
+      typeof exceptionResponse === 'object' &&
+      exceptionResponse &&
+      typeof (exceptionResponse as { retryable?: unknown }).retryable ===
+        'boolean'
+    ) {
+      errorBody.retryable = (
+        exceptionResponse as { retryable: boolean }
+      ).retryable;
+    }
+
     if (status >= HttpStatus.INTERNAL_SERVER_ERROR) {
       this.logger.error(
         `${request.method} ${request.url}`,

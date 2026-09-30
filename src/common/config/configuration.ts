@@ -1,4 +1,7 @@
-import { normalizeCaCertificate, resolveDatabaseUrlFromEnv } from '../database/postgres-url';
+import {
+  normalizeCaCertificate,
+  resolveDatabaseUrlFromEnv,
+} from '../database/postgres-url';
 import { parseCorsOrigins } from './cors.util';
 import { REDIS_BULLMQ_ENABLED } from './redis-bullmq.feature';
 import { resolveRedisFromEnv } from './redis.config';
@@ -192,9 +195,18 @@ export default () => ({
       keyId: process.env.RAZORPAY_KEY_ID ?? '',
       keySecret: process.env.RAZORPAY_KEY_SECRET ?? '',
       webhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET ?? '',
-      mode: (process.env.RAZORPAY_MODE ?? 'test').toLowerCase() === 'live'
-        ? 'live'
-        : 'test',
+      mode:
+        (process.env.RAZORPAY_MODE ?? 'test').toLowerCase() === 'live'
+          ? 'live'
+          : 'test',
+      pendingExpiryMinutes: parseInt(
+        process.env.PAYMENT_PENDING_EXPIRY_MINUTES ?? '30',
+        10,
+      ),
+      reconcileIntervalMs: parseInt(
+        process.env.PAYMENT_RECONCILE_INTERVAL_MS ?? '300000',
+        10,
+      ),
     },
   },
   company: {

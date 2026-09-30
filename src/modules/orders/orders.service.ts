@@ -74,6 +74,15 @@ export type PlaceOrderOptions = {
   idempotencyKey?: string | null;
 };
 
+export type ConfirmPaidOrderResult =
+  'CONFIRMED' | 'ALREADY_CONFIRMED' | 'ORDER_CANCELLED' | 'NOT_FOUND';
+
+const UNPAID_ONLINE_PAYMENT_STATUSES: PaymentStatus[] = [
+  PaymentStatus.PENDING,
+  PaymentStatus.FAILED,
+  PaymentStatus.CANCELLED,
+];
+
 const ORDER_ITEM_PRODUCT_SELECT = {
   id: true,
   name: true,
@@ -277,7 +286,9 @@ export class OrdersService {
     const leaveAtSecurity = Boolean(dto.deliveryLeaveAtSecurity);
     const heavyVehicleAccess = Boolean(dto.deliveryHeavyVehicleAccess);
     const openAreaConfirmed =
-      dto.openAreaConfirmed === undefined ? null : Boolean(dto.openAreaConfirmed);
+      dto.openAreaConfirmed === undefined
+        ? null
+        : Boolean(dto.openAreaConfirmed);
 
     if (
       requiresOpenAreaConfirmation(checkout.deliveryVehicleType) &&
@@ -318,10 +329,9 @@ export class OrdersService {
       });
       if (slotRuleError) {
         throw new BadRequestException({
-          message:
-            `This delivery time is outside our delivery hours. Available delivery time is ${
-              deliveryOptions.operatingWindow?.start ?? '11:00 AM'
-            } – ${deliveryOptions.operatingWindow?.end ?? '4:30 PM'}.`,
+          message: `This delivery time is outside our delivery hours. Available delivery time is ${
+            deliveryOptions.operatingWindow?.start ?? '11:00 AM'
+          } – ${deliveryOptions.operatingWindow?.end ?? '4:30 PM'}.`,
           code: DELIVERY_SLOT_UNAVAILABLE,
         });
       }
@@ -804,6 +814,10 @@ export class OrdersService {
       deliveryLeaveAtSecurity: order.deliveryLeaveAtSecurity,
       deliveryHeavyVehicleAccess: order.deliveryHeavyVehicleAccess,
       openAreaConfirmed: order.openAreaConfirmed,
+      deliveryTermsAccepted: order.deliveryTermsAccepted,
+      deliveryTermsVersion: order.deliveryTermsVersion,
+      deliveryTermsAcceptedAt:
+        order.deliveryTermsAcceptedAt?.toISOString() ?? null,
       deliveryPreference: mapDeliveryPreferenceView(order),
       address: {
         id: order.address.id,
@@ -816,25 +830,29 @@ export class OrdersService {
       items: order.items.map((item) => this.mapOrderItem(item)),
       timeline: order.timeline.map((t) => this.mapTimelineEvent(t)),
       createdAt: order.createdAt.toISOString(),
-      deliveryTermsAccepted: order.deliveryTermsAccepted,
-      deliveryTermsVersion: order.deliveryTermsVersion,
-      deliveryTermsAcceptedAt: order.deliveryTermsAcceptedAt?.toISOString() ?? null,
       updatedAt: order.updatedAt.toISOString(),
     };
   }
 
-  async confirmPaidOrder(orderId: string): Promise<void> {
+  async confirmPaidOrder(orderId: string): Promise<ConfirmPaidOrderResult> {
     const order = await this.prisma.order.findFirst({
       where: { id: orderId, deletedAt: null },
       include: { hub: { select: { id: true, name: true } } },
     });
-    if (!order) return;
+    if (!order) return 'NOT_FOUND';
+
+    if (order.orderStatus === OrderStatus.CANCELLED) {
+      this.logger.warn(
+        `PAYMENT captured for cancelled order ${order.orderNumber} — refund required, order not revived`,
+      );
+      return 'ORDER_CANCELLED';
+    }
 
     if (
       order.paymentStatus === PaymentStatus.PAID &&
       order.orderStatus !== OrderStatus.PENDING
     ) {
-      return;
+      return 'ALREADY_CONFIRMED';
     }
 
     const now = new Date();
@@ -846,6 +864,7 @@ export class OrdersService {
       const updated = await tx.order.updateMany({
         where: {
           id: orderId,
+          orderStatus: { not: OrderStatus.CANCELLED },
           paymentStatus: {
             notIn: [PaymentStatus.PAID, PaymentStatus.COLLECTED],
           },
@@ -900,7 +919,7 @@ export class OrdersService {
       return true;
     });
 
-    if (!advanced) return;
+    if (!advanced) return 'ALREADY_CONFIRMED';
 
     await this.notificationService.createForCustomer({
       customerId: order.customerId,
@@ -940,26 +959,132 @@ export class OrdersService {
     this.logger.log(
       `Online payment confirmed | Order: ${order.orderNumber} | Status: ${nextStatus}`,
     );
+    return 'CONFIRMED';
   }
 
-  private async releaseUnpaidOnlineCheckouts(customerId: string): Promise<void> {
+  /**
+   * Cancels an online order that was never paid and returns its hub stock,
+   * delivery slot, loyalty redemption and free-delivery benefit.
+   * Safe to call repeatedly: only the first call on a still-unpaid PENDING order acts.
+   */
+  async releaseUnpaidOnlineOrder(
+    orderId: string,
+    reason: string,
+  ): Promise<boolean> {
+    const order = await this.prisma.order.findFirst({
+      where: { id: orderId, deletedAt: null },
+    });
+    if (!order || order.paymentMethod !== PaymentMethod.RAZORPAY) return false;
+
+    const now = new Date();
+    const released = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.order.updateMany({
+        where: {
+          id: orderId,
+          orderStatus: OrderStatus.PENDING,
+          paymentStatus: { in: UNPAID_ONLINE_PAYMENT_STATUSES },
+        },
+        data: {
+          orderStatus: OrderStatus.CANCELLED,
+          paymentStatus: PaymentStatus.CANCELLED,
+          cancelReason: reason,
+          cancelledAt: now,
+        },
+      });
+      if (updated.count === 0) return false;
+
+      if (order.hubId) {
+        const items = await tx.orderItem.findMany({
+          where: { orderId },
+          select: { productId: true, quantity: true },
+        });
+        for (const item of items) {
+          await tx.hubInventory.updateMany({
+            where: {
+              hubId: order.hubId,
+              productId: item.productId,
+              reservedQty: { gte: item.quantity },
+            },
+            data: {
+              availableQty: { increment: item.quantity },
+              reservedQty: { decrement: item.quantity },
+            },
+          });
+        }
+      }
+
+      await tx.payment.updateMany({
+        where: {
+          orderId,
+          status: { in: ['CREATED', 'PENDING', 'FAILED'] },
+        },
+        data: { status: 'CANCELLED' },
+      });
+
+      await this.deliverySlotService.releaseOrderReservation(orderId, tx);
+
+      await tx.orderTimeline.create({
+        data: {
+          orderId,
+          status: OrderStatus.CANCELLED,
+          remarks: reason,
+          message: 'Payment not completed',
+          updatedBy: 'SYSTEM',
+          updatedByRole: 'SYSTEM',
+        },
+      });
+
+      await tx.invoice.updateMany({
+        where: { orderId, deletedAt: null },
+        data: { status: InvoiceStatus.CANCELLED },
+      });
+      return true;
+    });
+
+    if (!released) return false;
+
+    await this.loyaltyTransactionService.refundRedemptionForCancelledOrder(
+      orderId,
+    );
+    await this.deliveryBenefitService.restoreFreeBikeDelivery({ orderId });
+    await this.cache.invalidateOrders(order.customerId);
+    await this.cache.invalidateProfile(order.customerId);
+
+    this.orderEvents.emitOrderUpdated({
+      orderId,
+      orderNumber: order.orderNumber,
+      status: OrderStatus.CANCELLED,
+      statusLabel: getCustomerOrderStatusLabel(OrderStatus.CANCELLED),
+      updatedAt: now.toISOString(),
+      hubId: order.hubId,
+      customerId: order.customerId,
+    });
+
+    this.logger.log(
+      `PAYMENT_RELEASE | Order: ${order.orderNumber} | Reason: ${reason}`,
+    );
+    return true;
+  }
+
+  private async releaseUnpaidOnlineCheckouts(
+    customerId: string,
+  ): Promise<void> {
     const pending = await this.prisma.order.findMany({
       where: {
         customerId,
         deletedAt: null,
         paymentMethod: PaymentMethod.RAZORPAY,
-        paymentStatus: {
-          in: [PaymentStatus.PENDING, PaymentStatus.FAILED, PaymentStatus.CANCELLED],
-        },
+        paymentStatus: { in: UNPAID_ONLINE_PAYMENT_STATUSES },
         orderStatus: OrderStatus.PENDING,
       },
       select: { id: true },
     });
 
     for (const row of pending) {
-      await this.cancel(customerId, row.id, {
-        reason: 'Switched to another payment method',
-      });
+      await this.releaseUnpaidOnlineOrder(
+        row.id,
+        'Switched to another payment method',
+      );
     }
   }
 

@@ -32,6 +32,11 @@ export interface RazorpayPaymentRecord {
   method?: string | null;
   error_code?: string | null;
   error_description?: string | null;
+  created_at?: number | null;
+}
+
+function optionalString(value: unknown): string | null {
+  return typeof value === 'string' && value.length > 0 ? value : null;
 }
 
 @Injectable()
@@ -47,7 +52,9 @@ export class RazorpayService {
   }
 
   getKeyId(): string {
-    return this.configService.get<string>('payment.razorpay.keyId')?.trim() ?? '';
+    return (
+      this.configService.get<string>('payment.razorpay.keyId')?.trim() ?? ''
+    );
   }
 
   private getKeySecret(): string {
@@ -58,8 +65,9 @@ export class RazorpayService {
 
   private getWebhookSecret(): string {
     return (
-      this.configService.get<string>('payment.razorpay.webhookSecret')?.trim() ??
-      ''
+      this.configService
+        .get<string>('payment.razorpay.webhookSecret')
+        ?.trim() ?? ''
     );
   }
 
@@ -135,19 +143,34 @@ export class RazorpayService {
     };
   }
 
-  async fetchPayment(razorpayPaymentId: string): Promise<RazorpayPaymentRecord> {
+  async fetchPayment(
+    razorpayPaymentId: string,
+  ): Promise<RazorpayPaymentRecord> {
     const payment = await this.getClient().payments.fetch(razorpayPaymentId);
+    return this.toPaymentRecord(payment);
+  }
+
+  async fetchOrderPayments(
+    razorpayOrderId: string,
+  ): Promise<RazorpayPaymentRecord[]> {
+    const result = await this.getClient().orders.fetchPayments(razorpayOrderId);
+    const items = (result as { items?: unknown[] }).items ?? [];
+    return items.map((item) => this.toPaymentRecord(item));
+  }
+
+  private toPaymentRecord(raw: unknown): RazorpayPaymentRecord {
+    const payment = raw as Record<string, unknown>;
     return {
       id: String(payment.id),
       order_id: String(payment.order_id),
       amount: Number(payment.amount),
-      currency: String(payment.currency ?? RAZORPAY_CURRENCY),
+      currency: optionalString(payment.currency) ?? RAZORPAY_CURRENCY,
       status: String(payment.status),
-      method: payment.method ? String(payment.method) : null,
-      error_code: payment.error_code ? String(payment.error_code) : null,
-      error_description: payment.error_description
-        ? String(payment.error_description)
-        : null,
+      method: optionalString(payment.method),
+      error_code: optionalString(payment.error_code),
+      error_description: optionalString(payment.error_description),
+      created_at:
+        typeof payment.created_at === 'number' ? payment.created_at : null,
     };
   }
 
@@ -160,18 +183,7 @@ export class RazorpayService {
       amountPaise,
       RAZORPAY_CURRENCY,
     );
-    return {
-      id: String(payment.id),
-      order_id: String(payment.order_id),
-      amount: Number(payment.amount),
-      currency: String(payment.currency ?? RAZORPAY_CURRENCY),
-      status: String(payment.status),
-      method: payment.method ? String(payment.method) : null,
-      error_code: payment.error_code ? String(payment.error_code) : null,
-      error_description: payment.error_description
-        ? String(payment.error_description)
-        : null,
-    };
+    return this.toPaymentRecord(payment);
   }
 
   verifyCheckoutSignature(input: {
@@ -186,7 +198,10 @@ export class RazorpayService {
     });
   }
 
-  verifyWebhook(rawBody: Buffer | string, signature: string | undefined): boolean {
+  verifyWebhook(
+    rawBody: Buffer | string,
+    signature: string | undefined,
+  ): boolean {
     const secret = this.getWebhookSecret();
     if (!secret) {
       this.logger.error(
