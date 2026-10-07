@@ -961,7 +961,7 @@ export async function seedCmsHome(prisma: PrismaClient): Promise<void> {
       label: 'WhatsApp',
       iconKey: 'whatsapp',
       redirectType: RedirectType.WHATSAPP,
-      redirectId: 'https://wa.me/919999999999',
+      redirectId: 'https://wa.me/919211899956',
       displayOrder: 2,
     },
     {
@@ -969,7 +969,7 @@ export async function seedCmsHome(prisma: PrismaClient): Promise<void> {
       label: 'Call',
       iconKey: 'call',
       redirectType: RedirectType.ROUTE,
-      redirectId: 'tel:+919999999999',
+      redirectId: 'tel:+919211899956',
       displayOrder: 3,
     },
     {
