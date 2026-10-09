@@ -219,6 +219,7 @@ export class CheckoutService {
         deliveryPreview?.etaMinMinutes ?? deliveryPreview?.deliveryETA ?? null,
       etaMaxMinutes: deliveryPreview?.etaMaxMinutes ?? null,
       etaLabel: deliveryPreview?.deliveryMessage ?? null,
+      customerId,
     });
 
     return {

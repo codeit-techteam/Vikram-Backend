@@ -150,6 +150,26 @@ export class DeliverySlotService {
     return new Map(grouped.map((row) => [row.slotId, row._count._all]));
   }
 
+  async loadCustomerPendingHolds(
+    slotIds: string[],
+    customerId: string,
+    db: DbClient = this.prisma,
+  ): Promise<Map<string, number>> {
+    if (slotIds.length === 0) return new Map();
+    const grouped = await db.deliverySlotReservation.groupBy({
+      by: ['slotId'],
+      where: {
+        slotId: { in: slotIds },
+        customerId,
+        orderId: null,
+        status: DeliverySlotReservationStatus.PENDING,
+        expiresAt: { gt: new Date() },
+      },
+      _count: { _all: true },
+    });
+    return new Map(grouped.map((row) => [row.slotId, row._count._all]));
+  }
+
   async holdSlot(input: { customerId: string; slotId: string; db?: DbClient }) {
     const db = input.db ?? this.prisma;
     await this.expireStaleReservations(db);

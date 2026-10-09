@@ -50,6 +50,8 @@ export type DeliveryOptionsContext = {
   etaMinMinutes?: number | null;
   etaMaxMinutes?: number | null;
   etaLabel?: string | null;
+  /** The viewer's own pending holds don't count against availability for them. */
+  customerId?: string | null;
 };
 
 @Injectable()
@@ -129,6 +131,7 @@ export class DeliveryOptionsService {
       etaMinMinutes: eta?.etaMinMinutes ?? eta?.deliveryETA ?? null,
       etaMaxMinutes: eta?.etaMaxMinutes ?? null,
       etaLabel: eta?.deliveryMessage ?? null,
+      customerId,
     });
   }
 
@@ -211,9 +214,16 @@ export class DeliveryOptionsService {
         ];
       }),
     );
-    const reservationCounts = await this.slotService.loadReservationCounts(
-      persisted.map((slot) => slot.id),
-    );
+    const persistedIds = persisted.map((slot) => slot.id);
+    const [reservationCounts, ownHolds] = await Promise.all([
+      this.slotService.loadReservationCounts(persistedIds),
+      context.customerId
+        ? this.slotService.loadCustomerPendingHolds(
+            persistedIds,
+            context.customerId,
+          )
+        : Promise.resolve(new Map<string, number>()),
+    ]);
 
     const toView = (
       window: GeneratedSlotWindow,
@@ -223,8 +233,9 @@ export class DeliveryOptionsService {
       );
       if (!row) return null;
       const reserved = Math.max(
-        row.reservedCapacity,
-        reservationCounts.get(row.id) ?? 0,
+        0,
+        Math.max(row.reservedCapacity, reservationCounts.get(row.id) ?? 0) -
+          (ownHolds.get(row.id) ?? 0),
       );
       const availableCapacity = Math.max(0, row.capacity - reserved);
       return {

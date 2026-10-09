@@ -71,6 +71,7 @@ async function bootstrap() {
       'Origin',
       'X-Requested-With',
       'X-Internal-Api-Key',
+      'Idempotency-Key',
     ],
     exposedHeaders: ['Content-Disposition'],
     optionsSuccessStatus: 204,
