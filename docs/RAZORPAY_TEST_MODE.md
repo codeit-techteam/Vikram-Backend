@@ -83,6 +83,16 @@ Active webhooks require HTTPS.
 - The app also has a Checkout.js WebView fallback for environments where the native module is unavailable.
 - After changing native modules, run a new `eas build` / `npx expo run:android|ios`.
 
+## Troubleshooting
+
+The backend logs `Razorpay config: …` errors at startup and `Razorpay credentials verified.` when the key pair is accepted.
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| Pay Securely → "Payment failed" immediately, Razorpay order shows `attempts: 0` | App binary has no native Razorpay module (Expo Go or a build made before the SDK was added) | Build a dev client / APK (`eas build`), not Expo Go. The app now falls back to Checkout.js instead of failing. |
+| create-order returns `RAZORPAY_AUTH_FAILED` (503) | Key ID and Key Secret are not a matching Test Mode pair | Copy both from Dashboard → Test Mode → API Keys |
+| Webhooks return 401 `WEBHOOK_SIGNATURE_INVALID` | `RAZORPAY_WEBHOOK_SECRET` is empty, a URL, or differs from the Dashboard webhook secret | Set it to the exact secret typed in the Dashboard webhook form |
+
 ## Test Mode cards / UPI
 
 Use only Razorpay’s official Test Mode instruments (they do not move real money):

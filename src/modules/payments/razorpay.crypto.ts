@@ -111,6 +111,50 @@ export function assertKeyMatchesMode(
   }
 }
 
+/**
+ * Human-readable configuration problems. Empty means checkout and webhooks can work.
+ * Never includes secret values.
+ */
+export function razorpayConfigProblems(input: {
+  keyId: string;
+  keySecret: string;
+  webhookSecret: string;
+  mode: 'test' | 'live';
+}): string[] {
+  const problems: string[] = [];
+  const keyId = input.keyId.trim();
+  const keySecret = input.keySecret.trim();
+  const webhookSecret = input.webhookSecret.trim();
+
+  if (!keyId) problems.push('RAZORPAY_KEY_ID is not set.');
+  if (!keySecret) problems.push('RAZORPAY_KEY_SECRET is not set.');
+  if (keyId && !/^rzp_(test|live)_[A-Za-z0-9]+$/.test(keyId)) {
+    problems.push('RAZORPAY_KEY_ID does not look like a Razorpay Key ID.');
+  }
+  try {
+    assertKeyMatchesMode(keyId, input.mode);
+  } catch (error) {
+    problems.push(error instanceof Error ? error.message : String(error));
+  }
+  if (keySecret && keySecret === keyId) {
+    problems.push('RAZORPAY_KEY_SECRET must not equal RAZORPAY_KEY_ID.');
+  }
+  if (!webhookSecret) {
+    problems.push(
+      'RAZORPAY_WEBHOOK_SECRET is not set; webhooks will be rejected and payments rely on polling only.',
+    );
+  } else if (/^https?:\/\//i.test(webhookSecret)) {
+    problems.push(
+      'RAZORPAY_WEBHOOK_SECRET contains a URL. It must be the secret entered in the Razorpay Dashboard webhook, not the webhook URL.',
+    );
+  } else if (keySecret && webhookSecret === keySecret) {
+    problems.push(
+      'RAZORPAY_WEBHOOK_SECRET must differ from RAZORPAY_KEY_SECRET.',
+    );
+  }
+  return problems;
+}
+
 export function webhookDedupeKey(input: {
   eventType: string;
   providerPaymentId?: string | null;
@@ -167,12 +211,12 @@ export function sanitizeWebhookPayload(
 ): object {
   const root = (body ?? {}) as Record<string, unknown>;
   const payload = (root.payload ?? {}) as Record<string, unknown>;
-  const paymentEntity = ((
-    payload.payment as { entity?: Record<string, unknown> } | undefined
-  )?.entity ?? {}) as Record<string, unknown>;
-  const orderEntity = ((
-    payload.order as { entity?: Record<string, unknown> } | undefined
-  )?.entity ?? {}) as Record<string, unknown>;
+  const paymentEntity =
+    (payload.payment as { entity?: Record<string, unknown> } | undefined)
+      ?.entity ?? {};
+  const orderEntity =
+    (payload.order as { entity?: Record<string, unknown> } | undefined)
+      ?.entity ?? {};
 
   return {
     eventType,
