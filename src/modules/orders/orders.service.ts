@@ -114,6 +114,30 @@ const ORDER_ITEMS_WITH_PRODUCT = {
   },
 } satisfies Prisma.Order$itemsArgs;
 
+/** List/recent cards only need OrderItem snapshots — avoid N+1 product media joins. */
+const ORDER_ITEMS_SNAPSHOT_ONLY = {
+  orderBy: { createdAt: 'asc' as const },
+  select: {
+    id: true,
+    productId: true,
+    variantId: true,
+    name: true,
+    productImage: true,
+    sku: true,
+    brand: true,
+    category: true,
+    productType: true,
+    grade: true,
+    variant: true,
+    quantity: true,
+    unit: true,
+    unitPrice: true,
+    mrp: true,
+    gst: true,
+    subtotal: true,
+  },
+} satisfies Prisma.Order$itemsArgs;
+
 const ORDER_DETAIL_INCLUDE = {
   customer: {
     select: {
@@ -1135,7 +1159,7 @@ export class OrdersService {
         skip: (page - 1) * limit,
         take: limit,
         include: {
-          items: ORDER_ITEMS_WITH_PRODUCT,
+          items: ORDER_ITEMS_SNAPSHOT_ONLY,
         },
       }),
     ]);
@@ -1157,7 +1181,7 @@ export class OrdersService {
       where: { customerId, deletedAt: null },
       orderBy: { createdAt: 'desc' },
       take: limit,
-      include: { items: ORDER_ITEMS_WITH_PRODUCT },
+      include: { items: ORDER_ITEMS_SNAPSHOT_ONLY },
     });
 
     return orders.map((order) => this.mapListItem(order));

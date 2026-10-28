@@ -1516,6 +1516,8 @@ model Notification {
   @@unique([campaignId, customerId])
   @@index([customerId, isRead, createdAt(sort: Desc)])
   @@index([isGlobal, createdAt(sort: Desc)])
+  @@index([customerId, deletedAt, isRead, createdAt(sort: Desc)])
+  @@index([isGlobal, deletedAt, isRead, createdAt(sort: Desc)])
   @@index([campaignId])
   @@index([deletedAt])
   @@map("notifications")

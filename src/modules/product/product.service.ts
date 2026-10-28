@@ -65,7 +65,8 @@ const PRODUCT_LIST_INCLUDE = {
   images: {
     where: { deletedAt: null },
     orderBy: [{ isPrimary: 'desc' as const }, { displayOrder: 'asc' as const }],
-    take: 6,
+    // List cards only need the primary/thumbnail image.
+    take: 1,
   },
   variants: {
     where: { deletedAt: null, isActive: true },

@@ -2,77 +2,97 @@ import { Injectable, Logger } from '@nestjs/common';
 import { RedisService } from '../database/redis.service';
 import { CACHE_KEYS, CACHE_PATTERNS } from './cache.constants';
 
+interface MemoryEntry {
+  value: string;
+  expiresAt: number;
+}
+
+/**
+ * Redis-backed cache with an in-process L1 fallback.
+ * When Redis/BullMQ is disabled (current production flag), public catalog/CMS
+ * responses still get short-lived memory caching so home/orders/notifications
+ * do not pay full DB cost on every request from App Platform.
+ */
 @Injectable()
 export class CacheService {
   private readonly logger = new Logger(CacheService.name);
+  private readonly memory = new Map<string, MemoryEntry>();
+  private readonly memoryMaxEntries = 250;
 
   constructor(private readonly redisService: RedisService) {}
 
   async get<T>(key: string): Promise<T | null> {
-    if (!this.redisService.isEnabled()) {
-      return null;
+    if (this.redisService.isEnabled()) {
+      try {
+        const raw = await this.redisService.getClient().get(key);
+        if (!raw) return null;
+        return JSON.parse(raw) as T;
+      } catch (error) {
+        this.logger.warn(`Cache GET failed for key "${key}": ${String(error)}`);
+        return null;
+      }
     }
-    try {
-      const raw = await this.redisService.getClient().get(key);
-      if (!raw) return null;
-      return JSON.parse(raw) as T;
-    } catch (error) {
-      this.logger.warn(`Cache GET failed for key "${key}": ${String(error)}`);
-      return null;
-    }
+
+    return this.memoryGet<T>(key);
   }
 
   async set(key: string, value: unknown, ttlSeconds: number): Promise<void> {
-    if (!this.redisService.isEnabled()) {
+    if (this.redisService.isEnabled()) {
+      try {
+        await this.redisService
+          .getClient()
+          .set(key, JSON.stringify(value), 'EX', ttlSeconds);
+      } catch (error) {
+        this.logger.warn(`Cache SET failed for key "${key}": ${String(error)}`);
+      }
       return;
     }
-    try {
-      await this.redisService
-        .getClient()
-        .set(key, JSON.stringify(value), 'EX', ttlSeconds);
-    } catch (error) {
-      this.logger.warn(`Cache SET failed for key "${key}": ${String(error)}`);
-    }
+
+    this.memorySet(key, value, ttlSeconds);
   }
 
   async del(key: string): Promise<void> {
-    if (!this.redisService.isEnabled()) {
+    if (this.redisService.isEnabled()) {
+      try {
+        await this.redisService.getClient().del(key);
+      } catch (error) {
+        this.logger.warn(`Cache DEL failed for key "${key}": ${String(error)}`);
+      }
       return;
     }
-    try {
-      await this.redisService.getClient().del(key);
-    } catch (error) {
-      this.logger.warn(`Cache DEL failed for key "${key}": ${String(error)}`);
-    }
+
+    this.memory.delete(key);
   }
 
   async invalidatePattern(pattern: string): Promise<void> {
-    if (!this.redisService.isEnabled()) {
+    if (this.redisService.isEnabled()) {
+      try {
+        const client = this.redisService.getClient();
+        let cursor = '0';
+
+        do {
+          const [nextCursor, keys] = await client.scan(
+            cursor,
+            'MATCH',
+            pattern,
+            'COUNT',
+            100,
+          );
+          cursor = nextCursor;
+
+          if (keys.length > 0) {
+            await client.del(...keys);
+          }
+        } while (cursor !== '0');
+      } catch (error) {
+        this.logger.warn(
+          `Cache invalidate failed for pattern "${pattern}": ${String(error)}`,
+        );
+      }
       return;
     }
-    try {
-      const client = this.redisService.getClient();
-      let cursor = '0';
 
-      do {
-        const [nextCursor, keys] = await client.scan(
-          cursor,
-          'MATCH',
-          pattern,
-          'COUNT',
-          100,
-        );
-        cursor = nextCursor;
-
-        if (keys.length > 0) {
-          await client.del(...keys);
-        }
-      } while (cursor !== '0');
-    } catch (error) {
-      this.logger.warn(
-        `Cache invalidate failed for pattern "${pattern}": ${String(error)}`,
-      );
-    }
+    this.memoryInvalidatePattern(pattern);
   }
 
   /** Call from Admin CMS write paths after Banner/Offer/Category/Product/Video changes. */
@@ -172,5 +192,40 @@ export class CacheService {
 
   async invalidateSupport(customerId: string): Promise<void> {
     await this.invalidatePattern(CACHE_PATTERNS.SUPPORT(customerId));
+  }
+
+  private memoryGet<T>(key: string): T | null {
+    const entry = this.memory.get(key);
+    if (!entry) return null;
+    if (entry.expiresAt <= Date.now()) {
+      this.memory.delete(key);
+      return null;
+    }
+    try {
+      return JSON.parse(entry.value) as T;
+    } catch {
+      this.memory.delete(key);
+      return null;
+    }
+  }
+
+  private memorySet(key: string, value: unknown, ttlSeconds: number): void {
+    if (this.memory.size >= this.memoryMaxEntries) {
+      const oldest = this.memory.keys().next().value;
+      if (oldest) this.memory.delete(oldest);
+    }
+    this.memory.set(key, {
+      value: JSON.stringify(value),
+      expiresAt: Date.now() + Math.max(1, ttlSeconds) * 1000,
+    });
+  }
+
+  private memoryInvalidatePattern(pattern: string): void {
+    const regex = new RegExp(
+      `^${pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*')}$`,
+    );
+    for (const key of [...this.memory.keys()]) {
+      if (regex.test(key)) this.memory.delete(key);
+    }
   }
 }

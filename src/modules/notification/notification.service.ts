@@ -81,15 +81,26 @@ export class NotificationService {
     const cached = await this.cache.get<UnreadCountResponseDto>(cacheKey);
     if (cached) return cached;
 
-    const count = await this.prisma.notification.count({
-      where: {
-        deletedAt: null,
-        isRead: false,
-        OR: [{ isGlobal: true }, { customerId }],
-      },
-    });
+    // Split OR into two index-friendly counts (customer + global).
+    const [customerUnread, globalUnread] = await Promise.all([
+      this.prisma.notification.count({
+        where: {
+          deletedAt: null,
+          isRead: false,
+          customerId,
+          isGlobal: false,
+        },
+      }),
+      this.prisma.notification.count({
+        where: {
+          deletedAt: null,
+          isRead: false,
+          isGlobal: true,
+        },
+      }),
+    ]);
 
-    const result = { count };
+    const result = { count: customerUnread + globalUnread };
     await this.cache.set(cacheKey, result, CACHE_TTL.NOTIFICATION_UNREAD);
     return result;
   }
